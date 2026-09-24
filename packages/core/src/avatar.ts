@@ -30,7 +30,8 @@ export const CLOTH_COLORS = {
   charcoal: '#3b3b44',
 } as const;
 
-export const HAIR_STYLES = ['short', 'long', 'spiky', 'bun'] as const;
+export const HAIR_STYLES = ['spiky', 'long', 'bun', 'bowl'] as const;
+export type HairStyle = (typeof HAIR_STYLES)[number];
 
 const keyOf = <T extends Record<string, string>>(palette: T) =>
   z.enum(Object.keys(palette) as [keyof T & string, ...(keyof T & string)[]]);
@@ -47,7 +48,7 @@ export type Avatar = z.infer<typeof avatarSchema>;
 
 export const DEFAULT_AVATAR: Avatar = {
   skin: 'peach',
-  hairStyle: 'short',
+  hairStyle: 'spiky',
   hairColor: 'brown',
   shirt: 'green',
   pants: 'blue',

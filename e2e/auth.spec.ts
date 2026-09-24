@@ -41,7 +41,7 @@ test('server validation errors appear next to the field', async ({ page }) => {
     data: {
       username: name,
       password: 'correct horse',
-      avatar: { skin: 'tan', hairStyle: 'short', hairColor: 'black', shirt: 'red', pants: 'blue' },
+      avatar: { skin: 'tan', hairStyle: 'spiky', hairColor: 'black', shirt: 'red', pants: 'blue' },
     },
   });
   await page.context().clearCookies();

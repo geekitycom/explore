@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Art gallery</title>
+    <style>
+      body {
+        margin: 16px;
+        background: #26222a;
+        color: #e8e2d8;
+        font:
+          14px/1.4 system-ui,
+          sans-serif;
+      }
+      h2 {
+        margin: 24px 0 8px;
+        font-size: 16px;
+      }
+      canvas {
+        image-rendering: pixelated;
+        display: block;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      figure {
+        margin: 0;
+      }
+      figcaption {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gallery"></div>
+    <script type="module" src="/src/art/gallery.ts"></script>
+  </body>
+</html>
