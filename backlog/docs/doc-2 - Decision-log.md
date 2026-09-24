@@ -1,0 +1,49 @@
+---
+id: doc-2
+title: Decision log
+type: other
+created_date: '2026-09-24 21:28'
+updated_date: '2026-09-24 21:28'
+---
+# Decision log
+
+One entry per decision. Product calls came from Andrew on 2026-09-24. Technical calls were made by Claude and can be revisited. Backlog decision records only take a title from the CLI, so the rationale is kept here.
+
+## D1. Art comes from CC0 packs (product, 2026-09-24)
+Use openly licensed CC0 pixel art for terrain, features, and characters. License files are kept in the repo next to the assets. Transition tiles are generated from base textures with corner masks when a pack lacks them.
+
+## D2. SQLite on a single node (product, 2026-09-24)
+One Node process with a SQLite file. Presence is in memory. Screen creation needs no locking because SQLite access is synchronous in one process.
+
+## D3. Username and password accounts (product, 2026-09-24)
+Unique case-insensitive username, scrypt-hashed password, cookie session. No email.
+
+## D4. Avatars built from parts and colors (product, 2026-09-24)
+Signup includes choosing skin, hair style, hair color, shirt color, and pants color. The sprite is composited from layers with a 4-direction walk animation.
+
+## D5. Hand-built secret garden at (0,0) with openings on all four sides (product, 2026-09-24)
+
+## D6. Returning players resume at their last position (product, 2026-09-24)
+
+## D7. The world is unbounded (product, 2026-09-24)
+
+## D8. pnpm monorepo with core, server, and web packages (technical)
+`@explore/core` holds all pure game logic so server validation and client prediction share one collision and world model. Server runs TypeScript directly on Node 24 type stripping (`erasableSyntaxOnly`), so it has no build step. The web client builds with Vite.
+
+## D9. Terrain on the corner lattice (technical)
+Storing terrain per corner instead of per tile makes seam matching exact: neighbors share lattice points. It also makes transition tiles a pure function of four corners, which is the standard layered autotile technique. Rejected: per-tile terrain with stored transition tiles, which needs a separate edge-matching rule and a transition solver.
+
+## D10. Constraint-conditioned generation instead of a global noise field (technical)
+A single global noise function would match seams for free, but it cannot honor the hand-built garden or future hand-built screens, and it isn't what "each screen designed mostly randomly" describes. Each screen gets a random seed, and existing neighbors constrain it.
+
+## D11. Connectivity repair guarantees no screen traps a player (technical)
+All walkable edge tiles of a generated screen join one component. When crossing an edge lands on a blocked tile, the server nudges the player along the edge to the nearest walkable tile.
+
+## D12. Server-authoritative screens, client-predicted movement (technical)
+The client moves locally for responsiveness and streams positions. The server checks each against core collision and a speed cap and sends a correction on failure. Only the server decides screen transitions.
+
+## D13. Canvas 2D without a game engine (technical)
+One screen at a time with a few dozen sprites does not need Phaser or Pixi. Plain Canvas 2D keeps the bundle small and the render path readable.
+
+## D14. Tooling (technical)
+ESLint flat config with typescript-eslint type-checked rules, Prettier, Vitest, GitHub Actions CI (lint, format check, typecheck, test, build), and release-please in manifest mode with one root release for the app. Conventional commits drive versioning.

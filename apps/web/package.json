@@ -1,0 +1,17 @@
+{
+  "name": "@explore/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@explore/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^8.3.0"
+  }
+}

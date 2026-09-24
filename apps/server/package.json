@@ -1,0 +1,18 @@
+{
+  "name": "@explore/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/main.ts",
+    "start": "node src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@explore/core": "workspace:*",
+    "@hono/node-server": "^2.1.1",
+    "@hono/node-ws": "^1.3.1",
+    "hono": "^4.13.8",
+    "zod": "^4.6.5"
+  }
+}

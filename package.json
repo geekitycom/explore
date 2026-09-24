@@ -1,0 +1,30 @@
+{
+  "name": "geekity-explore",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @explore/server --filter @explore/web dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @explore/server start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.6",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.1"
+  }
+}
