@@ -1,9 +1,11 @@
 ---
 id: TASK-6
 title: 'Server world: screen persistence, travel, and multiplayer presence'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-24 21:29'
+updated_date: '2026-09-24 21:43'
 labels: []
 milestone: m-0
 dependencies:
@@ -29,3 +31,9 @@ Persist screens and player positions, create screens on first visit from their n
 - [ ] #5 Reconnecting resumes at the last saved position
 - [ ] #6 Integration tests drive two real WebSocket clients
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Delegated to a subagent in an isolated worktree; protocol defined in packages/core/src/protocol.ts before delegation.
+<!-- SECTION:NOTES:END -->

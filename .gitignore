@@ -8,3 +8,4 @@ coverage/
 .env
 .DS_Store
 .claude/worktrees/
+e2e/.results/
