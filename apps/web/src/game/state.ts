@@ -52,7 +52,11 @@ export function applyMessage(state: GameState, message: ServerMessage): GameStat
       };
     }
     case 'correct':
-      return { ...state, you: { ...state.you, x: message.x, y: message.y, moving: false } };
+      return {
+        ...state,
+        phase: 'playing',
+        you: { ...state.you, x: message.x, y: message.y, moving: false },
+      };
   }
 }
 

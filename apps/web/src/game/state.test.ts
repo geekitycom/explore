@@ -44,6 +44,16 @@ describe('applyMessage', () => {
     );
   });
 
+  test('a correction ends a refused travel', () => {
+    const playingState = playing();
+    if (playingState.phase === 'connecting') throw new Error('unreachable');
+    const state = applyMessage(
+      { ...playingState, phase: 'travelling' },
+      { t: 'correct', x: 1, y: 2 },
+    );
+    expect(state.phase).toBe('playing');
+  });
+
   test('a correction snaps your position back', () => {
     const state = applyMessage(playing(), { t: 'correct', x: 10, y: 20 });
     if (state.phase === 'connecting') throw new Error('unreachable');
