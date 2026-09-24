@@ -1,10 +1,14 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { avatarSchema } from '@explore/core';
+import { createNodeWebSocket } from '@hono/node-ws';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
+import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { z } from 'zod';
 import { hashPassword, rejectUnknownUser, verifyPassword } from './password.ts';
+import type { Game } from './play.ts';
+import type { Player } from './presence.ts';
 import {
   createSession,
   deleteSession,
@@ -13,6 +17,8 @@ import {
   sessionUser,
 } from './sessions.ts';
 import { findUserCredentials, insertUser, updateAvatar, type User } from './users.ts';
+
+type Env = { Variables: { user: User } };
 
 class ApiError extends Error {
   readonly status: ContentfulStatusCode;
@@ -57,9 +63,11 @@ async function parseBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.
 
 export function createApp({
   db,
+  game,
   secureCookies = false,
 }: {
   db: DatabaseSync;
+  game: Game;
   secureCookies?: boolean;
 }) {
   const startSession = (c: Context, user: User) => {
@@ -73,7 +81,8 @@ export function createApp({
     });
   };
 
-  const app = new Hono<{ Variables: { user: User } }>();
+  const app = new Hono<Env>();
+  const nodeWs = createNodeWebSocket({ app });
 
   app.onError((error, c) => {
     if (error instanceof ApiError) {
@@ -119,12 +128,14 @@ export function createApp({
     return c.body(null, 204);
   });
 
-  app.use('/api/me/*', async (c, next) => {
+  const requireUser = createMiddleware<Env>(async (c, next) => {
     const user = sessionUser(db, c.req.header('cookie'));
     if (!user) throw new ApiError(401, 'unauthenticated', 'Not logged in');
     c.set('user', user);
     await next();
   });
+
+  app.use('/api/me/*', requireUser);
 
   app.get('/api/me', (c) => c.json({ user: c.get('user') }));
 
@@ -137,5 +148,28 @@ export function createApp({
     throw new ApiError(404, 'not_found', 'No such endpoint');
   });
 
-  return app;
+  app.get(
+    '/ws',
+    requireUser,
+    nodeWs.upgradeWebSocket((c: Context<Env>) => {
+      const user = c.get('user');
+      let player: Player | undefined;
+      return {
+        onOpen(_event, ws) {
+          player = game.connect(user, {
+            send: (message) => ws.send(JSON.stringify(message)),
+            close: (code, reason) => ws.close(code, reason),
+          });
+        },
+        onMessage(event: { data: unknown }) {
+          if (player && typeof event.data === 'string') game.receive(player, event.data);
+        },
+        onClose() {
+          if (player) game.disconnect(player);
+        },
+      };
+    }),
+  );
+
+  return { app, injectWebSocket: nodeWs.injectWebSocket.bind(nodeWs) };
 }

@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-24 21:28'
+updated_date: '2026-09-24 21:55'
 ---
 # Architecture
 
@@ -55,5 +55,5 @@ Transition tiles are derived at render time from the corner lattice, not stored.
 JSON over one WebSocket (`/ws`), authenticated by the session cookie on upgrade, validated with zod at the server boundary.
 
 - Client to server: `move { x, y, dir, moving }` about 10 times a second, and `travel { dir }` when the player walks off an edge.
-- Server to client: `welcome`, `screen { screen, you, others }`, `join`, `leave`, `moved`, and `correct` when the server rejects a position.
+- Server to client: `screen { screen, you, others }` on connect and after every travel, `join`, `leave`, `moved`, and `correct` when the server rejects a position or a travel.
 - The server validates moves against core's collision function and a speed cap. On `travel` it resolves or creates the target screen and places the player at the matching edge position, nudged along the edge to the nearest walkable tile if needed.

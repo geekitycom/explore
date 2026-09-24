@@ -14,6 +14,23 @@ const migrations: readonly string[] = [
     expires_at INTEGER NOT NULL
   );
   CREATE INDEX sessions_user_id ON sessions(user_id);`,
+  `CREATE TABLE screens (
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (sx, sy)
+  );
+  CREATE TABLE player_state (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    dir TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );`,
 ];
 
 export function openDatabase(path: string): DatabaseSync {

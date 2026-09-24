@@ -8,16 +8,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
 import { verifyPassword } from './password.ts';
+import { createGame } from './play.ts';
 import { SESSION_TTL_MS, sessionUser } from './sessions.ts';
 
-type App = ReturnType<typeof createApp>;
+type App = ReturnType<typeof createApp>['app'];
 
 let db: DatabaseSync;
 let app: App;
 
 beforeEach(() => {
   db = openDatabase(':memory:');
-  app = createApp({ db });
+  app = createApp({ db, game: createGame(db) }).app;
 });
 
 afterEach(() => db.close());
@@ -68,7 +69,7 @@ describe('signup', () => {
   });
 
   it('marks the cookie Secure when secure cookies are on', async () => {
-    app = createApp({ db, secureCookies: true });
+    app = createApp({ db, game: createGame(db), secureCookies: true }).app;
     const { res } = await signup();
     expect(res.headers.get('set-cookie')).toMatch(/Secure/);
   });
@@ -242,7 +243,7 @@ describe('storage', () => {
       const path = join(dir, 'test.db');
       openDatabase(path).close();
       const reopened = openDatabase(path);
-      expect(reopened.prepare('PRAGMA user_version').get()).toEqual({ user_version: 1 });
+      expect(reopened.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2 });
       expect(reopened.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
       expect(reopened.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
       reopened.close();

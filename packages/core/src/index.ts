@@ -6,3 +6,4 @@ export * from './rng.ts';
 export * from './generate.ts';
 export * from './garden.ts';
 export * from './protocol.ts';
+export * from './travel.ts';
