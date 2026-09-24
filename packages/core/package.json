@@ -7,7 +7,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json",
+    "preview": "node scripts/preview.ts"
   },
   "dependencies": {
     "zod": "^4.6.5"
