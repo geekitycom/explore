@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-24 21:28'
+updated_date: '2026-09-24 21:41'
 ---
 # Decision log
 
@@ -47,3 +47,12 @@ One screen at a time with a few dozen sprites does not need Phaser or Pixi. Plai
 
 ## D14. Tooling (technical)
 ESLint flat config with typescript-eslint type-checked rules, Prettier, Vitest, GitHub Actions CI (lint, format check, typecheck, test, build), and release-please in manifest mode with one root release for the app. Conventional commits drive versioning.
+
+## D15. Ninja Adventure by pixel-boy is the art source (technical, within D1)
+CC0 1.0 (license text ships in the pack; itch page states CC0). Native 16x16, one artist and palette, and it covers grass, dirt, sand, water, trees, bushes, rocks, flowers, and about 95 characters with 4-direction, 4-frame walks. Rejected: Kenney Tiny Town (no water or sand), Kenney Roguelike Characters (no walk frames), LPC (CC-BY-SA/GPL), Edited 24x32 pack (CC-BY). Puny World is CC0 but a subset of what Ninja Adventure offers.
+
+## D16. Avatar "parts" are base characters, colors are palette swaps (technical, refines D4)
+Ninja Adventure characters are not split into layers. The avatar's hair style picks one of a few base characters with distinct hair silhouettes, and skin, hair, shirt, and pants colors are applied by replacing each base's color roles (with derived shade colors). A true layered set exists (OpenGameArt 24x32 bases) but clashes in style and has a CC-BY provenance question.
+
+## D17. Terrain transitions are built at runtime from fills and corner masks (technical, refines D9)
+The pack's blob autotiles cover only some terrain pairs (no grass and sand) and bake both terrains into one opaque tile, so they cannot stack three terrains in one tile. The client builds 16 corner-mask overlays per terrain from the pack's fill tiles and draws terrains in layer order, with a shore layer for water edges.
