@@ -3,6 +3,9 @@ import type { Screen } from './world.ts';
 
 export const GARDEN_COORD = { sx: 0, sy: 0 } as const;
 
+/** Where new players appear: on the south path, facing the pond. */
+export const GARDEN_SPAWN = { x: 10 * 16, y: 12 * 16 + 10, dir: 'n' } as const;
+
 /** Corner lattice: w water, s sand, d dirt, g grass. */
 const CORNERS = [
   'gggggggggdddggggggggg',
