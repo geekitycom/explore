@@ -22,6 +22,7 @@ export function startGame(user: User, renderer: Renderer, onStatus: (s: GameStat
   let lastSentAt = 0;
 
   const keys = keyboard();
+  Object.assign(window, { exploreState: () => state });
   const conn = connect({
     onMessage: (message) => {
       state = applyMessage(state, message);
@@ -59,7 +60,7 @@ export function startGame(user: User, renderer: Renderer, onStatus: (s: GameStat
   });
 
   return {
-    stop() {
+    stop: () => {
       cancelAnimationFrame(frameId);
       keys.dispose();
       conn.close();

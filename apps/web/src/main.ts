@@ -1,5 +1,8 @@
-import { SKIN_TONES, CLOTH_COLORS, HAIR_COLORS, type Avatar } from '@explore/core';
 import { fetchMe, logout, type User } from './api.ts';
+import { avatarSheet, walkFrameRect } from './art/avatars.ts';
+import { loadArt } from './art/load.ts';
+import { startGame, type GameStatus } from './game/game.ts';
+import { canvasRenderer } from './game/render.ts';
 import { authView, type AuthMode } from './ui/auth.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
@@ -7,20 +10,58 @@ import './style.css';
 
 type View = { kind: 'loading' } | { kind: 'auth'; mode: AuthMode } | { kind: 'game'; user: User };
 
-const root = document.querySelector<HTMLElement>('#app')!;
-
-const drawAvatar: DrawAvatar = (ctx, avatar: Avatar) => {
-  ctx.fillStyle = HAIR_COLORS[avatar.hairColor];
-  ctx.fillRect(4, 1, 8, 3);
-  ctx.fillStyle = SKIN_TONES[avatar.skin];
-  ctx.fillRect(4, 4, 8, 4);
-  ctx.fillStyle = CLOTH_COLORS[avatar.shirt];
-  ctx.fillRect(4, 8, 8, 4);
-  ctx.fillStyle = CLOTH_COLORS[avatar.pants];
-  ctx.fillRect(4, 12, 8, 3);
+const STATUS_TEXT: Record<GameStatus, string> = {
+  connecting: 'Connecting…',
+  open: '',
+  reconnecting: 'Connection lost. Reconnecting…',
+  replaced: 'You opened the game in another tab. This one is paused.',
 };
 
+const root = document.querySelector<HTMLElement>('#app')!;
+root.replaceChildren(h('p', { class: 'loading' }, 'Loading…'));
+const [art, initialUser] = await Promise.all([loadArt(), fetchMe()]);
+
+const drawAvatar: DrawAvatar = (ctx, avatar, dir, frame) => {
+  const src = walkFrameRect(dir, frame);
+  ctx.drawImage(avatarSheet(avatar, art), src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
+};
+
+let stopGame: (() => void) | undefined;
+
+function gameView(user: User) {
+  const canvas = h('canvas', { class: 'game-canvas', 'aria-label': 'Game world' });
+  const status = h('p', { class: 'status', role: 'status' });
+  const view = h(
+    'main',
+    { class: 'game' },
+    h(
+      'header',
+      { class: 'game-bar' },
+      h('span', { class: 'who' }, user.username),
+      status,
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'link',
+          onclick: () => void logout().then(() => show({ kind: 'auth', mode: 'login' })),
+        },
+        'Log out',
+      ),
+    ),
+    h('div', { class: 'stage' }, canvas),
+    h('p', { class: 'hint' }, 'Arrow keys or WASD to walk. Walk off an edge to explore.'),
+  );
+  root.replaceChildren(view);
+  const game = startGame(user, canvasRenderer(canvas, art), (s) => {
+    status.textContent = STATUS_TEXT[s];
+  });
+  stopGame = game.stop;
+}
+
 function show(view: View) {
+  stopGame?.();
+  stopGame = undefined;
   switch (view.kind) {
     case 'loading':
       root.replaceChildren(h('p', { class: 'loading' }, 'Loading…'));
@@ -36,25 +77,9 @@ function show(view: View) {
       );
       return;
     case 'game':
-      root.replaceChildren(
-        h(
-          'main',
-          { class: 'game' },
-          h('p', {}, `Welcome, ${view.user.username}.`),
-          h(
-            'button',
-            {
-              type: 'button',
-              onclick: () => void logout().then(() => show({ kind: 'auth', mode: 'login' })),
-            },
-            'Log out',
-          ),
-        ),
-      );
+      gameView(view.user);
       return;
   }
 }
 
-show({ kind: 'loading' });
-const user = await fetchMe();
-show(user ? { kind: 'game', user } : { kind: 'auth', mode: 'signup' });
+show(initialUser ? { kind: 'game', user: initialUser } : { kind: 'auth', mode: 'signup' });

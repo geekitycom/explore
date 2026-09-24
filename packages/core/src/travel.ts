@@ -27,11 +27,18 @@ const NORTH_OR_SOUTH = {
   depthMax: SCREEN_PX_H - TILE,
 };
 
+/**
+ * How far inside the entry edge a player's feet land, so the whole 16px sprite is on screen.
+ * Entering from the bottom needs no inset because the sprite extends upward from the feet.
+ */
+const INSET_SIDE = TILE / 2;
+const INSET_TOP = TILE - 2;
+
 /** Keyed by the direction walked, so each entry describes the opposite edge of the target. */
 const ENTRY: Record<Dir, Edge> = {
-  e: { ...WEST_OR_EAST, place: (y, d) => ({ x: FEET.halfW + d, y }) },
-  w: { ...WEST_OR_EAST, place: (y, d) => ({ x: SCREEN_PX_W - FEET.halfW - d, y }) },
-  s: { ...NORTH_OR_SOUTH, place: (x, d) => ({ x, y: FEET.up + d }) },
+  e: { ...WEST_OR_EAST, place: (y, d) => ({ x: INSET_SIDE + d, y }) },
+  w: { ...WEST_OR_EAST, place: (y, d) => ({ x: SCREEN_PX_W - INSET_SIDE - d, y }) },
+  s: { ...NORTH_OR_SOUTH, place: (x, d) => ({ x, y: INSET_TOP + d }) },
   n: { ...NORTH_OR_SOUTH, place: (x, d) => ({ x, y: SCREEN_PX_H - FEET.down - d }) },
 };
 

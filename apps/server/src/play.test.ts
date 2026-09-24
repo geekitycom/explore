@@ -270,7 +270,7 @@ describe('world socket', () => {
     alice.send({ t: 'travel', dir: 'w' });
     const back = await nextOf(alice, 'screen');
     expect(back.screen).toEqual(encodeScreen(secretGarden()));
-    expect(back.you).toMatchObject({ x: SCREEN_PX_W - 5, dir: 'w', moving: false });
+    expect(back.you).toMatchObject({ x: SCREEN_PX_W - 8, dir: 'w', moving: false });
   });
 
   it('refuses to travel from away from the edge', async () => {

@@ -10,20 +10,20 @@ const open = uniformScreen();
 describe('arrivalPose', () => {
   test('arrives just inside the opposite edge at the mirrored coordinate, facing the walk', () => {
     expect(arrivalPose(open, 'e', { x: 318, y: 100 })).toEqual({
-      x: 5,
+      x: 8,
       y: 100,
       dir: 'e',
       moving: false,
     });
     expect(arrivalPose(open, 'w', { x: 2, y: 100 })).toEqual({
-      x: SCREEN_PX_W - 5,
+      x: SCREEN_PX_W - 8,
       y: 100,
       dir: 'w',
       moving: false,
     });
     expect(arrivalPose(open, 's', { x: 150, y: 238 })).toEqual({
       x: 150,
-      y: 4,
+      y: 14,
       dir: 's',
       moving: false,
     });
@@ -36,8 +36,8 @@ describe('arrivalPose', () => {
   });
 
   test('clamps a coordinate that was past the corner back onto the screen', () => {
-    expect(arrivalPose(open, 'e', { x: 330, y: -20 })).toMatchObject({ x: 5, y: 4 });
-    expect(arrivalPose(open, 's', { x: 400, y: 250 })).toMatchObject({ x: SCREEN_PX_W - 5, y: 4 });
+    expect(arrivalPose(open, 'e', { x: 330, y: -20 })).toMatchObject({ x: 8, y: 4 });
+    expect(arrivalPose(open, 's', { x: 400, y: 250 })).toMatchObject({ x: SCREEN_PX_W - 5, y: 14 });
   });
 
   test('nudges along the edge to the nearest position that fits', () => {
@@ -46,8 +46,8 @@ describe('arrivalPose', () => {
       [0, 7, 'tree'],
     ]);
     const pose = arrivalPose(blocked, 'e', { x: 318, y: 118 });
-    expect(pose).toEqual({ x: 5, y: 132, dir: 'e', moving: false });
-    expect(canOccupy(blocked, 5, 131)).toBe(false);
+    expect(pose).toEqual({ x: 8, y: 132, dir: 'e', moving: false });
+    expect(canOccupy(blocked, 8, 131)).toBe(false);
   });
 
   test('prefers the closer side when nudging', () => {
@@ -63,7 +63,7 @@ describe('arrivalPose', () => {
       'bush',
     ]);
     const pose = arrivalPose(withFeatures(open, column), 'e', { x: 318, y: 100 });
-    expect(pose).toEqual({ x: 21, y: 100, dir: 'e', moving: false });
+    expect(pose).toEqual({ x: 24, y: 100, dir: 'e', moving: false });
   });
 
   test('always lands where the feet fit on generated screens', () => {

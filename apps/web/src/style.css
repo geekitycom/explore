@@ -207,3 +207,49 @@ legend {
     justify-items: center;
   }
 }
+
+.game {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.game-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 16px;
+  border-bottom: 3px solid var(--ink-soft);
+}
+
+.game-bar .who {
+  font-weight: 600;
+}
+
+.game-bar .status {
+  flex: 1;
+  margin: 0;
+  color: var(--paper-edge);
+}
+
+.stage {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.game-canvas {
+  display: block;
+  border: 3px solid var(--ink-soft);
+}
+
+.hint {
+  margin: 0;
+  padding: 0.5rem 16px;
+  text-align: center;
+  color: var(--paper-edge);
+  font-size: 0.9rem;
+}
