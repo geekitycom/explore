@@ -21,12 +21,19 @@ const { app, injectWebSocket } = createApp({
   secureCookies: process.env.NODE_ENV === 'production',
   trustProxy: process.env.TRUST_PROXY === 'true',
 });
-app.use('*', serveStatic({ root: webDist }));
-app.get('*', serveStatic({ path: join(webDist, 'index.html') }));
+const dev = process.argv.includes('--dev');
+if (!dev) {
+  app.use('*', serveStatic({ root: webDist }));
+  app.get('*', serveStatic({ path: join(webDist, 'index.html') }));
+}
 
 const port = Number(process.env.PORT ?? 3000);
 const server = serve({ fetch: app.fetch, port }, () =>
-  console.log(`listening on http://localhost:${port}`),
+  console.log(
+    dev
+      ? `API listening on http://localhost:${port}. Play at the URL Vite prints.`
+      : `listening on http://localhost:${port}`,
+  ),
 );
 injectWebSocket(server);
 
