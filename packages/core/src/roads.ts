@@ -49,7 +49,7 @@ const DETOUR = 6;
 /** How far a road runs straight out of a fixed exit before it turns. */
 const STUB = 8;
 /** Lattice points this close to a road's centre line are road: three or four points wide. */
-export const ROAD_RADIUS = 1.5;
+const ROAD_RADIUS = 1.5;
 const COST = { water: 30, ford: 10, shore: 2, woods: 3, meander: 3 } as const;
 /** Roads join points at most this many regions apart. */
 const LINK = 1;

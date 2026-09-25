@@ -18,8 +18,9 @@ import {
   SCREEN_H,
   SCREEN_W,
   cornerAt,
-  cornerIndex,
   featureAt,
+  inScreen,
+  tileCorners,
   tileIndex,
   type Biome,
   type Feature,
@@ -31,9 +32,9 @@ import {
 } from './world.ts';
 
 /** Inside its footprint, boundary included, the fields return this screen verbatim. */
-export type Stamp = { readonly screen: Screen };
+type Stamp = { readonly screen: Screen };
 
-export const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
+const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
 
 /**
  * Bumped whenever the generator's output changes. Stored screens record the version that made
@@ -54,7 +55,7 @@ const NO_OLDER: Older = () => undefined;
 /** How many lattice points a new screen takes to blend from an older neighbour's edge to the fields. */
 export const STITCH_REACH = 6;
 
-export const CLEARING_SCREENS = 1.5;
+const CLEARING_SCREENS = 1.5;
 
 const PURPOSE = {
   layer: 0,
@@ -669,7 +670,6 @@ export function landFor(world: World, layer: LayerId): Land {
   return landOf(fieldsOf(world, layer));
 }
 
-/** The layer's roads and points of interest. */
 export function networkOf(world: World, layer: LayerId): Network {
   return fieldsOf(world, layer).network;
 }
@@ -714,7 +714,7 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
     for (let tx = 0; tx < SCREEN_W; tx++) {
       const gtx = x0 + tx;
       const gty = y0 + ty;
-      const corners = tileCornersOf(draft, tx, ty);
+      const corners = tileCorners(draft, tx, ty);
       const mark = site.plan.landmark(gtx, gty);
       const feature = mark ? landmarkFor(mark, corners) : featureFor(f, gtx, gty, corners);
       const clear = mark ? onRoad : reserved;
@@ -748,25 +748,12 @@ function landmarkFor(mark: Feature, corners: Corners): Feature {
   return BLOCKING_FEATURES.has(mark) || corners.every((t) => GREEN.has(t)) ? mark : 'none';
 }
 
-function tileCornersOf(draft: Draft, tx: number, ty: number): [Terrain, Terrain, Terrain, Terrain] {
-  return [
-    draft.corners[cornerIndex(tx, ty)]!,
-    draft.corners[cornerIndex(tx + 1, ty)]!,
-    draft.corners[cornerIndex(tx, ty + 1)]!,
-    draft.corners[cornerIndex(tx + 1, ty + 1)]!,
-  ];
-}
-
 const STEPS = [
   [1, 0],
   [-1, 0],
   [0, 1],
   [0, -1],
 ] as const;
-
-function inBounds(tx: number, ty: number): boolean {
-  return tx >= 0 && ty >= 0 && tx < SCREEN_W && ty < SCREEN_H;
-}
 
 function components(screen: Screen): number[] {
   const comp = Array<number>(SCREEN_W * SCREEN_H).fill(-1);
@@ -781,7 +768,7 @@ function components(screen: Screen): number[] {
         for (const [sx, sy] of STEPS) {
           const nx = x + sx;
           const ny = y + sy;
-          if (!inBounds(nx, ny) || comp[tileIndex(nx, ny)] !== -1) continue;
+          if (!inScreen(nx, ny) || comp[tileIndex(nx, ny)] !== -1) continue;
           if (!isTileWalkable(screen, nx, ny)) continue;
           comp[tileIndex(nx, ny)] = next;
           stack.push([nx, ny]);
@@ -804,7 +791,7 @@ function largestComponent(screen: Screen): boolean[] {
 }
 
 function waterCorners(draft: Draft, tx: number, ty: number): number {
-  return tileCornersOf(draft, tx, ty).filter((t) => t === 'water').length;
+  return tileCorners(draft, tx, ty).filter((t) => t === 'water').length;
 }
 
 type Cost = (tx: number, ty: number) => number;
@@ -845,7 +832,7 @@ function cheapestPath(
     for (const [sx, sy] of STEPS) {
       const nx = x + sx;
       const ny = y + sy;
-      if (!inBounds(nx, ny)) continue;
+      if (!inScreen(nx, ny)) continue;
       const ni = tileIndex(nx, ny);
       const nd = dist[i]! + stepCost(draft, treeCost, nx, ny);
       if (nd < dist[ni]!) {

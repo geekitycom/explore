@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { avatarSchema, type Avatar } from './avatar.ts';
+import type { Avatar } from './avatar.ts';
 import type { BiomeCell } from './biome.ts';
 import type { ScreenRecord } from './codec.ts';
 import { DIRS, SCREEN_PX_H, SCREEN_PX_W, type Dir } from './world.ts';
@@ -33,16 +33,6 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>;
 export type Pose = { x: number; y: number; dir: Dir; moving: boolean };
 
 export type PlayerView = Pose & { id: number; name: string; avatar: Avatar };
-
-export const playerViewSchema = z.object({
-  id: z.number().int(),
-  name: z.string(),
-  avatar: avatarSchema,
-  x: z.number(),
-  y: z.number(),
-  dir: dirSchema,
-  moving: z.boolean(),
-});
 
 export type ServerMessage =
   | { t: 'screen'; screen: ScreenRecord; patch: BiomeCell; you: Pose; others: PlayerView[] }

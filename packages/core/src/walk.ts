@@ -1,13 +1,4 @@
-import {
-  BLOCKING_FEATURES,
-  SCREEN_PX_H,
-  SCREEN_PX_W,
-  TILE,
-  featureAt,
-  inScreen,
-  tileCorners,
-  type Screen,
-} from './world.ts';
+import { BLOCKING_FEATURES, TILE, featureAt, inScreen, tileCorners, type Screen } from './world.ts';
 
 export function isTileWalkable(screen: Screen, tx: number, ty: number): boolean {
   if (BLOCKING_FEATURES.has(featureAt(screen, tx, ty))) return false;
@@ -35,12 +26,4 @@ export function canOccupy(screen: Screen, x: number, y: number): boolean {
     }
   }
   return true;
-}
-
-export function isOffScreen(x: number, y: number): boolean {
-  return x < 0 || y < 0 || x >= SCREEN_PX_W || y >= SCREEN_PX_H;
-}
-
-export function tileCenter(tx: number, ty: number): { x: number; y: number } {
-  return { x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 + FEET.up / 2 };
 }

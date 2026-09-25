@@ -5,7 +5,9 @@ import {
   LATTICE_W,
   SCREEN_H,
   SCREEN_W,
+  cornerIndex,
   screenKey,
+  tileIndex,
   type Feature,
   type Screen,
   type Terrain,
@@ -24,13 +26,13 @@ export function uniformScreen(terrain: Terrain = 'grass', feature: Feature = 'no
 
 export function withCorners(screen: Screen, points: [number, number, Terrain][]): Screen {
   const corners = [...screen.corners];
-  for (const [cx, cy, t] of points) corners[cy * LATTICE_W + cx] = t;
+  for (const [cx, cy, t] of points) corners[cornerIndex(cx, cy)] = t;
   return { ...screen, corners };
 }
 
 export function withFeatures(screen: Screen, tiles: [number, number, Feature][]): Screen {
   const features = [...screen.features];
-  for (const [tx, ty, f] of tiles) features[ty * SCREEN_W + tx] = f;
+  for (const [tx, ty, f] of tiles) features[tileIndex(tx, ty)] = f;
   return { ...screen, features };
 }
 

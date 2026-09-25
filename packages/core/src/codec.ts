@@ -60,7 +60,7 @@ export const worldSeedSchema = z
 export const SCREEN_RECORD_VERSION = 4;
 
 /** The persisted, versioned form of a screen. One character per lattice point or tile. */
-export const screenRecordSchema = z.object({
+const screenRecordSchema = z.object({
   v: z.literal(SCREEN_RECORD_VERSION),
   layer: layerIdSchema,
   sx: z.number().int(),
@@ -92,12 +92,4 @@ export function decodeScreen(raw: unknown): Screen {
     corners: r.corners,
     features: r.features,
   };
-}
-
-export function terrainFromCode(ch: string): Terrain | undefined {
-  return TERRAIN_BY_CODE.get(ch);
-}
-
-export function featureFromCode(ch: string): Feature | undefined {
-  return FEATURE_BY_CODE.get(ch);
 }

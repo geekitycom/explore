@@ -34,7 +34,7 @@ export type Noise2 = (x: number, y: number) => number;
 const smooth = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
 /** Smoothly interpolated value noise with one random value per integer lattice point, in [0, 1). */
-export function valueNoise(seed: number): Noise2 {
+function valueNoise(seed: number): Noise2 {
   const at = (ix: number, iy: number) => unit(hash4(seed, ix, iy, 0));
   // Successive samples mostly fall in the same cell, so its corners are kept.
   let cellX = NaN;
@@ -55,7 +55,7 @@ export function valueNoise(seed: number): Noise2 {
   };
 }
 
-export type FbmParams = {
+type FbmParams = {
   readonly wavelength: number;
   readonly octaves: number;
   readonly gain?: number;
@@ -83,11 +83,4 @@ export function fbm(
     }
     return sum / total;
   };
-}
-
-export function warped(noise: Noise2, seed: number, amplitude: number, wavelength: number): Noise2 {
-  const dx = fbm(hash4(seed, 1, 0, 0), { wavelength, octaves: 2 });
-  const dy = fbm(hash4(seed, 2, 0, 0), { wavelength, octaves: 2 });
-  return (x, y) =>
-    noise(x + (dx(x, y) - 0.5) * 2 * amplitude, y + (dy(x, y) - 0.5) * 2 * amplitude);
 }

@@ -16,12 +16,12 @@ export const SHADOW: { readonly color: Hex; readonly alpha: number } = {
   alpha: 72,
 };
 
-export const MAX_SPRITE_COLOURS = 8;
+const MAX_SPRITE_COLOURS = 8;
 
 export type StyleRule =
   'off-palette' | 'too-many-colours' | 'partial-alpha' | 'stray-pixel' | 'open-outline';
 
-export type StyleViolation = { readonly rule: StyleRule; readonly x: number; readonly y: number };
+type StyleViolation = { readonly rule: StyleRule; readonly x: number; readonly y: number };
 
 const PALETTE_SET: ReadonlySet<string> = new Set(PALETTE);
 

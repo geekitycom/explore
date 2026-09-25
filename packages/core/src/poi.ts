@@ -29,7 +29,7 @@ export type Land = {
 };
 
 /** One tile of a landmark, as an offset from the tile holding the point's centre. */
-export type Mark = {
+type Mark = {
   readonly dx: number;
   readonly dy: number;
   readonly feature: Feature;
@@ -152,7 +152,7 @@ const PLAIN_GROUND: Readonly<Record<WildBiome, Terrain>> = {
 };
 
 /** Where a road ends at a point of interest. */
-export type Port = {
+type Port = {
   readonly x: number;
   readonly y: number;
   /** A fixed exit faces this way, and its road leaves straight out before turning. */

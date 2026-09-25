@@ -225,7 +225,7 @@ export type BiomeSample = {
 };
 
 /** A site fixed in place, for a hand-built area that needs a known biome around it. */
-export type BiomePin = { readonly x: number; readonly y: number; readonly biome: WildBiome };
+type BiomePin = { readonly x: number; readonly y: number; readonly biome: WildBiome };
 
 export type BiomeField = (x: number, y: number) => BiomeSample;
 
@@ -279,7 +279,6 @@ function biomeOf({ heat, moisture, elevation }: Climate): WildBiome {
   }
 }
 
-/** A per-cell memo keyed by integer cell coordinates. */
 export function cellMemo<T>(make: (cx: number, cy: number) => T): (cx: number, cy: number) => T {
   const rows = new Map<number, Map<number, T>>();
   return (cx, cy) => {
