@@ -16,14 +16,10 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: nproc; lscpu | head -20; node --version
-      - run: node probe/bench.ts $PWD/packages/core/src 4
-      - run: node --cpu-prof --cpu-prof-dir=probe/prof probe/bench.ts $PWD/packages/core/src 3
-      - run: node --single-threaded probe/bench.ts $PWD/packages/core/src 3
-      - uses: actions/upload-artifact@v7
-        with:
-          name: perf-probe
-          path: probe/prof
+      - run: |
+          for i in 1 2 3 4 5 6 7 8; do
+            for v in src probe-sqrt probe-lazy; do node probe/cold.ts $PWD/packages/core/$v; done
+          done
       - run: exit 1
       - run: pnpm lint
       - run: pnpm lint:art
