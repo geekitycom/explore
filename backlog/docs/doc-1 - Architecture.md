@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 13:57'
+updated_date: '2026-09-25 14:34'
 ---
 # Architecture
 
@@ -43,7 +43,7 @@ Guarantee (replacing the old decision-11 wording): every crossing leads on, and 
 
 ## Rendering
 
-Transition tiles are derived at render time from the corner lattice, not stored. Terrains draw in layer order (water, sand, dirt, grass, darkgrass, snow). For each tile, the lowest terrain fills the tile and each higher terrain is drawn through one of 16 corner masks. Each screen's terrain is baked once into an offscreen canvas. Features and players are then drawn y-sorted so tall trees overlap correctly.
+Transition tiles are derived at render time from the corner lattice, not stored. Terrains draw in layer order (water, sand, dirt, grass, darkgrass, snow). Each higher terrain covers the pixels where a field is positive: the bilinear blend of its tile's four corner values, where a corner counts firmer the more its neighbours agree, plus a per-terrain fringe (tufts for grass, gentle waves elsewhere). Edges therefore run smoothly across tiles, like marching squares, instead of stair-stepping. Pixels on a screen's outer edge sample the border line itself, so neighbouring screens draw the seam identically. Each screen's terrain is baked once into an offscreen canvas. Features and players are then drawn y-sorted so tall trees overlap correctly.
 
 ### Animation
 

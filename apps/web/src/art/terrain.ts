@@ -11,7 +11,7 @@ import {
   type Terrain,
 } from '@explore/core';
 import { paint, parseHex, type Pixels, type Rgba } from './color.ts';
-import { cornerMask, edgeDistance, layerRegion } from './mask.ts';
+import { TUFTS, WAVES, cornerMask, edgeDistance, layerRegion, type Fringe } from './mask.ts';
 import { cell, tileHash, type SpriteRef } from './sheets.ts';
 import type { Art } from './load.ts';
 
@@ -27,6 +27,8 @@ type TerrainArt = {
   readonly inner: readonly Ring[];
   /** Bands just outside the edge, drawn over the terrains below, nearest first. */
   readonly outer: readonly Ring[];
+  /** How the edge of the terrain wobbles; see Fringe. */
+  readonly fringe: Fringe;
 };
 
 const ring = (upTo: number, hex: string, alpha = 255): Ring => ({
@@ -46,18 +48,21 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
     decorChance: 0.05,
     inner: [],
     outer: [],
+    fringe: WAVES,
   },
   sand: {
     fills: [cell('floor', 1, 1), cell('floor', 0, 4), cell('floor', 1, 4)],
     decorChance: 0.05,
     inner: [ring(1.5, '#d78b4a'), ring(3.1, '#ffad5d')],
     outer: [ring(1.5, '#965340'), ring(3.1, '#ffffff'), ring(4.1, '#79b8ce')],
+    fringe: WAVES,
   },
   dirt: {
     fills: [cell('floor', 1, 8), cell('floor', 0, 11), cell('floor', 1, 11)],
     decorChance: 0.08,
     inner: [ring(1.2, '#a3754e')],
     outer: [ring(1.2, '#7b473c', 70)],
+    fringe: WAVES,
   },
   grass: {
     fills: [
@@ -68,8 +73,9 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
       cell('floor', 4, 12),
     ],
     decorChance: 0.15,
-    inner: [ring(1.2, '#a8a129')],
-    outer: [ring(1.5, '#4e484a', 70)],
+    inner: [],
+    outer: [ring(1.2, '#a8a129'), ring(2.2, '#4e484a', 50)],
+    fringe: TUFTS,
   },
   darkgrass: {
     fills: [
@@ -80,14 +86,16 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
       cell('floor', 15, 12),
     ],
     decorChance: 0.15,
-    inner: [ring(1.2, '#56864c')],
-    outer: [ring(1.5, '#2a4b3f', 70)],
+    inner: [],
+    outer: [ring(1.2, '#56864c'), ring(2.2, '#2a4b3f', 50)],
+    fringe: TUFTS,
   },
   snow: {
     fills: [cell('floor', 1, 15), cell('floor', 0, 18), cell('floor', 1, 18)],
     decorChance: 0.04,
     inner: [ring(1.2, '#d2c9c9'), ring(2.6, '#f2eaf1')],
     outer: [ring(1.5, '#4a5270', 60)],
+    fringe: WAVES,
   },
 };
 
@@ -95,6 +103,7 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
 export type TerrainTextures = Readonly<Record<Terrain, readonly Uint8ClampedArray[]>>;
 
 const RING_REACH = 5;
+const FRINGES = TERRAINS.map((t) => TERRAIN_ART[t].fringe);
 
 export function fillIndex(
   screen: Screen,
@@ -126,7 +135,8 @@ export function composeTerrain(screen: Screen, textures: TerrainTextures): Pixel
 
   TERRAINS.forEach((terrain, layer) => {
     const art = TERRAIN_ART[terrain];
-    const region = layer === 0 ? undefined : layerRegion(lattice, LATTICE_W, LATTICE_H, layer);
+    const region =
+      layer === 0 ? undefined : layerRegion(lattice, LATTICE_W, LATTICE_H, layer, FRINGES);
     const distance = region && edgeDistance(region, SCREEN_PX_W, SCREEN_PX_H, RING_REACH);
     for (let ty = 0; ty < SCREEN_H; ty++) {
       for (let tx = 0; tx < SCREEN_W; tx++) {

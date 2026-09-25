@@ -42,7 +42,6 @@ import {
 } from './features.ts';
 import { tileHash } from './sheets.ts';
 import { loadArt, type Art } from './load.ts';
-import { OVERLAY_MASKS } from './mask.ts';
 import { bakeTerrain } from './terrain.ts';
 import { butterflies, fishes, twinkles } from './life.ts';
 import { buildScene, drawScene, type Actor } from './scene.ts';
@@ -112,14 +111,6 @@ const CORNER_OFFSETS = [
 ] as const;
 
 function showMasks(art: Art) {
-  const shapes = section('Overlay shapes 0..15 (NW=1, NE=2, SW=4, SE=8)');
-  const ctx = figure(shapes, 'raw masks', 16 * (TILE + 2), TILE, 4);
-  OVERLAY_MASKS.forEach((mask, m) => {
-    const image = ctx.createImageData(TILE, TILE);
-    mask.forEach((v, i) => image.data.set(v ? [240, 230, 200, 255] : [60, 50, 70, 255], i * 4));
-    ctx.putImageData(image, m * (TILE + 2), 0);
-  });
-
   const row = section(
     'Every mask of every terrain over every lower terrain (mask n at row n/4, column n%4)',
   );
@@ -162,6 +153,48 @@ function showWorld(art: Art) {
       art,
     );
   }
+}
+
+/** Four screens around a shared corner, each built from one global lattice function. */
+function drawQuad(
+  ctx: CanvasRenderingContext2D,
+  art: Art,
+  terrainAt: (gx: number, gy: number) => Terrain,
+) {
+  for (const [sx, sy] of CORNER_OFFSETS) {
+    const { corners, features } = blankScreen('grass');
+    for (let cy = 0; cy < LATTICE_H; cy++)
+      for (let cx = 0; cx < LATTICE_W; cx++)
+        corners[cornerIndex(cx, cy)] = terrainAt(sx * SCREEN_W + cx, sy * SCREEN_H + cy);
+    const screen = {
+      coord: { layer: OVERWORLD, sx, sy },
+      biome: 'meadow' as const,
+      corners,
+      features,
+    };
+    ctx.drawImage(bakeTerrain(screen, art), sx * SCREEN_PX_W, sy * SCREEN_PX_H);
+  }
+}
+
+function showEdges(art: Art) {
+  const row = section('Edges: four screens each, seams at the middle lines');
+  const w = SCREEN_PX_W * 2;
+  const h = SCREEN_PX_H * 2;
+  const r = (gx: number, gy: number, cx: number, cy: number) => Math.hypot(gx - cx, gy - cy);
+  drawQuad(figure(row, 'coastline', w, h, 2), art, (gx, gy) => {
+    const d = r(gx, gy, 20, 15) + 1.5 * Math.sin(gx * 0.7) * Math.cos(gy * 0.5);
+    if (gx + gy > 50) return 'water';
+    if (d < 8) return 'water';
+    if (d < 10 || gx + gy > 47) return 'sand';
+    return gx < 8 ? 'darkgrass' : 'grass';
+  });
+  drawQuad(figure(row, 'inland', w, h, 2), art, (gx, gy) => {
+    if (r(gx, gy, 30, 10) < 3.5) return 'snow';
+    if (r(gx, gy, 30, 10) < 7) return 'darkgrass';
+    if (Math.abs(gx - gy * 1.6 - 2) < 2.2) return 'dirt';
+    if (r(gx, gy, 12, 22) < 5.5) return 'sand';
+    return 'grass';
+  });
 }
 
 function showFeatures(art: Art) {
@@ -404,6 +437,7 @@ function showStyle(art: Art) {
 const SECTIONS = {
   style: showStyle,
   masks: showMasks,
+  edges: showEdges,
   world: showWorld,
   features: showFeatures,
   recipes: showRecipes,

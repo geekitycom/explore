@@ -1,37 +1,17 @@
 import { TILE } from '@explore/core';
 
 /**
- * Corner-mask geometry for layered terrain. A tile's mask for a layer has one bit per corner
- * whose terrain is at or above that layer: NW=1, NE=2, SW=4, SE=8.
+ * Terrain edges for layered terrain, drawn the way marching squares draws a contour. For each
+ * layer every lattice corner gets a value, positive when its terrain is at or above the layer
+ * and negative below, firmer the more its neighbours agree. Inside a tile the field is the
+ * bilinear blend of its four corner values plus a small fringe, and the layer covers the pixels
+ * where the field is positive. A corner whose neighbours mostly disagree gives way, so an edge
+ * follows the trend of the terrain around it instead of squaring off at every tile side.
  *
- * Each mask's shape is the positive part of a field summed over the tile's four corners: +w(d)
- * for a corner inside the layer, -w(d) for one outside, where w falls to zero at REACH. A pixel
- * never sees corners of another tile, so the field is continuous across tile borders and every
- * edge crosses a tile side at its midpoint. The falloff turns single corners into rounded blobs
- * and three-corner masks into rounded inner corners.
+ * Seams: a corner on the screen border weighs only its neighbours along that border, which
+ * both screens share, and a screen corner weighs only itself. The pixels on the screen's outer
+ * edge take the field on the border line itself, so neighbouring screens draw them the same.
  */
-export const CORNER_BITS = { nw: 1, ne: 2, sw: 4, se: 8 } as const;
-
-const CORNERS = [
-  [0, 0],
-  [TILE, 0],
-  [0, TILE],
-  [TILE, TILE],
-] as const;
-
-/** Half a pixel short of a tile, so the edge column only sees the two corners on its side. */
-const REACH = TILE - 0.5;
-
-/** Tips a two-corner diagonal saddle toward joining the higher terrain. */
-const BIAS = 0.03;
-
-/**
- * A hand-tuned wobble along each axis, mirrored so a tile's first and last columns see the same
- * value and neighbours stay continuous. It turns straight edges into the pack's ruffled ones.
- */
-const RUFFLE_HALF = [0, 0.03, 0.07, 0.09, 0.07, 0.02, -0.04, -0.07];
-const RUFFLE = [...RUFFLE_HALF, ...RUFFLE_HALF.toReversed()];
-
 export function cornerMask(
   layers: readonly [number, number, number, number],
   layer: number,
@@ -41,55 +21,135 @@ export function cornerMask(
   return mask;
 }
 
-function falloff(d: number): number {
-  const t = 1 - (d / REACH) ** 2;
-  return t > 0 ? t * t : 0;
-}
+/** How firmly a corner holds its terrain when its neighbours outvote it. */
+const FLOOR = 0.4;
 
-function covers(mask: number, x: number, y: number): boolean {
-  const px = x + 0.5;
-  const py = y + 0.5;
-  let f = BIAS + RUFFLE[x]! + RUFFLE[y]!;
-  for (let i = 0; i < 4; i++) {
-    const [cx, cy] = CORNERS[i]!;
-    f += (mask & (1 << i) ? 1 : -1) * falloff(Math.hypot(px - cx, py - cy));
-  }
-  return f > 0;
-}
+/** Tips a two-corner diagonal saddle toward joining the higher terrain. */
+const BIAS = 0.03;
 
-/** The 16 overlay shapes, TILE*TILE bytes each, 1 where the higher terrain covers the pixel. */
-export const OVERLAY_MASKS: readonly Uint8Array[] = Array.from({ length: 16 }, (_, mask) => {
-  const out = new Uint8Array(TILE * TILE);
-  for (let y = 0; y < TILE; y++)
-    for (let x = 0; x < TILE; x++) out[y * TILE + x] = covers(mask, x, y) ? 1 : 0;
-  return out;
-});
+const NEIGHBOURS = [-1, 0, 1].flatMap((dy) =>
+  [-1, 0, 1].map((dx) => [dx, dy, dx !== 0 && dy !== 0 ? 0.5 : 1] as const),
+);
 
 /**
- * Stamps the overlay for `layer` over every tile of a corner lattice (latticeW x latticeH,
- * row-major terrain layer indexes). Returns a pixel region of the tiles it spans.
+ * How far an edge wobbles out (+) or in (-), in pixels, at each pixel along a tile side. It
+ * moves the edge along the field's slope, so it fades where the slope does, at a saddle. The
+ * two ends match so neighbouring tiles meet, and values within 4 keep a tile whose corners are
+ * all outside the layer empty.
+ */
+export type Fringe = readonly number[];
+
+const mirrored = (half: readonly number[]): Fringe => [...half, ...half.toReversed()];
+
+/** A gentle ruffle, as on the pack's sand and dirt edges. */
+export const WAVES = mirrored([0, 0.4, 0.7, 0.9, 0.7, 0.2, -0.4, -0.7]);
+
+/** Short blades poking over the terrain below, as on the pack's grass edges. */
+export const TUFTS = [-1, 0.5, 2, 3.5, 2, 0.5, -1.2, -1.2, 0, 1.6, 3, 1.6, 0, -1, -1.4, -1];
+
+/** Each corner's value for `layer` on a whole screen's lattice (latticeW x latticeH). */
+function cornerValues(
+  lattice: ArrayLike<number>,
+  latticeW: number,
+  latticeH: number,
+  layer: number,
+): Float32Array {
+  const sign = (cx: number, cy: number) => (lattice[cy * latticeW + cx]! >= layer ? 1 : -1);
+  const out = new Float32Array(latticeW * latticeH);
+  for (let cy = 0; cy < latticeH; cy++) {
+    const onRow = cy === 0 || cy === latticeH - 1;
+    for (let cx = 0; cx < latticeW; cx++) {
+      const onColumn = cx === 0 || cx === latticeW - 1;
+      let sum = 0;
+      let total = 0;
+      for (const [dx, dy, w] of NEIGHBOURS) {
+        if ((onColumn && dx !== 0) || (onRow && dy !== 0)) continue;
+        sum += w * sign(cx + dx, cy + dy);
+        total += w;
+      }
+      const own = sign(cx, cy);
+      out[cy * latticeW + cx] = own * Math.max(FLOOR, (own * sum) / total);
+    }
+  }
+  return out;
+}
+
+/**
+ * The pixels of a whole screen's lattice (latticeW x latticeH, row-major terrain layer
+ * indexes) that `layer` covers, 1 where covered. A tile takes the fringe (by terrain layer
+ * index) of the lowest of its terrains at or above the layer: that terrain's edge is the one
+ * that shows, so the layers beneath it share its outline.
  */
 export function layerRegion(
   lattice: ArrayLike<number>,
   latticeW: number,
   latticeH: number,
   layer: number,
+  fringes: readonly Fringe[],
 ): Uint8Array {
+  const values = cornerValues(lattice, latticeW, latticeH, layer);
   const w = (latticeW - 1) * TILE;
   const region = new Uint8Array(w * (latticeH - 1) * TILE);
   for (let ty = 0; ty < latticeH - 1; ty++) {
     for (let tx = 0; tx < latticeW - 1; tx++) {
-      const at = (cx: number, cy: number) => lattice[cy * latticeW + cx]!;
-      const mask = cornerMask(
-        [at(tx, ty), at(tx + 1, ty), at(tx, ty + 1), at(tx + 1, ty + 1)],
-        layer,
-      );
-      const shape = OVERLAY_MASKS[mask]!;
+      const index = [
+        ty * latticeW + tx,
+        ty * latticeW + tx + 1,
+        (ty + 1) * latticeW + tx,
+        (ty + 1) * latticeW + tx + 1,
+      ] as const;
+      const corners = index.map((i) => lattice[i]!);
+      const inside = corners.filter((c) => c >= layer);
+      if (inside.length === 0) continue;
+      const fringe = fringes[Math.min(...inside)]!;
+      const [nw, ne, sw, se] = index.map((i) => values[i]!) as [number, number, number, number];
       for (let y = 0; y < TILE; y++) {
-        region.set(shape.subarray(y * TILE, (y + 1) * TILE), (ty * TILE + y) * w + tx * TILE);
+        const v = (y + 0.5) / TILE;
+        const west = nw + (sw - nw) * v;
+        const east = ne + (se - ne) * v;
+        for (let x = 0; x < TILE; x++) {
+          const u = (x + 0.5) / TILE;
+          const across = east - west;
+          const down = sw - nw + (se - ne - sw + nw) * u;
+          const slope = Math.hypot(across, down) || 1;
+          const shift = (down * down * fringe[x]! + across * across * fringe[y]!) / slope;
+          const field = west + across * u + BIAS + shift / TILE;
+          if (field > 0) region[(ty * TILE + y) * w + tx * TILE + x] = 1;
+        }
       }
     }
   }
+
+  const h = (latticeH - 1) * TILE;
+  const onBorder = (a: number, b: number, along: number) => {
+    const inside = [lattice[a]!, lattice[b]!].filter((c) => c >= layer);
+    if (inside.length === 0) return 0;
+    const t = ((along % TILE) + 0.5) / TILE;
+    const slope = values[b]! - values[a]!;
+    const shift = (fringes[Math.min(...inside)]![0]! * Math.abs(slope)) / TILE;
+    return values[a]! + slope * t + BIAS + shift > 0 ? 1 : 0;
+  };
+  const bottom = (latticeH - 1) * latticeW;
+  for (let y = 0; y < h; y++) {
+    const row = Math.floor(y / TILE) * latticeW;
+    region[y * w] = onBorder(row, row + latticeW, y);
+    region[y * w + w - 1] = onBorder(row + latticeW - 1, row + 2 * latticeW - 1, y);
+  }
+  for (let x = 0; x < w; x++) {
+    const column = Math.floor(x / TILE);
+    region[x] = onBorder(column, column + 1, x);
+    region[(h - 1) * w + x] = onBorder(bottom + column, bottom + column + 1, x);
+  }
+
+  // Tiles weigh their fringes a little differently along a shared side, which can strand a
+  // lone pixel there.
+  for (let y = 1; y < h - 1; y++)
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const v = region[i];
+      if (region[i - 1] !== v && region[i + 1] !== v && region[i - w] !== v && region[i + w] !== v)
+        region[i] = 1 - v!;
+    }
   return region;
 }
 
@@ -107,8 +167,9 @@ const offsetsWithin = (reach: number) => {
 /**
  * Distance from each pixel to the nearest pixel on the other side of the region's edge:
  * negative inside, positive outside, Infinity beyond `reach`. Pixels past the image border
- * repeat the border pixel; region edges meet tile sides square-on, so that is a fair guess
- * for the unseen neighbour.
+ * repeat the border pixel. A pixel on the border looks only along the border, which the
+ * neighbouring screen draws the same, so both screens band their shared edge alike; a pixel
+ * in an image corner, shared by four screens, gets no band.
  */
 export function edgeDistance(
   region: Uint8Array,
@@ -119,10 +180,13 @@ export function edgeDistance(
   const offsets = offsetsWithin(reach);
   const out = new Float32Array(w * h);
   for (let y = 0; y < h; y++) {
+    const onRow = y === 0 || y === h - 1;
     for (let x = 0; x < w; x++) {
+      const onColumn = x === 0 || x === w - 1;
       const inside = region[y * w + x]!;
       let d = Infinity;
-      for (const [dx, dy, dist] of offsets) {
+      for (const [dx, dy, dist] of onColumn && onRow ? [] : offsets) {
+        if ((onColumn && dx !== 0) || (onRow && dy !== 0)) continue;
         const nx = Math.min(w - 1, Math.max(0, x + dx));
         const ny = Math.min(h - 1, Math.max(0, y + dy));
         if (region[ny * w + nx] !== inside) {

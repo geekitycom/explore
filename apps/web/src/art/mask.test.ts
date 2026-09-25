@@ -1,73 +1,149 @@
 import { TILE } from '@explore/core';
 import { describe, expect, it } from 'vitest';
-import { CORNER_BITS, OVERLAY_MASKS, cornerMask, edgeDistance, layerRegion } from './mask.ts';
+import { TUFTS, WAVES, cornerMask, edgeDistance, layerRegion, type Fringe } from './mask.ts';
 
-const at = (mask: number, x: number, y: number) => OVERLAY_MASKS[mask]![y * TILE + x];
-const column = (mask: number, x: number) => Array.from({ length: TILE }, (_, y) => at(mask, x, y));
-const row = (mask: number, y: number) => Array.from({ length: TILE }, (_, x) => at(mask, x, y));
-const has = (mask: number, bit: number) => (mask & bit) !== 0;
-const masks = [...Array(16).keys()];
+const W = 9;
+const H = 7;
+const PX_W = (W - 1) * TILE;
+const PX_H = (H - 1) * TILE;
 
-describe('overlay masks', () => {
-  it('draws nothing for mask 0 and a full tile for mask 15', () => {
-    expect(OVERLAY_MASKS[0]!.every((v) => v === 0)).toBe(true);
-    expect(OVERLAY_MASKS[15]!.every((v) => v === 1)).toBe(true);
+const latticeOf = (at: (cx: number, cy: number) => number) =>
+  Array.from({ length: W * H }, (_, i) => at(i % W, Math.floor(i / W)));
+
+let seed = 1;
+const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+const randomLattices = Array.from({ length: 40 }, () => latticeOf(() => Math.floor(random() * 4)));
+
+const fringeSets: Record<string, readonly Fringe[]> = {
+  waves: [WAVES, WAVES, WAVES, WAVES],
+  tufts: [TUFTS, TUFTS, TUFTS, TUFTS],
+  mixed: [WAVES, WAVES, TUFTS, WAVES],
+};
+
+/** For each pixel column, the first row from the top that the region does not cover. */
+const depths = (region: Uint8Array) =>
+  Array.from({ length: PX_W }, (_, x) => {
+    let y = 0;
+    while (y < PX_H && region[y * PX_W + x]) y++;
+    return y;
   });
 
-  it('covers each corner pixel exactly when that corner is set', () => {
-    for (const mask of masks) {
-      expect(at(mask, 0, 0)).toBe(has(mask, CORNER_BITS.nw) ? 1 : 0);
-      expect(at(mask, TILE - 1, 0)).toBe(has(mask, CORNER_BITS.ne) ? 1 : 0);
-      expect(at(mask, 0, TILE - 1)).toBe(has(mask, CORNER_BITS.sw) ? 1 : 0);
-      expect(at(mask, TILE - 1, TILE - 1)).toBe(has(mask, CORNER_BITS.se) ? 1 : 0);
-    }
+describe('layerRegion', () => {
+  it('covers the pixel at each corner of every tile exactly when that corner is in the layer', () => {
+    for (const [name, fringes] of Object.entries(fringeSets))
+      for (const lattice of randomLattices)
+        for (let layer = 1; layer <= 3; layer++) {
+          const region = layerRegion(lattice, W, H, layer, fringes);
+          for (let cy = 0; cy < H; cy++)
+            for (let cx = 0; cx < W; cx++) {
+              const inside = lattice[cy * W + cx]! >= layer ? 1 : 0;
+              for (const [x, y] of [
+                [cx * TILE - 1, cy * TILE - 1],
+                [cx * TILE, cy * TILE - 1],
+                [cx * TILE - 1, cy * TILE],
+                [cx * TILE, cy * TILE],
+              ] as const) {
+                if (x < 0 || y < 0 || x >= PX_W || y >= PX_H) continue;
+                expect(region[y * PX_W + x], `${name} layer ${layer} at ${x},${y}`).toBe(inside);
+              }
+            }
+        }
   });
 
-  it('agrees with every horizontal neighbour along the shared border', () => {
-    for (const left of masks)
-      for (const right of masks) {
-        if (has(left, CORNER_BITS.ne) !== has(right, CORNER_BITS.nw)) continue;
-        if (has(left, CORNER_BITS.se) !== has(right, CORNER_BITS.sw)) continue;
-        expect(column(left, TILE - 1), `${left} beside ${right}`).toEqual(column(right, 0));
+  it('draws nothing in a tile whose corners are all below the layer', () => {
+    for (const [name, fringes] of Object.entries(fringeSets))
+      for (const lattice of randomLattices) {
+        const region = layerRegion(lattice, W, H, 2, fringes);
+        for (let ty = 0; ty < H - 1; ty++)
+          for (let tx = 0; tx < W - 1; tx++) {
+            const corners = [
+              lattice[ty * W + tx]!,
+              lattice[ty * W + tx + 1]!,
+              lattice[(ty + 1) * W + tx]!,
+              lattice[(ty + 1) * W + tx + 1]!,
+            ] as const;
+            if (cornerMask(corners, 2) !== 0) continue;
+            for (let y = 0; y < TILE; y++)
+              for (let x = 0; x < TILE; x++)
+                expect(region[(ty * TILE + y) * PX_W + tx * TILE + x], name).toBe(0);
+          }
       }
-  });
-
-  it('agrees with every vertical neighbour along the shared border', () => {
-    for (const top of masks)
-      for (const bottom of masks) {
-        if (has(top, CORNER_BITS.sw) !== has(bottom, CORNER_BITS.nw)) continue;
-        if (has(top, CORNER_BITS.se) !== has(bottom, CORNER_BITS.ne)) continue;
-        expect(row(top, TILE - 1), `${top} above ${bottom}`).toEqual(row(bottom, 0));
-      }
-  });
-
-  it('crosses each mixed tile side at its middle', () => {
-    for (const mask of masks) {
-      if (has(mask, CORNER_BITS.nw) === has(mask, CORNER_BITS.ne)) continue;
-      const top = row(mask, 0);
-      const flips = top.findIndex((v, x) => x > 0 && v !== top[x - 1]);
-      expect(Math.abs(flips - TILE / 2), `mask ${mask}`).toBeLessThanOrEqual(1);
-    }
   });
 
   it('has no speckle: every pixel shares a side with a pixel of its own kind', () => {
-    const clamp = (v: number) => Math.min(TILE - 1, Math.max(0, v));
-    for (const mask of masks)
-      for (let y = 0; y < TILE; y++)
-        for (let x = 0; x < TILE; x++) {
-          const v = at(mask, x, y);
-          const same = [
-            [x - 1, y],
-            [x + 1, y],
-            [x, y - 1],
-            [x, y + 1],
-          ].some(([nx, ny]) => {
-            if (nx! < 0 || ny! < 0 || nx! >= TILE || ny! >= TILE)
-              return at(mask, clamp(nx!), clamp(ny!)) === v;
-            return at(mask, nx!, ny!) === v;
-          });
-          expect(same, `mask ${mask} at ${x},${y}`).toBe(true);
+    for (const [name, fringes] of Object.entries(fringeSets))
+      for (const lattice of randomLattices) {
+        const region = layerRegion(lattice, W, H, 2, fringes);
+        for (let y = 1; y < PX_H - 1; y++)
+          for (let x = 1; x < PX_W - 1; x++) {
+            const v = region[y * PX_W + x];
+            const same =
+              region[y * PX_W + x - 1] === v ||
+              region[y * PX_W + x + 1] === v ||
+              region[(y - 1) * PX_W + x] === v ||
+              region[(y + 1) * PX_W + x] === v;
+            expect(same, `${name} at ${x},${y}`).toBe(true);
+          }
+      }
+  });
+
+  it('runs a diagonal coast as a straight line, one pixel per row, not in stairs', () => {
+    for (const k of [9, 10]) {
+      const lattice = latticeOf((cx, cy) => (cx + cy < k ? 1 : 0));
+      const region = layerRegion(lattice, W, H, 1, fringeSets['waves']!);
+      const ends = Array.from({ length: PX_H }, (_, y) => {
+        let x = 0;
+        while (x < PX_W && region[y * PX_W + x]) x++;
+        return x;
+      });
+      for (let y = TILE; y < PX_H - TILE; y++) {
+        const step = ends[y - 1]! - ends[y]!;
+        expect(step, `row ${y} of coast ${k}`).toBeGreaterThanOrEqual(0);
+        expect(step, `row ${y} of coast ${k}`).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it('rounds a shallow slope instead of holding it flat for whole tiles', () => {
+    const lattice = latticeOf((cx, cy) => (cy < 1.5 + cx / 3 ? 1 : 0));
+    const inner = depths(layerRegion(lattice, W, H, 1, fringeSets['waves']!)).slice(TILE, -TILE);
+    const jumps = inner.slice(1).map((d, i) => Math.abs(d - inner[i]!));
+    expect(Math.max(...jumps)).toBeLessThanOrEqual(3);
+  });
+
+  it('tufts a straight grass edge but keeps a straight shore smooth', () => {
+    const lattice = latticeOf((_, cy) => (cy <= 3 ? 1 : 0));
+    const spread = (fringe: Fringe) => {
+      const inner = depths(layerRegion(lattice, W, H, 1, [fringe, fringe])).slice(TILE, -TILE);
+      return Math.max(...inner) - Math.min(...inner);
+    };
+    expect(spread(TUFTS)).toBeGreaterThanOrEqual(3);
+    expect(spread(WAVES)).toBeLessThanOrEqual(2);
+  });
+
+  it('outlines an edge with the fringe of the terrain on its high side', () => {
+    const lattice = latticeOf((_, cy) => (cy <= 3 ? 3 : 1));
+    const fringes = fringeSets['mixed']!;
+    expect(layerRegion(lattice, W, H, 2, fringes)).toEqual(layerRegion(lattice, W, H, 3, fringes));
+  });
+
+  it('draws the same pixels on both sides of a screen seam', () => {
+    for (const [name, fringes] of Object.entries(fringeSets))
+      for (let n = 0; n < 20; n++) {
+        const left = randomLattices[n]!;
+        const other = randomLattices[n + 20]!;
+        const right = latticeOf((cx, cy) =>
+          cx === 0 ? left[cy * W + W - 1]! : other[cy * W + cx]!,
+        );
+        const a = layerRegion(left, W, H, 1, fringes);
+        const b = layerRegion(right, W, H, 1, fringes);
+        const da = edgeDistance(a, PX_W, PX_H, 5);
+        const db = edgeDistance(b, PX_W, PX_H, 5);
+        for (let y = 0; y < PX_H; y++) {
+          expect(a[y * PX_W + PX_W - 1], `${name} row ${y}`).toBe(b[y * PX_W]);
+          expect(da[y * PX_W + PX_W - 1], `${name} row ${y}`).toBe(db[y * PX_W]);
         }
+      }
   });
 });
 
@@ -83,36 +159,20 @@ describe('cornerMask', () => {
   });
 });
 
-describe('layerRegion and edgeDistance', () => {
-  const lattice = [
-    [0, 0, 0],
-    [0, 2, 0],
-    [0, 0, 0],
-  ].flat();
-  const w = 2 * TILE;
-  const region = layerRegion(lattice, 3, 3, 1);
-
-  it('stamps each tile with the overlay for its corners', () => {
-    for (let y = 0; y < TILE; y++)
-      for (let x = 0; x < TILE; x++) {
-        expect(region[y * w + x]).toBe(at(8, x, y));
-        expect(region[y * w + TILE + x]).toBe(at(4, x, y));
-        expect(region[(TILE + y) * w + x]).toBe(at(2, x, y));
-        expect(region[(TILE + y) * w + TILE + x]).toBe(at(1, x, y));
-      }
-  });
+describe('edgeDistance', () => {
+  const lattice = latticeOf((cx, cy) => (cx >= 3 && cx <= 5 && cy >= 2 && cy <= 4 ? 2 : 0));
+  const region = layerRegion(lattice, W, H, 1, fringeSets['waves']!);
 
   it('measures inside as negative and outside as positive distance to the edge', () => {
-    const distance = edgeDistance(region, w, w, 4);
-    const centre = TILE * w + TILE;
+    const distance = edgeDistance(region, PX_W, PX_H, 4);
+    const centre = 3 * TILE * PX_W + 4 * TILE;
     expect(region[centre]).toBe(1);
     expect(distance[centre]).toBeLessThan(-4);
-    expect(distance[0]).toBe(Infinity);
+    expect(distance[PX_W + 1]).toBe(Infinity);
     for (let i = 0; i < region.length; i++) {
       if (!Number.isFinite(distance[i])) continue;
       expect(Math.sign(distance[i]!)).toBe(region[i] ? -1 : 1);
     }
-    const boundary = [...distance].filter((d) => Math.abs(d) === 1).length;
-    expect(boundary).toBeGreaterThan(0);
+    expect([...distance].filter((d) => Math.abs(d) === 1).length).toBeGreaterThan(0);
   });
 });

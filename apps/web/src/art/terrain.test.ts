@@ -3,6 +3,7 @@ import {
   LATTICE_W,
   OVERWORLD,
   PALETTE,
+  SCREEN_PX_H,
   SCREEN_PX_W,
   SCREEN_H,
   SCREEN_W,
@@ -34,6 +35,10 @@ const solid = (hex: string) => {
 
 const textures = Object.fromEntries(
   TERRAINS.map((t) => [t, TERRAIN_ART[t].fills.map((_, i) => solid(i === 0 ? PLAIN[t] : DECOR))]),
+) as unknown as TerrainTextures;
+
+const plainTextures = Object.fromEntries(
+  TERRAINS.map((t) => [t, TERRAIN_ART[t].fills.map(() => solid(PLAIN[t]))]),
 ) as unknown as TerrainTextures;
 
 function screenOf(terrainAt: (cx: number, cy: number) => Terrain): Screen {
@@ -124,6 +129,25 @@ describe('composeTerrain', () => {
       for (let x = 0; x < SCREEN_PX_W; x++) {
         expect(pixels[(y * SCREEN_PX_W + x) * 4 + 3], pair).toBe(255);
       }
+    }
+  }, 20_000);
+
+  it('draws the same pixels on both sides of every seam, for every terrain', () => {
+    const mix = (salt: number) => (cx: number, cy: number) =>
+      TERRAINS[Math.floor(Math.abs(Math.sin(cx * 12.9898 + cy * 78.233 + salt)) * 97) % 6]!;
+    for (const salt of [1, 2]) {
+      const here = screenOf(mix(salt));
+      const east = screenOf((cx, cy) =>
+        cx === 0 ? mix(salt)(LATTICE_W - 1, cy) : mix(salt + 9)(cx, cy),
+      );
+      const south = screenOf((cx, cy) =>
+        cy === 0 ? mix(salt)(cx, LATTICE_H - 1) : mix(salt + 5)(cx, cy),
+      );
+      const [a, b, c] = [here, east, south].map((s) => composeTerrain(s, plainTextures));
+      for (let y = 0; y < SCREEN_PX_H; y++)
+        expect(hexAt(a!, SCREEN_PX_W - 1, y), `east seam row ${y}`).toBe(hexAt(b!, 0, y));
+      for (let x = 0; x < SCREEN_PX_W; x++)
+        expect(hexAt(a!, x, SCREEN_PX_H - 1), `south seam column ${x}`).toBe(hexAt(c!, x, 0));
     }
   }, 20_000);
 
