@@ -15,8 +15,8 @@ const MOUTH_WIDTH = 2.1;
 const POND_RADIUS = [2.5, 4] as const;
 const POINTS = 64;
 const BENDS = 7;
-/** Past this distance from a river's box, its depth is only a bound, which no caller looks beyond. */
-const FAR = 24;
+/** Water depth below -FAR is only an upper bound, which no caller looks beyond. */
+export const FAR = 24;
 
 /**
  * An open curve of water from a spring to a pond, its half-width growing downstream. Rivers never

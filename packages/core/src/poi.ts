@@ -15,7 +15,10 @@ import {
 export type Land = {
   readonly seed: number;
   readonly biome: BiomeField;
-  /** How far inside a lake's or a river's water a point is, in lattice units; negative on land. */
+  /**
+   * How far inside a lake's or a river's water a point is, in lattice units; negative on land.
+   * Below -FAR (rivers.ts) it is only an upper bound.
+   */
   readonly waterDepth: (x: number, y: number) => number;
   /** The same, for river water alone, which a road may ford. */
   readonly riverDepth: (x: number, y: number) => number;

@@ -8,7 +8,7 @@ import {
 import { secretGarden } from './garden.ts';
 import { fbm, hash4, hashString, unit, type Noise2 } from './noise.ts';
 import type { Land } from './poi.ts';
-import { RIVER_CELL_H, RIVER_CELL_W, riverDepth, riverField, type River } from './rivers.ts';
+import { FAR, RIVER_CELL_H, RIVER_CELL_W, riverDepth, riverField, type River } from './rivers.ts';
 import { roadNetwork, type Box, type Network, type Plan } from './roads.ts';
 import { isTileWalkable } from './walk.ts';
 import {
@@ -350,8 +350,9 @@ function riverDepthAt(f: LandFields, x: number, y: number): number {
   return depth;
 }
 
+/** Lakes that cannot reach -FAR here are skipped, as rivers are. */
 function waterDepth(f: LandFields, x: number, y: number): number {
-  let depth = riverDepthAt(f, x, y);
+  let depth = Math.max(riverDepthAt(f, x, y), -FAR);
   for (const lake of f.lakes(Math.floor(x / LAKE_CELL_W), Math.floor(y / LAKE_CELL_H))) {
     depth = lakeDepth(lake, x, y, depth);
   }
