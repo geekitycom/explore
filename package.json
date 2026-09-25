@@ -16,7 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run",
+    "test": "vitest run --exclude '**/*.perf.test.ts' && vitest run perf.test",
     "test:watch": "vitest",
     "e2e": "playwright test",
     "world:wipe": "pnpm --filter @explore/server world:wipe",
