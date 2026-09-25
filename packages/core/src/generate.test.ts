@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { GARDEN_COORD, secretGarden } from './garden.ts';
-import { crossingTiles, generateScreen } from './generate.ts';
+import {
+  STITCH_REACH,
+  crossingTiles,
+  fieldTerrain,
+  generateScreen,
+  type Older,
+} from './generate.ts';
 import { createRng } from './rng.ts';
 import { generateRegion, worldOf, type Region } from './testing.ts';
 import { isTileWalkable } from './walk.ts';
@@ -237,6 +243,125 @@ describe.each(SEEDS)('a world with seed %i', (seed) => {
   test('reaches every screen of the region from the garden on foot', () => {
     const reached = reachableScreens(world, screens);
     expect([...screens.keys()].filter((k) => !reached.has(k))).toEqual([]);
+  });
+});
+
+/**
+ * Screens an older generator left behind, stood in for by another world's screens with their
+ * land turned to snow: they agree among themselves, touch the garden at its corner, and match
+ * nothing this world's fields would make.
+ */
+const OLD_BLOCK: Region = { x0: 1, y0: 1, w: 3, h: 3 };
+
+function mixedWorld(seed: number) {
+  const world = worldOf(seed);
+  // Points on the garden's own lattice stay, since stored screens always agree with the garden.
+  const snowed = (s: Screen): Screen => ({
+    ...s,
+    corners: s.corners.map((t, i) => {
+      const gx = s.coord.sx * SCREEN_W + (i % LATTICE_W);
+      const gy = s.coord.sy * SCREEN_H + Math.floor(i / LATTICE_W);
+      const onGarden = gx >= 0 && gx <= SCREEN_W && gy >= 0 && gy <= SCREEN_H;
+      return t === 'water' || onGarden ? t : 'snow';
+    }),
+  });
+  const stored = new Map<string, Screen>(
+    [...generateRegion(worldOf(seed + 1), OLD_BLOCK)].map(([key, s]) => [key, snowed(s)]),
+  );
+  const older: Older = (coord) => stored.get(screenKey(coord));
+  const screens = new Map(stored);
+  for (let sy = REGION.y0; sy < REGION.y0 + REGION.h; sy++) {
+    for (let sx = REGION.x0; sx < REGION.x0 + REGION.w; sx++) {
+      const coord = { layer: OVERWORLD, sx, sy };
+      if (!stored.has(screenKey(coord)))
+        screens.set(screenKey(coord), generateScreen(world, coord, older));
+    }
+  }
+  return { world, stored, older, screens };
+}
+
+describe.each(SEEDS)('next to older screens, a world with seed %i', (seed) => {
+  const { world, stored, older, screens } = mixedWorld(seed);
+  const isNew = (s: Screen) => !stored.has(screenKey(s.coord));
+
+  test('copies every lattice point it shares with them, and new screens still agree with each other', () => {
+    expect(seamMismatches(screens)).toEqual([]);
+  });
+
+  test('dithers from their edge to its own fields over STITCH_REACH points, adding no water', () => {
+    let differing = 0;
+    let held = 0;
+    for (const screen of [...screens.values()].filter(isNew)) {
+      for (const dir of DIRS) {
+        const neighbour = stored.get(screenKey(neighborCoord(screen.coord, dir)));
+        if (!neighbour) continue;
+        const { dx, dy } = DIR_DELTA[dir];
+        const along = dx === 0 ? LATTICE_W : LATTICE_H;
+        // Lattice x or y in this screen at `depth` points in from the seam with the neighbour.
+        const inward = (depth: number) =>
+          dx > 0 ? SCREEN_W - depth : dx < 0 ? depth : dy > 0 ? SCREEN_H - depth : depth;
+        for (let i = 2; i < along - 2; i++) {
+          const at = (depth: number): [number, number] =>
+            dx === 0 ? [i, inward(depth)] : [inward(depth), i];
+          const field = (depth: number) => {
+            const [cx, cy] = at(depth);
+            const gx = screen.coord.sx * SCREEN_W + cx;
+            const gy = screen.coord.sy * SCREEN_H + cy;
+            return fieldTerrain(world, OVERWORLD, gx, gy);
+          };
+          const [ex, ey] = at(0);
+          const edge = cornerAt(neighbour, ex - dx * SCREEN_W, ey - dy * SCREEN_H);
+          expect(cornerAt(screen, ...at(0))).toBe(edge);
+          expect(cornerAt(screen, ...at(STITCH_REACH))).toBe(field(STITCH_REACH));
+          const got = cornerAt(screen, ...at(1));
+          if (got === 'water') expect(field(1)).toBe('water');
+          if (edge === field(1)) continue;
+          differing++;
+          if (got === (edge === 'water' ? 'sand' : edge)) held++;
+        }
+      }
+    }
+    expect(differing).toBeGreaterThan(20);
+    expect(held / differing).toBeGreaterThan(0.6);
+  });
+
+  test('opens onto the whole walkable edge of their main land, so every screen is reached from the garden', () => {
+    const reached = reachableScreens(world, screens);
+    expect([...screens.keys()].filter((k) => !reached.has(k))).toEqual([]);
+    const blocked: string[] = [];
+    let openings = 0;
+    for (const screen of [...screens.values()].filter(isNew)) {
+      for (const dir of DIRS) {
+        const other = stored.get(screenKey(neighborCoord(screen.coord, dir)));
+        if (!other) continue;
+        const walk = components((tx, ty) => isTileWalkable(other, tx, ty));
+        const sizes = new Map<number, number>();
+        for (const id of walk) if (id !== -1) sizes.set(id, (sizes.get(id) ?? 0) + 1);
+        const main = [...sizes].sort((a, b) => b[1] - a[1])[0]![0];
+        for (const tile of edgeTiles(dir)) {
+          const [ox, oy] = facing(dir, tile);
+          if (walk[oy * SCREEN_W + ox] !== main || !terrainWalkable(screen, ...tile)) continue;
+          if (isTileWalkable(screen, ...tile)) openings++;
+          else blocked.push(`${screenKey(screen.coord)} ${dir} ${tile.join(',')}`);
+        }
+      }
+    }
+    expect(blocked).toEqual([]);
+    expect(openings).toBeGreaterThan(24);
+  });
+
+  test('joins every walkable pocket of a new screen to a crossing', () => {
+    const stranded: string[] = [];
+    for (const screen of [...screens.values()].filter(isNew)) {
+      const walk = components((tx, ty) => isTileWalkable(screen, tx, ty));
+      const reached = new Set(
+        crossingTiles(world, screen.coord, older).map(([tx, ty]) => walk[ty * SCREEN_W + tx]),
+      );
+      for (const id of new Set(walk)) {
+        if (id !== -1 && !reached.has(id)) stranded.push(`${screenKey(screen.coord)} ${id}`);
+      }
+    }
+    expect(stranded).toEqual([]);
   });
 });
 

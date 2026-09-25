@@ -1,6 +1,7 @@
 import type { Pose } from './protocol.ts';
 import { FEET, canOccupy, isTileWalkable } from './walk.ts';
 import {
+  DIR_DELTA,
   SCREEN_H,
   SCREEN_PX_H,
   SCREEN_PX_W,
@@ -52,6 +53,23 @@ const ENTRY: Record<Dir, Edge> = {
   s: { ...NORTH_OR_SOUTH, place: (x, d) => ({ x, y: INSET_TOP + d }) },
   n: { ...NORTH_OR_SOUTH, place: (x, d) => ({ x, y: SCREEN_PX_H - FEET.down - d }) },
 };
+
+/**
+ * The tiles of `to`'s entry edge a player walking `dir` off `from` can step onto: walkable on
+ * both sides of the seam. Read from the two screens as stored, so it holds however each was made.
+ */
+export function seamOpenings(from: Screen, to: Screen, dir: Dir): [number, number][] {
+  const { dx, dy } = DIR_DELTA[dir];
+  const entry: [number, number][] =
+    dx === 0
+      ? Array.from({ length: SCREEN_W }, (_, tx) => [tx, dy > 0 ? 0 : SCREEN_H - 1])
+      : Array.from({ length: SCREEN_H }, (_, ty) => [dx > 0 ? 0 : SCREEN_W - 1, ty]);
+  return entry.filter(
+    ([tx, ty]) =>
+      isTileWalkable(to, tx, ty) &&
+      isTileWalkable(from, tx + dx * (SCREEN_W - 1), ty + dy * (SCREEN_H - 1)),
+  );
+}
 
 /** Arrivals are kept to these so a nudge along an edge never strands a player in a pocket. */
 function reachableFrom(screen: Screen, entries: readonly [number, number][]): boolean[] {

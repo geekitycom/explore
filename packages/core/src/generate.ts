@@ -28,9 +28,22 @@ export const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
 
 /**
  * Bumped whenever the generator's output changes. Stored screens record the version that made
- * them and are kept as they are, so a bump never invalidates a world.
+ * them and are kept as they are, so a bump never invalidates a world: a new screen copies the
+ * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
+ * points, and opens onto that neighbour's walkable edge (decision D23).
  */
 export const GENERATOR_VERSION = 1;
+
+/**
+ * Looks up a stored screen that an older generator made; undefined for a screen the current
+ * generator made or that is not stored. A new screen keeps such a neighbour's shared edge.
+ */
+export type Older = (coord: ScreenCoord) => Screen | undefined;
+
+const NO_OLDER: Older = () => undefined;
+
+/** How many lattice points a new screen takes to blend from an older neighbour's edge to the fields. */
+export const STITCH_REACH = 6;
 
 export const CLEARING_SCREENS = 1.5;
 
@@ -51,6 +64,7 @@ const PURPOSE = {
   sand: 13,
   snow: 14,
   darkgrass: 15,
+  stitch: 16,
 } as const;
 
 /**
@@ -289,6 +303,55 @@ function onTrail(f: Fields, gx: number, gy: number, c: number): boolean {
   return false;
 }
 
+/** The screen being generated: its layer's fields and the stored older screens around it. */
+type Site = { readonly f: Fields; readonly older: readonly Screen[] };
+
+const AROUND = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({ dx, dy })));
+
+/**
+ * Every older stored screen touching the screen at `coord`, in coordinate order so that two new
+ * screens sharing a seam pick the same nearest one.
+ */
+function siteOf(world: World, { layer, sx, sy }: ScreenCoord, older: Older): Site {
+  const around: Screen[] = [];
+  for (const { dx, dy } of AROUND) {
+    if (dx === 0 && dy === 0) continue;
+    const stored = older({ layer, sx: sx + dx, sy: sy + dy });
+    if (stored) around.push(stored);
+  }
+  around.sort((a, b) => a.coord.sy - b.coord.sy || a.coord.sx - b.coord.sx);
+  return { f: fieldsOf(world, layer), older: around };
+}
+
+/**
+ * The terrain at a lattice point, stitched to older neighbours: a point an older screen holds
+ * keeps that screen's value, a stamp's point keeps the stamp's, and within STITCH_REACH of an
+ * older screen the fields' value is dithered with the nearest held value, so the join is a band
+ * rather than a line. Water is never added in the band (sand stands in for it), so the land
+ * stays as connected as the fields made it. The result depends only on the point and the older
+ * screens within reach, which two new screens sharing a seam both see, so they agree on it.
+ */
+function siteTerrain({ f, older }: Site, gx: number, gy: number): Terrain {
+  let nearest: { screen: Screen; x: number; y: number; d: number } | undefined;
+  for (const screen of older) {
+    const x = Math.min(Math.max(gx - screen.coord.sx * SCREEN_W, 0), SCREEN_W);
+    const y = Math.min(Math.max(gy - screen.coord.sy * SCREEN_H, 0), SCREEN_H);
+    const d = Math.max(
+      Math.abs(gx - screen.coord.sx * SCREEN_W - x),
+      Math.abs(gy - screen.coord.sy * SCREEN_H - y),
+    );
+    if (!nearest || d < nearest.d) nearest = { screen, x, y, d };
+  }
+  if (nearest?.d === 0) return cornerAt(nearest.screen, nearest.x, nearest.y);
+  const field = terrainAt(f, gx, gy);
+  if (!nearest || nearest.d >= STITCH_REACH || stampCorner(f, gx, gy)) return field;
+  const held = cornerAt(nearest.screen, nearest.x, nearest.y);
+  if (held === field) return field;
+  const t = unit(hash4(f.seed, PURPOSE.stitch, gx, gy));
+  const picked = t < 1 - nearest.d / STITCH_REACH ? held : field;
+  return picked === 'water' ? 'sand' : picked;
+}
+
 function terrainAt(f: Fields, gx: number, gy: number): Terrain {
   const stamped = stampCorner(f, gx, gy);
   if (stamped) return stamped;
@@ -317,10 +380,20 @@ type Crossings = {
 
 const CROSSING_WIDTH = 2;
 
-function terrainWalkable(f: Fields, gtx: number, gty: number): boolean {
+function terrainWalkable(site: Site, gtx: number, gty: number): boolean {
   let water = 0;
-  for (const [dx, dy] of CORNER_OFFSETS) if (terrainAt(f, gtx + dx, gty + dy) === 'water') water++;
+  for (const [dx, dy] of CORNER_OFFSETS) {
+    if (siteTerrain(site, gtx + dx, gty + dy) === 'water') water++;
+  }
   return water < 3;
+}
+
+/** A stamp or an older stored screen at (sx, sy), whose edge the new screen must open onto. */
+function fixedAt(site: Site, sx: number, sy: number): Screen | undefined {
+  return (
+    stampAt(site.f, sx, sy)?.screen ??
+    site.older.find((s) => s.coord.sx === sx && s.coord.sy === sy)
+  );
 }
 
 const CORNER_OFFSETS = [
@@ -330,31 +403,51 @@ const CORNER_OFFSETS = [
   [1, 1],
 ] as const;
 
-/** A pure function of the seam, so the screens on both sides agree on it. */
+/**
+ * A pure function of the seam, so the screens on both sides agree on it. Against a fixed screen
+ * (a stamp or an older stored neighbour) the crossing is every tile of that screen's main land
+ * that is walkable on its side and open by terrain on ours, so the new screen opens onto all of
+ * the old one's edge.
+ */
 function crossing(
-  f: Fields,
+  site: Site,
   axis: 'v' | 'h',
   at: number,
   along: number,
   length: number,
   purpose: number,
 ): Crossing {
+  const { f } = site;
+  const base = along * length;
+  // Global tiles either side of the seam: `before` is west or north of it, `after` east or south.
+  const beforeTile = (i: number): [number, number] =>
+    axis === 'v' ? [at * SCREEN_W - 1, base + i] : [base + i, at * SCREEN_H - 1];
+  const afterTile = (i: number): [number, number] =>
+    axis === 'v' ? [at * SCREEN_W, base + i] : [base + i, at * SCREEN_H];
   const [before, after] =
     axis === 'v'
-      ? [stampAt(f, at - 1, along), stampAt(f, at, along)]
-      : [stampAt(f, along, at - 1), stampAt(f, along, at)];
-  const ports = (stamp: Stamp, tile: (i: number) => [number, number]) =>
-    Array.from({ length }, (_, i) => i).filter((i) => isTileWalkable(stamp.screen, ...tile(i)));
-  if (before) return ports(before, (i) => (axis === 'v' ? [SCREEN_W - 1, i] : [i, SCREEN_H - 1]));
-  if (after) return ports(after, (i) => (axis === 'v' ? [0, i] : [i, 0]));
+      ? [fixedAt(site, at - 1, along), fixedAt(site, at, along)]
+      : [fixedAt(site, along, at - 1), fixedAt(site, along, at)];
+  const ports = (
+    fixed: Screen,
+    fixedTile: (i: number) => [number, number],
+    newTile: (i: number) => [number, number],
+  ) => {
+    const main = largestComponent(fixed);
+    return Array.from({ length }, (_, i) => i).filter((i) => {
+      const [tx, ty] = fixedTile(i);
+      return main[tileIndex(tx, ty)] && terrainWalkable(site, ...newTile(i));
+    });
+  };
+  if (before) {
+    const edge = (i: number): [number, number] =>
+      axis === 'v' ? [SCREEN_W - 1, i] : [i, SCREEN_H - 1];
+    return ports(before, edge, afterTile);
+  }
+  if (after) return ports(after, (i) => (axis === 'v' ? [0, i] : [i, 0]), beforeTile);
 
-  const base = along * length;
   const crossable = (i: number) =>
-    axis === 'v'
-      ? terrainWalkable(f, at * SCREEN_W - 1, base + i) &&
-        terrainWalkable(f, at * SCREEN_W, base + i)
-      : terrainWalkable(f, base + i, at * SCREEN_H - 1) &&
-        terrainWalkable(f, base + i, at * SCREEN_H);
+    terrainWalkable(site, ...beforeTile(i)) && terrainWalkable(site, ...afterTile(i));
   const seam = hash4(f.seed, purpose, at, along);
   const tiles: number[] = [];
   let start = -1;
@@ -374,12 +467,12 @@ function crossing(
   return tiles;
 }
 
-function crossingsOf(f: Fields, sx: number, sy: number): Crossings {
+function crossingsOf(site: Site, sx: number, sy: number): Crossings {
   return {
-    n: crossing(f, 'h', sy, sx, SCREEN_W, PURPOSE.crossingH),
-    s: crossing(f, 'h', sy + 1, sx, SCREEN_W, PURPOSE.crossingH),
-    w: crossing(f, 'v', sx, sy, SCREEN_H, PURPOSE.crossingV),
-    e: crossing(f, 'v', sx + 1, sy, SCREEN_H, PURPOSE.crossingV),
+    n: crossing(site, 'h', sy, sx, SCREEN_W, PURPOSE.crossingH),
+    s: crossing(site, 'h', sy + 1, sx, SCREEN_W, PURPOSE.crossingH),
+    w: crossing(site, 'v', sx, sy, SCREEN_H, PURPOSE.crossingV),
+    e: crossing(site, 'v', sx + 1, sy, SCREEN_H, PURPOSE.crossingV),
   };
 }
 
@@ -392,9 +485,13 @@ function tilesOf(x: Crossings): [number, number][] {
   ];
 }
 
-/** Both sides of every seam agree on these; arrivals are nudged onto tiles connected to one. */
-export function crossingTiles(world: World, coord: ScreenCoord): [number, number][] {
-  return tilesOf(crossingsOf(fieldsOf(world, coord.layer), coord.sx, coord.sy));
+/** Both sides of every seam agree on these, and the screen's repair joins every pocket to one. */
+export function crossingTiles(
+  world: World,
+  coord: ScreenCoord,
+  older: Older = NO_OLDER,
+): [number, number][] {
+  return tilesOf(crossingsOf(siteOf(world, coord, older), coord.sx, coord.sy));
 }
 
 function onCrossing(x: Crossings, tx: number, ty: number): boolean {
@@ -457,7 +554,8 @@ export function fieldFeature(world: World, layer: LayerId, gtx: number, gty: num
   const feature = featureFor(f, gtx, gty, corners);
   const sx = Math.floor(gtx / SCREEN_W);
   const sy = Math.floor(gty / SCREEN_H);
-  const cleared = onCrossing(crossingsOf(f, sx, sy), gtx - sx * SCREEN_W, gty - sy * SCREEN_H);
+  const crossings = crossingsOf({ f, older: [] }, sx, sy);
+  const cleared = onCrossing(crossings, gtx - sx * SCREEN_W, gty - sy * SCREEN_H);
   return BLOCKING_FEATURES.has(feature) && cleared ? 'none' : feature;
 }
 
@@ -474,22 +572,29 @@ export function screenBiome(world: World, { layer, sx, sy }: ScreenCoord): Biome
   return biomeAt(world, layer, (sx + 0.5) * SCREEN_W, (sy + 0.5) * SCREEN_H);
 }
 
+/** The biome the generator records for a screen: a stamp's own, else the fields' at its centre. */
+export function biomeOf(world: World, coord: ScreenCoord): Biome {
+  const stamp = stampAt(fieldsOf(world, coord.layer), coord.sx, coord.sy);
+  return stamp ? stamp.screen.biome : screenBiome(world, coord).biome;
+}
+
 type Draft = { coord: ScreenCoord; biome: Biome; corners: Terrain[]; features: Feature[] };
 
-export function generateScreen(world: World, coord: ScreenCoord): Screen {
+export function generateScreen(world: World, coord: ScreenCoord, older: Older = NO_OLDER): Screen {
   const f = fieldsOf(world, coord.layer);
   const stamp = stampAt(f, coord.sx, coord.sy);
   if (stamp) return stamp.screen;
 
+  const site = siteOf(world, coord, older);
   const x0 = coord.sx * SCREEN_W;
   const y0 = coord.sy * SCREEN_H;
   const corners: Terrain[] = [];
   for (let cy = 0; cy < LATTICE_H; cy++) {
-    for (let cx = 0; cx < LATTICE_W; cx++) corners.push(terrainAt(f, x0 + cx, y0 + cy));
+    for (let cx = 0; cx < LATTICE_W; cx++) corners.push(siteTerrain(site, x0 + cx, y0 + cy));
   }
   const { biome } = screenBiome(world, coord);
   const draft: Draft = { coord, biome, corners, features: [] };
-  const crossings = crossingsOf(f, coord.sx, coord.sy);
+  const crossings = crossingsOf(site, coord.sx, coord.sy);
   for (let ty = 0; ty < SCREEN_H; ty++) {
     for (let tx = 0; tx < SCREEN_W; tx++) {
       const feature = featureFor(f, x0 + tx, y0 + ty, tileCornersOf(draft, tx, ty));
@@ -523,12 +628,12 @@ function inBounds(tx: number, ty: number): boolean {
   return tx >= 0 && ty >= 0 && tx < SCREEN_W && ty < SCREEN_H;
 }
 
-function components(draft: Draft): number[] {
+function components(screen: Screen): number[] {
   const comp = Array<number>(SCREEN_W * SCREEN_H).fill(-1);
   let next = 0;
   for (let ty = 0; ty < SCREEN_H; ty++) {
     for (let tx = 0; tx < SCREEN_W; tx++) {
-      if (comp[tileIndex(tx, ty)] !== -1 || !isTileWalkable(draft, tx, ty)) continue;
+      if (comp[tileIndex(tx, ty)] !== -1 || !isTileWalkable(screen, tx, ty)) continue;
       const stack: [number, number][] = [[tx, ty]];
       comp[tileIndex(tx, ty)] = next;
       while (stack.length > 0) {
@@ -537,7 +642,7 @@ function components(draft: Draft): number[] {
           const nx = x + sx;
           const ny = y + sy;
           if (!inBounds(nx, ny) || comp[tileIndex(nx, ny)] !== -1) continue;
-          if (!isTileWalkable(draft, nx, ny)) continue;
+          if (!isTileWalkable(screen, nx, ny)) continue;
           comp[tileIndex(nx, ny)] = next;
           stack.push([nx, ny]);
         }
@@ -546,6 +651,16 @@ function components(draft: Draft): number[] {
     }
   }
   return comp;
+}
+
+/** Which tiles belong to the screen's biggest walkable region, the land a player moves about on. */
+function largestComponent(screen: Screen): boolean[] {
+  const comp = components(screen);
+  const sizes = new Map<number, number>();
+  for (const c of comp) if (c !== -1) sizes.set(c, (sizes.get(c) ?? 0) + 1);
+  let main = -1;
+  for (const [c, size] of sizes) if (main === -1 || size > sizes.get(main)!) main = c;
+  return comp.map((c) => c === main);
 }
 
 function waterCorners(draft: Draft, tx: number, ty: number): number {
