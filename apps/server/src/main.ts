@@ -29,6 +29,7 @@ const { app, injectWebSocket } = createApp({
   db,
   game,
   secureCookies: process.env.NODE_ENV === 'production',
+  trustProxy: process.env.TRUST_PROXY === 'true',
 });
 app.use('*', serveStatic({ root: webDist }));
 app.get('*', serveStatic({ path: join(webDist, 'index.html') }));

@@ -68,10 +68,13 @@ export function createApp({
   db,
   game,
   secureCookies = false,
+  trustProxy = false,
 }: {
   db: DatabaseSync;
   game: Game;
   secureCookies?: boolean;
+  /** Behind a reverse proxy, key rate limits on the client address it reports. */
+  trustProxy?: boolean;
 }) {
   const startSession = (c: Context, user: User) => {
     const { token, expiresAt } = createSession(db, user.id);
@@ -101,8 +104,17 @@ export function createApp({
     );
   };
 
+  const clientAddress = (c: Context): string => {
+    if (trustProxy) {
+      const forwardedFor = c.req.header('x-forwarded-for');
+      const appended = forwardedFor?.split(',').pop()?.trim();
+      if (appended) return appended;
+    }
+    return getConnInfo(c).remote.address ?? 'unknown';
+  };
+
   const countAttempt = (c: Context, limiter: RateLimiter) => {
-    const address = getConnInfo(c).remote.address ?? 'unknown';
+    const address = clientAddress(c);
     throttle(c, limiter, address);
     limiter.hit(address);
   };

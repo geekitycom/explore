@@ -205,6 +205,17 @@ describe('rate limits', () => {
   const login = (username: string, password: string, address?: string) =>
     send('POST', '/api/login', { username, password }, undefined, address);
 
+  const loginWithForwardedFor = (username: string, forwardedFor: string, address = '203.0.113.1') =>
+    app.request(
+      '/api/login',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': forwardedFor },
+        body: JSON.stringify({ username, password: 'wrong password' }),
+      },
+      connectionFrom(address),
+    );
+
   it('throttles failed logins for one username from any address until the window passes', async () => {
     await signup('Alice');
     await signup('Bob');
@@ -265,6 +276,35 @@ describe('rate limits', () => {
 
     vi.setSystemTime(Date.now() + signupsPerAddress.windowMs);
     expect((await attempt('spammer')).status).toBe(201);
+  });
+
+  it('ignores X-Forwarded-For when trustProxy is off', async () => {
+    for (let i = 0; i < loginsPerAddress.max; i++) {
+      expect((await loginWithForwardedFor(`nobody${i}`, `198.51.100.${i}`)).status).toBe(401);
+    }
+    await expectThrottled(
+      await loginWithForwardedFor('nobody', '198.51.100.99'),
+      loginsPerAddress.windowMs,
+    );
+  });
+
+  describe('trust proxy', () => {
+    beforeEach(() => {
+      app = createApp({ db, game: createGame(db), trustProxy: true }).app;
+    });
+
+    it('keys the limit on the rightmost X-Forwarded-For entry, not a spoofed leftmost one', async () => {
+      for (let i = 0; i < loginsPerAddress.max; i++) {
+        expect(
+          (await loginWithForwardedFor(`nobody${i}`, `spoofed-${i}, 198.51.100.1`)).status,
+        ).toBe(401);
+      }
+      await expectThrottled(
+        await loginWithForwardedFor('nobody', 'another-spoof, 198.51.100.1'),
+        loginsPerAddress.windowMs,
+      );
+      expect((await loginWithForwardedFor('nobody', 'spoofed, 198.51.100.2')).status).toBe(401);
+    });
   });
 });
 

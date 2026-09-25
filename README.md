@@ -25,6 +25,8 @@ pnpm build
 pnpm start
 ```
 
+Behind a reverse proxy, set `TRUST_PROXY=true` so login and signup rate limits key on the client address the proxy reports in `X-Forwarded-For` (the rightmost entry, the one the proxy itself appended) instead of the proxy's own address. Leave it unset when the server is reachable directly.
+
 ## Scripts
 
 | Script                                | What it does                                                                                                                                                                                |
