@@ -32,7 +32,6 @@ export type Plan = {
   readonly road: (gx: number, gy: number) => boolean;
   /** The ground a point of interest flattens this point to, if it lies in a footprint. */
   readonly ground: (gx: number, gy: number) => Terrain | undefined;
-  /** The landmark feature standing on a global tile, if any. */
   readonly landmark: (gtx: number, gty: number) => Feature | undefined;
 };
 

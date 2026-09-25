@@ -338,7 +338,6 @@ export function poiIn(land: Land, region: PoiRegion): Poi {
   };
 }
 
-/** The landmark feature on a global tile, if the point's landmark stands there. */
 export function landmarkAt(poi: Poi, gtx: number, gty: number): Feature | undefined {
   const cx = Math.floor(poi.x);
   const cy = Math.floor(poi.y);

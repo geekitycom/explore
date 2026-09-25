@@ -15,7 +15,6 @@ export type GameState =
   | {
       phase: 'playing' | 'travelling';
       screen: Screen;
-      /** The biome patch the screen belongs to. */
       patch: BiomeCell;
       you: Pose;
       others: ReadonlyMap<number, Remote>;
