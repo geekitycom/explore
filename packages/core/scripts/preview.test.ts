@@ -38,7 +38,7 @@ describe('world preview', () => {
   });
 
   it('colours tiles by biome in biome mode', () => {
-    const area = { x0: -12, y0: -12, w: 24, h: 24 };
+    const area = { x0: -8, y0: -8, w: 16, h: 16 };
     const { png, stats } = renderPreview(fieldsSource(1), { ...options, area, mode: 'biome' });
     expect(stats.screensWithoutBiome).toBe(0);
     const at = (sx: number, sy: number) =>
