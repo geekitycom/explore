@@ -1,6 +1,6 @@
 # Geekity Explore
 
-A shared top-down pixel-art world. Sign up, design an avatar, and start in the secret garden. The world is a grid of screens that do not exist until someone walks onto them. Each new screen is generated to match the edges of its neighbors and saved for everyone. Players on the same screen see each other move.
+A shared top-down pixel-art world. Sign up, design an avatar, and start in the secret garden. The world is a grid of screens that do not exist until someone walks onto them. Every screen is a pure function of the world's seed and its position, so it matches its neighbours whatever order they appear in, and it is saved for everyone once generated. Players on the same screen see each other move.
 
 ![Two players in the secret garden](docs/screenshots/garden-two-players.png)
 
@@ -27,18 +27,18 @@ pnpm start
 
 ## Scripts
 
-| Script                                | What it does                                                                                                                                                        |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                            | Server with watch mode, plus the Vite dev server                                                                                                                    |
-| `pnpm build`                          | Build every package that has a build step                                                                                                                           |
-| `pnpm start`                          | Start the server                                                                                                                                                    |
-| `pnpm lint`                           | ESLint with type-aware rules                                                                                                                                        |
-| `pnpm format` / `pnpm format:check`   | Prettier write or check                                                                                                                                             |
-| `pnpm typecheck`                      | `tsc` in every package                                                                                                                                              |
-| `pnpm test`                           | Vitest across all packages                                                                                                                                          |
-| `pnpm e2e`                            | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                         |
-| `pnpm world:wipe --yes`               | Delete the generated world and saved positions (accounts stay) and restore the garden. Stop the server first. Uses `DB_PATH`, default `apps/server/data/explore.db` |
-| `pnpm --filter @explore/core preview` | Render a large area of the world to a PNG for tuning generation                                                                                                     |
+| Script                                | What it does                                                                                                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                            | Server with watch mode, plus the Vite dev server                                                                                                                                            |
+| `pnpm build`                          | Build every package that has a build step                                                                                                                                                   |
+| `pnpm start`                          | Start the server                                                                                                                                                                            |
+| `pnpm lint`                           | ESLint with type-aware rules                                                                                                                                                                |
+| `pnpm format` / `pnpm format:check`   | Prettier write or check                                                                                                                                                                     |
+| `pnpm typecheck`                      | `tsc` in every package                                                                                                                                                                      |
+| `pnpm test`                           | Vitest across all packages                                                                                                                                                                  |
+| `pnpm e2e`                            | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                                                 |
+| `pnpm world:wipe --yes`               | Delete the generated world and saved positions (accounts stay), roll a new world seed, and restore the garden. Stop the server first. Uses `DB_PATH`, default `apps/server/data/explore.db` |
+| `pnpm --filter @explore/core preview` | Render a large area of the world to a PNG for tuning generation                                                                                                                             |
 
 ## Layout
 
@@ -66,7 +66,7 @@ pnpm --filter @explore/core preview -- --seed 1 --area -16,-16,32,32 --out world
 | `--grid`                | off                 | Faint lines on screen borders                                   |
 | `--out <file.png>`      | `world-preview.png` | Output path, relative to the directory you ran the command from |
 
-The same arguments always produce the same file, so you can compare two renders before and after a change. The command prints the colour legend and the area it drew. Biome mode draws greyed terrain until the generator produces biomes. The tool renders from a `WorldSource` in `packages/core/scripts/world-source.ts`. The current source grows the neighbour-constrained world ring by ring outward from the garden.
+The same arguments always produce the same file, so you can compare two renders before and after a change. The command prints the colour legend and the area it drew. Biome mode draws greyed terrain until the generator produces biomes. The tool renders from a `WorldSource` in `packages/core/scripts/world-source.ts`. The current source generates each screen straight from the world seed, so any area renders the same screens the game would.
 
 Design notes and decisions live in `backlog/docs`. Tasks live in `backlog/tasks`.
 

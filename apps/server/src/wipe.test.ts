@@ -12,6 +12,7 @@ import {
   getOrCreateScreen,
   getScreen,
   loadPlayerState,
+  loadWorld,
   savePlayerState,
 } from './world.ts';
 import { DEFAULT_AVATAR, GARDEN_COORD, secretGarden } from '@explore/core';
@@ -21,7 +22,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-test('wiping keeps accounts, forgets the world, and restores the garden; twice is the same as once', async () => {
+test('wiping keeps accounts, forgets the world, rolls a new seed, and restores the garden', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'explore-wipe-'));
   dirs.push(dir);
   const path = join(dir, 'world.db');
@@ -34,7 +35,8 @@ test('wiping keeps accounts, forgets the world, and restores the garden; twice i
   })!;
   const { token } = createSession(db, user.id);
   const east = { ...GARDEN_COORD, sx: 1 };
-  getOrCreateScreen(db, east, user.id);
+  const before = getOrCreateScreen(db, east, user.id);
+  const seed = loadWorld(db).seed;
   savePlayerState(db, user.id, { coord: east, pose: { x: 50, y: 60, dir: 'e', moving: false } });
   db.close();
 
@@ -47,5 +49,7 @@ test('wiping keeps accounts, forgets the world, and restores the garden; twice i
 
   expect(wipeWorld(db)).toEqual({ screens: 1, players: 0 });
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
+  expect(loadWorld(db).seed).not.toBe(seed);
+  expect(getOrCreateScreen(db, east, user.id)).not.toEqual(before);
   db.close();
 });

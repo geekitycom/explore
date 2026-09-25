@@ -14,15 +14,13 @@ import {
   TILE,
   cornerIndex,
   generateScreen,
-  neighborsOf,
-  screenKey,
   secretGarden,
   type Avatar,
   type Dir,
   type Feature,
   type Screen,
-  type ScreenCoord,
   type Terrain,
+  type WorldSeed,
 } from '@explore/core';
 import { AVATAR_BASES, WALK_FRAMES, avatarSheet, walkFrameRect } from './avatars.ts';
 import { FEATURE_ART } from './features.ts';
@@ -87,7 +85,7 @@ function maskScreen(upper: Terrain, lower: Terrain): Screen {
       if (mask & (1 << bit)) corners[cornerIndex(tx + dx, ty + dy)] = upper;
     });
   }
-  return { coord: { layer: OVERWORLD, sx: 99, sy: 99 }, seed: 0, corners, features };
+  return { coord: { layer: OVERWORLD, sx: 99, sy: 99 }, corners, features };
 }
 
 const CORNER_OFFSETS = [
@@ -128,20 +126,11 @@ function showWorld(art: Art) {
     art,
   );
 
-  const world = new Map<string, Screen>([[screenKey(garden.coord), garden]]);
-  const grow = (coord: ScreenCoord, seed: number) => {
-    const screen = generateScreen(
-      coord,
-      seed,
-      neighborsOf(coord, (c) => world.get(screenKey(c))),
-    );
-    world.set(screenKey(coord), screen);
-    return screen;
-  };
-  const east = grow({ layer: OVERWORLD, sx: 1, sy: 0 }, 7);
-  const south = grow({ layer: OVERWORLD, sx: 0, sy: 1 }, 8);
-  const southEast = grow({ layer: OVERWORLD, sx: 1, sy: 1 }, 9);
-  const seams = section('Garden with grown neighbours (seams at the middle lines)');
+  const world = { seed: 7 as WorldSeed };
+  const east = generateScreen(world, { layer: OVERWORLD, sx: 1, sy: 0 });
+  const south = generateScreen(world, { layer: OVERWORLD, sx: 0, sy: 1 });
+  const southEast = generateScreen(world, { layer: OVERWORLD, sx: 1, sy: 1 });
+  const seams = section('Garden with its neighbours in world 7 (seams at the middle lines)');
   const ctx = figure(seams, 'garden, (1,0), (0,1), (1,1)', SCREEN_PX_W * 2, SCREEN_PX_H * 2);
   drawScreen(ctx, garden, art);
   drawScreen(ctx, east, art, SCREEN_PX_W, 0);
@@ -150,10 +139,10 @@ function showWorld(art: Art) {
 
   const seeds = section('Generated screens');
   for (const seed of [11, 42, 1234, 98765]) {
-    const coord = { layer: OVERWORLD, sx: seed, sy: -seed };
+    const coord = { layer: OVERWORLD, sx: 5, sy: 5 };
     drawScreen(
-      figure(seeds, `seed ${seed}`, SCREEN_PX_W, SCREEN_PX_H),
-      generateScreen(coord, seed, {}),
+      figure(seeds, `world ${seed} at 5,5`, SCREEN_PX_W, SCREEN_PX_H),
+      generateScreen({ seed: seed as WorldSeed }, coord),
       art,
     );
   }
@@ -253,8 +242,11 @@ function showMotion(art: Art) {
   const params = new URLSearchParams(location.search);
   const base = Number(params.get('t') ?? 0);
   const times = [0, 0.4, 0.8, 1.2, 1.6, 2.0].map((dt) => base + dt);
-  const candidates = Array.from({ length: 400 }, (_, seed) =>
-    generateScreen({ layer: OVERWORLD, sx: 9, sy: seed }, seed, {}),
+  const candidates = Array.from({ length: 400 }, (_, i) =>
+    generateScreen(
+      { seed: 9 as WorldSeed },
+      { layer: OVERWORLD, sx: i % 20, sy: 3 + Math.floor(i / 20) },
+    ),
   );
   const find = (label: string, test: (s: Screen) => boolean) => {
     const screen = candidates.find(test);

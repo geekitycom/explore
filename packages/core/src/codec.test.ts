@@ -17,14 +17,10 @@ describe('screen codec', () => {
 
   test('round-trips every cell', () => {
     const coord = { layer: 'cellar' as LayerId, sx: -3, sy: 7 };
-    const record = encodeScreen({ ...screen, coord, seed: 42 });
-    expect(record).toMatchObject({ layer: 'cellar', sx: -3, sy: 7 });
+    const record = encodeScreen({ ...screen, coord });
+    expect(record).toMatchObject({ v: 3, layer: 'cellar', sx: -3, sy: 7 });
     expect(record.corners[4 * 21 + 3]).toBe('w');
-    expect(decodeScreen(JSON.parse(JSON.stringify(record)))).toEqual({
-      ...screen,
-      coord,
-      seed: 42,
-    });
+    expect(decodeScreen(JSON.parse(JSON.stringify(record)))).toEqual({ ...screen, coord });
   });
 
   test('rejects wrong length, unknown codes, unknown versions, and a missing layer', () => {
@@ -33,7 +29,7 @@ describe('screen codec', () => {
     expect(() => decodeScreen({ ...record, features: 'X' + record.features.slice(1) })).toThrow(
       /unknown cell code/,
     );
-    expect(() => decodeScreen({ ...record, v: 1 })).toThrow();
+    expect(() => decodeScreen({ ...record, v: 2 })).toThrow();
     expect(() => decodeScreen({ ...record, layer: '' })).toThrow();
     expect(() => decodeScreen({ ...record, layer: undefined })).toThrow();
   });

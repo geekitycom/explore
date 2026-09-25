@@ -17,7 +17,7 @@ import {
   type ServerMessage,
 } from '@explore/core';
 import { serve } from '@hono/node-server';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
@@ -30,14 +30,7 @@ type Running = { db: DatabaseSync; base: string; stop: () => Promise<void> };
 
 const cleanups: (() => Promise<void> | void)[] = [];
 
-beforeEach(() => {
-  let n = 0;
-  // Seeds screen generation deterministically while still giving every screen its own seed.
-  vi.spyOn(Math, 'random').mockImplementation(() => (n = (n + 0.137) % 1));
-});
-
 afterEach(async () => {
-  vi.restoreAllMocks();
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
@@ -247,7 +240,7 @@ describe('world socket', () => {
     await nextOf(alice, 'join');
 
     const first = await travelEast(alice);
-    expect(first.screen).toMatchObject({ v: 2, layer: 'overworld', sx: 1, sy: 0 });
+    expect(first.screen).toMatchObject({ v: 3, layer: 'overworld', sx: 1, sy: 0 });
     const row = db.prepare('SELECT data, created_by FROM screens WHERE sx = 1 AND sy = 0').get();
     expect(row).toEqual({ data: JSON.stringify(first.screen), created_by: 1 });
 

@@ -5,6 +5,7 @@ import {
   TILE,
   generateScreen,
   secretGarden,
+  type WorldSeed,
 } from '@explore/core';
 import { uniformScreen, withFeatures } from '@explore/core/testing';
 import { describe, expect, test } from 'vitest';
@@ -19,8 +20,11 @@ import {
   twinkles,
 } from './life.ts';
 
-const screens = Array.from({ length: 30 }, (_, seed) =>
-  generateScreen({ layer: OVERWORLD, sx: 3, sy: seed }, seed, {}),
+const screens = Array.from({ length: 30 }, (_, i) =>
+  generateScreen(
+    { seed: 3 as WorldSeed },
+    { layer: OVERWORLD, sx: i % 6, sy: 3 + Math.floor(i / 6) },
+  ),
 );
 const times = Array.from({ length: 600 }, (_, i) => i * 0.37);
 

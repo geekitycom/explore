@@ -10,6 +10,7 @@ import {
   type LayerId,
   type Screen,
   type Terrain,
+  type WorldSeed,
 } from './world.ts';
 
 const TERRAIN_CODE: Record<Terrain, string> = { water: 'w', sand: 's', dirt: 'd', grass: 'g' };
@@ -40,13 +41,17 @@ export const layerIdSchema = z
   .min(1)
   .transform((s) => s as LayerId);
 
+export const worldSeedSchema = z
+  .number()
+  .int()
+  .transform((n) => n as WorldSeed);
+
 /** The persisted, versioned form of a screen. One character per lattice point or tile. */
 export const screenRecordSchema = z.object({
-  v: z.literal(2),
+  v: z.literal(3),
   layer: layerIdSchema,
   sx: z.number().int(),
   sy: z.number().int(),
-  seed: z.number().int(),
   corners: codeString(LATTICE_W * LATTICE_H, TERRAIN_BY_CODE),
   features: codeString(SCREEN_W * SCREEN_H, FEATURE_BY_CODE),
 });
@@ -55,11 +60,10 @@ export type ScreenRecord = z.input<typeof screenRecordSchema>;
 
 export function encodeScreen(screen: Screen): ScreenRecord {
   return {
-    v: 2,
+    v: 3,
     layer: screen.coord.layer,
     sx: screen.coord.sx,
     sy: screen.coord.sy,
-    seed: screen.seed,
     corners: screen.corners.map((t) => TERRAIN_CODE[t]).join(''),
     features: screen.features.map((f) => FEATURE_CODE[f]).join(''),
   };
@@ -69,7 +73,6 @@ export function decodeScreen(raw: unknown): Screen {
   const r = screenRecordSchema.parse(raw);
   return {
     coord: { layer: r.layer, sx: r.sx, sy: r.sy },
-    seed: r.seed,
     corners: r.corners,
     features: r.features,
   };

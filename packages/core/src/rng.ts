@@ -1,3 +1,5 @@
+import type { WorldSeed } from './world.ts';
+
 export type Rng = () => number;
 
 /** mulberry32: small, fast, and deterministic for a 32-bit seed. Returns [0, 1). */
@@ -12,6 +14,6 @@ export function createRng(seed: number): Rng {
   };
 }
 
-export function randomSeed(): number {
-  return Math.floor(Math.random() * 2 ** 31);
+export function randomWorldSeed(): WorldSeed {
+  return Math.floor(Math.random() * 2 ** 31) as WorldSeed;
 }

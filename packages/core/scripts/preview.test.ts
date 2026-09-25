@@ -2,7 +2,7 @@ import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { SCREEN_H, SCREEN_W } from '../src/world.ts';
 import { TERRAIN_RGB, renderPreview, type PreviewOptions } from './render-preview.ts';
-import { neighbourSource } from './world-source.ts';
+import { fieldsSource } from './world-source.ts';
 
 const options: PreviewOptions = {
   area: { x0: -1, y0: -1, w: 3, h: 3 },
@@ -31,14 +31,14 @@ function pixelAt(png: Buffer, x: number, y: number): number[] {
 
 describe('world preview', () => {
   it('renders the same bytes for the same seed and area', () => {
-    const a = renderPreview(neighbourSource(7), options).png;
-    const b = renderPreview(neighbourSource(7), options).png;
+    const a = renderPreview(fieldsSource(7), options).png;
+    const b = renderPreview(fieldsSource(7), options).png;
     expect(a.equals(b)).toBe(true);
-    expect(a.equals(renderPreview(neighbourSource(8), options).png)).toBe(false);
+    expect(a.equals(renderPreview(fieldsSource(8), options).png)).toBe(false);
   });
 
   it('draws the garden pond at screen 0,0', () => {
-    const { png, stats } = renderPreview(neighbourSource(1), { ...options, overlays: new Set() });
+    const { png, stats } = renderPreview(fieldsSource(1), { ...options, overlays: new Set() });
     expect([stats.width, stats.height]).toEqual([3 * SCREEN_W, 3 * SCREEN_H]);
     expect(pixelAt(png, SCREEN_W + 9, SCREEN_H + 7)).toEqual([...TERRAIN_RGB.water]);
   });

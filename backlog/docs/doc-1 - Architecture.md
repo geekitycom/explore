@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 01:47'
+updated_date: '2026-09-25 02:38'
 ---
 # Architecture
 
@@ -30,14 +30,15 @@ pnpm workspace, TypeScript everywhere, Node 24.
 
 ## Generation
 
-`generateScreen(coord, neighbors, rng)` is a pure function.
+Every tile is a pure function of the world seed, the layer, and its global position (decision-19). The seed lives in a one-row `world` table and a wipe rolls a new one. `generateScreen(world, coord)` assembles a screen from per-point functions, so shared lattice points agree whatever order screens are generated in.
 
-1. Fixed lattice points and edge features come from existing neighbors (8-neighborhood).
-2. A per-screen height field (value noise) is blended toward the heights implied by fixed boundary terrain, then thresholded into water, sand, grass, and dirt bands. Fixed points are then written back exactly.
-3. A density field, also blended toward neighbor edge density, places trees, bushes, rocks, flowers, and tall grass.
-4. A connectivity repair joins every walkable edge tile into one component by carving the cheapest interior path (clear a feature, or raise water to sand). Fixed edge cells are never modified. Unconstrained edges get openings so the world stays explorable.
+1. **Stamps.** Inside a stamp's footprint (the secret garden at overworld 0,0, boundary included) the functions return the hand-built cells. A clearing weight fades from the footprint to 1.5 screens out, thinning blocking features and suppressing dirt, and dirt trails continue the garden's exits into the meadow.
+2. **Terrain.** Lakes are disjoint star-shaped blobs, at most one per cell of the lake grid, sized so no screen is all water and never touching each other or the garden clearing, so land stays connected by construction. Dirt comes from a dryness field; everything else is grass. All noise is hash-based fBm seeded per purpose, never a shared random stream.
+3. **Features.** A low-frequency forest field sets tree chance, clumped by a finer field so forests have glades; bushes ring tree stands, rocks favour dirt, flowers grow in bloom patches. `TEMPERATE` is the single parameter set biomes will blend (task-27).
+4. **Crossings.** Each seam's crossing tiles are a pure function of the seam, so both screens agree. Both sides clear blocking features on them.
+5. **Repair.** Per screen, the components holding crossings are joined by the cheapest feature-clearing path. Repair never raises water and never touches a shared lattice point.
 
-Property tests over many seeds and random neighbor layouts assert seam equality, edge feature continuity, single-component connectivity of edge tiles, and determinism for a given seed.
+Guarantee (replacing the old decision-11 wording): every crossing leads on, and a traveller only ever arrives on a tile a crossing leads to; the arrival nudge searches only tiles reachable from the entry. Property tests grow 12x12 regions over several seeds and check seam equality in shuffled orders, crossings on every land seam, and that a BFS from the garden reaches every screen.
 
 ## Rendering
 

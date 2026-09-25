@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 01:51'
+updated_date: '2026-09-25 02:38'
 ---
 # Decision log
 
@@ -33,11 +33,11 @@ Signup includes choosing skin, hair style, hair color, shirt color, and pants co
 ## D9. Terrain on the corner lattice (technical)
 Storing terrain per corner instead of per tile makes seam matching exact: neighbors share lattice points. It also makes transition tiles a pure function of four corners, which is the standard layered autotile technique. Rejected: per-tile terrain with stored transition tiles, which needs a separate edge-matching rule and a transition solver.
 
-## D10. Constraint-conditioned generation instead of a global noise field (technical)
+## D10. Constraint-conditioned generation instead of a global noise field (technical, superseded by D19 on 2026-09-24)
 A single global noise function would match seams for free, but it cannot honor the hand-built garden or future hand-built screens, and it isn't what "each screen designed mostly randomly" describes. Each screen gets a random seed, and existing neighbors constrain it.
 
-## D11. Connectivity repair guarantees no screen traps a player (technical)
-All walkable edge tiles of a generated screen join one component. When crossing an edge lands on a blocked tile, the server nudges the player along the edge to the nearest walkable tile.
+## D11. Connectivity repair guarantees no screen traps a player (technical, restated 2026-09-24)
+Original: all walkable edge tiles of a generated screen join one component. Restated with D19: every seam has crossing tiles both screens agree on, every crossing leads on through the screen, and arrivals only land on tiles a crossing leads to. Lakes are disjoint blobs so land is connected by construction and repair never carves water.
 
 ## D12. Server-authoritative screens, client-predicted movement (technical)
 The client moves locally for responsiveness and streams positions. The server checks each against core collision and a speed cap and sends a correction on failure. Only the server decides screen transitions.
@@ -60,8 +60,8 @@ The pack's blob autotiles cover only some terrain pairs (no grass and sand) and 
 ## D18. Music is generated chiptune (product, 2026-09-24)
 Andrew listened to the prototype (task-17) and chose generated music over the Ninja Adventure tracks. A seeded composer picks scale, tempo, progression, motif, and an A A' B A'' form from a mood, and plays through NES-style voices (two pulse, stepped triangle, LFSR noise) on Web Audio. The pack's tracks stay available as a fallback. No audio files ship for music.
 
-## D19. World generation from world-seeded global fields (technical, proposed 2026-09-24)
-Replace D10's neighbour-constrained generator with pure functions of the world seed and global coordinates, generated and stored in 4x4-screen chunks, with biomes, roads between points of interest, and the garden as a stamp. Needed because per-screen generation cannot be coherent beyond one screen. D10's objection (a global field cannot honour the garden) is answered by the stamp registry. Details and sources in the "World generation v2 design" doc. Becomes accepted when the first implementation task lands.
+## D19. World generation from world-seeded global fields (technical, accepted 2026-09-24)
+Replace D10's neighbour-constrained generator with pure functions of the world seed and global coordinates, generated and stored in 4x4-screen chunks, with biomes, roads between points of interest, and the garden as a stamp. Needed because per-screen generation cannot be coherent beyond one screen. D10's objection (a global field cannot honour the garden) is answered by the stamp registry. Details and sources in the "World generation v2 design" doc. Accepted when task-26 landed.
 
 ## D20. Coordinates carry a layer (product direction from Andrew, 2026-09-24)
 Houses, caves, and towns will come later as separate layers the player travels into. Screen and chunk coordinates gain a layer (only `overworld` for now), and entrances will be features linking an overworld tile to a place in another layer. Towns and cave mouths are points of interest the road network already connects to.

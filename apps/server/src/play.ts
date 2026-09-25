@@ -8,6 +8,7 @@ import {
   arrivalPose,
   canOccupy,
   clientMessageSchema,
+  crossingTiles,
   encodeScreen,
   neighborCoord,
   type ClientMessage,
@@ -17,7 +18,13 @@ import {
 } from '@explore/core';
 import { Presence, type Conn, type Player } from './presence.ts';
 import type { User } from './users.ts';
-import { ensureGarden, getOrCreateScreen, loadPlayerState, savePlayerState } from './world.ts';
+import {
+  ensureGarden,
+  getOrCreateScreen,
+  loadPlayerState,
+  loadWorld,
+  savePlayerState,
+} from './world.ts';
 
 /** How far past the speed cap a move may be, absorbing network jitter. */
 const SPEED_SLACK = 1.5;
@@ -93,10 +100,11 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
       correct(player);
       return;
     }
-    const room = roomAt(neighborCoord(player.room.screen.coord, dir), player.user.id);
+    const coord = neighborCoord(player.room.screen.coord, dir);
+    const room = roomAt(coord, player.user.id);
     presence.exit(player);
     player.room = room;
-    player.pose = arrivalPose(room.screen, dir, player.pose);
+    player.pose = arrivalPose(room.screen, dir, player.pose, crossingTiles(loadWorld(db), coord));
     player.acceptedAt = now();
     sendScreen(player);
     save(player);

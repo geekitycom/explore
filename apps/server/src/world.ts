@@ -5,12 +5,13 @@ import {
   encodeScreen,
   generateScreen,
   layerIdSchema,
-  neighborsOf,
-  randomSeed,
+  randomWorldSeed,
   secretGarden,
   type Pose,
   type Screen,
   type ScreenCoord,
+  worldSeedSchema,
+  type World,
 } from '@explore/core';
 import { z } from 'zod';
 
@@ -43,6 +44,18 @@ export function ensureGarden(db: DatabaseSync): void {
   insertScreen(db, secretGarden(), null);
 }
 
+const worldRow = z.object({ seed: worldSeedSchema });
+
+/** Its row is created by the migrations. */
+export function loadWorld(db: DatabaseSync): World {
+  const row: unknown = db.prepare('SELECT seed FROM world WHERE id = 1').get();
+  return { seed: worldRow.parse(row).seed };
+}
+
+export function reseedWorld(db: DatabaseSync): void {
+  db.prepare('UPDATE world SET seed = ? WHERE id = 1').run(randomWorldSeed());
+}
+
 export function getScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Screen | undefined {
   const row = db
     .prepare('SELECT data FROM screens WHERE layer = ? AND sx = ? AND sy = ?')
@@ -54,8 +67,7 @@ export function getScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Scr
 export function getOrCreateScreen(db: DatabaseSync, coord: ScreenCoord, userId: number): Screen {
   const existing = getScreen(db, coord);
   if (existing) return existing;
-  const lookup = (c: ScreenCoord) => getScreen(db, c);
-  insertScreen(db, generateScreen(coord, randomSeed(), neighborsOf(coord, lookup)), userId);
+  insertScreen(db, generateScreen(loadWorld(db), coord), userId);
   return getScreen(db, coord)!;
 }
 

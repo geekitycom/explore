@@ -60,6 +60,13 @@ const migrations: readonly string[] = [
     SELECT user_id, 'overworld', sx, sy, x, y, dir, updated_at FROM player_state;
   DROP TABLE player_state;
   ALTER TABLE layered_player_state RENAME TO player_state;`,
+  `CREATE TABLE world (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    seed INTEGER NOT NULL
+  );
+  INSERT INTO world (id, seed) VALUES (1, abs(random()) % 2147483648);
+  DELETE FROM screens;
+  DELETE FROM player_state;`,
 ];
 
 export function openDatabase(path: string): DatabaseSync {

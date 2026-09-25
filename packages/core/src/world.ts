@@ -22,13 +22,16 @@ export const OVERWORLD = 'overworld' as LayerId;
 
 export type ScreenCoord = { readonly layer: LayerId; readonly sx: number; readonly sy: number };
 
+export type WorldSeed = number & { readonly __brand: 'WorldSeed' };
+
+export type World = { readonly seed: WorldSeed };
+
 /**
  * Terrain lives on the corner lattice (LATTICE_W x LATTICE_H, row-major) so neighbors share
  * their boundary points exactly. Features live on tiles (SCREEN_W x SCREEN_H, row-major).
  */
 export type Screen = {
   readonly coord: ScreenCoord;
-  readonly seed: number;
   readonly corners: readonly Terrain[];
   readonly features: readonly Feature[];
 };

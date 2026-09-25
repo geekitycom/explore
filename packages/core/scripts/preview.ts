@@ -17,7 +17,7 @@ import {
   type PreviewOptions,
   type Rgb,
 } from './render-preview.ts';
-import { neighbourSource } from './world-source.ts';
+import { fieldsSource } from './world-source.ts';
 
 const USAGE = `usage: pnpm --filter @explore/core preview -- [options]
   --seed <n>             world seed (default 1)
@@ -102,7 +102,7 @@ const swatches = (palette: Readonly<Record<string, Rgb | undefined>>) =>
 
 const { seed, out, options } = parseOptions(process.argv.slice(2));
 const { area, mode, overlays, scale } = options;
-const source = neighbourSource(seed);
+const source = fieldsSource(seed);
 const started = performance.now();
 const { png, stats } = renderPreview(source, options);
 const elapsed = Math.round(performance.now() - started);

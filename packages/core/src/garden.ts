@@ -47,9 +47,8 @@ const FEATURES = [
 
 export function secretGarden(): Screen {
   return decodeScreen({
-    v: 2,
+    v: 3,
     ...GARDEN_COORD,
-    seed: 0,
     corners: CORNERS.join(''),
     features: FEATURES.join(''),
   });

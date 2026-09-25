@@ -1,6 +1,17 @@
 import type { Pose } from './protocol.ts';
-import { FEET, canOccupy } from './walk.ts';
-import { SCREEN_PX_H, SCREEN_PX_W, TILE, screenKey, type Dir, type Screen } from './world.ts';
+import { FEET, canOccupy, isTileWalkable } from './walk.ts';
+import {
+  SCREEN_H,
+  SCREEN_PX_H,
+  SCREEN_PX_W,
+  SCREEN_W,
+  TILE,
+  inScreen,
+  screenKey,
+  tileIndex,
+  type Dir,
+  type Screen,
+} from './world.ts';
 
 type Point = { x: number; y: number };
 
@@ -42,21 +53,49 @@ const ENTRY: Record<Dir, Edge> = {
   n: { ...NORTH_OR_SOUTH, place: (x, d) => ({ x, y: SCREEN_PX_H - FEET.down - d }) },
 };
 
+/** Arrivals are kept to these so a nudge along an edge never strands a player in a pocket. */
+function reachableFrom(screen: Screen, entries: readonly [number, number][]): boolean[] {
+  const seen = Array<boolean>(SCREEN_W * SCREEN_H).fill(false);
+  const stack = entries.filter(([tx, ty]) => isTileWalkable(screen, tx, ty));
+  for (const [tx, ty] of stack) seen[tileIndex(tx, ty)] = true;
+  while (stack.length > 0) {
+    const [x, y] = stack.pop()!;
+    for (const [nx, ny] of [
+      [x + 1, y],
+      [x - 1, y],
+      [x, y + 1],
+      [x, y - 1],
+    ] as const) {
+      if (!inScreen(nx, ny) || seen[tileIndex(nx, ny)] || !isTileWalkable(screen, nx, ny)) continue;
+      seen[tileIndex(nx, ny)] = true;
+      stack.push([nx, ny]);
+    }
+  }
+  return seen;
+}
+
 /**
  * Where a player walking `dir` off a screen at `from` appears on `target`: just inside the
- * opposite edge at the mirrored coordinate, or the nearest spot along that edge that fits,
- * stepping a tile inward at a time if the whole edge is blocked.
+ * opposite edge at the mirrored coordinate, or the nearest spot along that edge that fits and
+ * leads on from one of `entries`, stepping a tile inward at a time if the whole edge is blocked.
  */
-export function arrivalPose(target: Screen, dir: Dir, from: Point): Pose {
+export function arrivalPose(
+  target: Screen,
+  dir: Dir,
+  from: Point,
+  entries: readonly [number, number][],
+): Pose {
   const edge = ENTRY[dir];
   const start = Math.min(Math.max(edge.along(from), edge.alongMin), edge.alongMax);
   const span = edge.alongMax - edge.alongMin;
+  const allowed = reachableFrom(target, entries);
   for (let depth = 0; depth <= edge.depthMax; depth += TILE) {
     for (let offset = 0; offset <= span; offset++) {
       for (const along of offset === 0 ? [start] : [start - offset, start + offset]) {
         if (along < edge.alongMin || along > edge.alongMax) continue;
         const p = edge.place(along, depth);
-        if (canOccupy(target, p.x, p.y)) return { ...p, dir, moving: false };
+        const tile = tileIndex(Math.floor(p.x / TILE), Math.floor(p.y / TILE));
+        if (allowed[tile] && canOccupy(target, p.x, p.y)) return { ...p, dir, moving: false };
       }
     }
   }
