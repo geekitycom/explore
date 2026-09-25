@@ -13,7 +13,7 @@ import {
 import { getScreen, isChunkStored, loadWorld, olderScreen, storeChunk } from './world.ts';
 
 /** Builds one screen, stitched to the stored screens `older` finds around it. */
-export type Generate = (world: World, coord: ScreenCoord, older: Older) => Screen;
+type Generate = (world: World, coord: ScreenCoord, older: Older) => Screen;
 
 /** A chunk being built: its screens so far, in `coords` order. */
 type Job = {

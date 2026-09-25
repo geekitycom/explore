@@ -13,7 +13,7 @@ export type Conn = {
   close(code: number, reason: string): void;
 };
 
-export type Room = { readonly screen: Screen; readonly players: Set<Player> };
+type Room = { readonly screen: Screen; readonly players: Set<Player> };
 
 export type Player = {
   user: User;
@@ -25,7 +25,7 @@ export type Player = {
   dirty: boolean;
 };
 
-export function viewOf({ user, pose }: Player): PlayerView {
+function viewOf({ user, pose }: Player): PlayerView {
   return { id: user.id, name: user.username, avatar: user.avatar, ...pose };
 }
 

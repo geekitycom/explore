@@ -65,7 +65,6 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
 
   const isLive = (player: Player) => online.get(player.user.id) === player;
 
-  /** Sends the player's screen, then builds the chunks they could walk into next. */
   const sendScreen = (player: Player) => {
     recordVisit(db, player.room.screen.coord);
     const others = presence.enter(player);
@@ -161,7 +160,6 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
 
     disconnect,
 
-    /** Shows a player's saved avatar change to everyone on their screen. */
     changeAvatar(user: User): void {
       const player = online.get(user.id);
       if (!player) return;
@@ -169,7 +167,6 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
       presence.broadcast(player, { t: 'avatar', id: user.id, avatar: user.avatar });
     },
 
-    /** Saves every pose that moved since its last save. */
     flush(): void {
       for (const player of online.values()) if (player.dirty) save(player);
     },

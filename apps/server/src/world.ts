@@ -20,7 +20,7 @@ import {
 } from '@explore/core';
 import { z } from 'zod';
 
-export type PlayerState = { coord: ScreenCoord; pose: Pose };
+type PlayerState = { coord: ScreenCoord; pose: Pose };
 
 const playerStateRow = z.object({
   layer: layerIdSchema,

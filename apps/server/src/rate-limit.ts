@@ -1,4 +1,4 @@
-export type Limit = { max: number; windowMs: number };
+type Limit = { max: number; windowMs: number };
 
 const MINUTE = 60_000;
 

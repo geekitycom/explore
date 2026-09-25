@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { GARDEN_COORD, type ScreenCoord } from '@explore/core';
+import { GARDEN_COORD } from '@explore/core';
 import { loadPlayerState } from './world.ts';
 
 /**
@@ -8,7 +8,7 @@ import { loadPlayerState } from './world.ts';
  * client validates each one.
  */
 export function worldMapJson(db: DatabaseSync, userId: number): string {
-  const you: ScreenCoord = loadPlayerState(db, userId)?.coord ?? GARDEN_COORD;
+  const you = loadPlayerState(db, userId)?.coord ?? GARDEN_COORD;
   const { layer } = you;
   const rows = db
     .prepare('SELECT data FROM screens JOIN visits USING (layer, sx, sy) WHERE layer = ?')
