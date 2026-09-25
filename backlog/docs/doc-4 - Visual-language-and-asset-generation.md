@@ -3,7 +3,7 @@ id: doc-4
 title: Visual language and asset generation
 type: specification
 created_date: '2026-09-25 01:37'
-updated_date: '2026-09-25 01:37'
+updated_date: '2026-09-25 01:48'
 ---
 # Visual language and asset generation
 
@@ -20,7 +20,7 @@ Ninja Adventure gives the current look: 16px tiles, a dark selective outline (#1
 A style guide with rules a script can check:
 
 - **Palette.** One master palette of about 64 colours organised as ramps (4 to 6 steps each), seeded from the Ninja Adventure palette and extended for the new biomes (snow blues, desert ochres, taiga greens, heather purples). Ramps hue-shift: shadows lean cool, highlights lean warm.
-- **Light and outline.** Light from the top left. A dark selective outline on objects (not on ground), lighter on the lit side.
+- **Light and outline.** Light from the top left. A full dark outline (#141B1B) around objects, as the pack draws it, and none on ground. (The spike found a lighter outline on the lit side would make sprites stand out from the pack.)
 - **Scale and perspective.** 16px grid, three-quarter top-down, objects anchored bottom-centre on their tile. Trees one to three tiles tall.
 - **Detail density.** Ground textures stay quiet (at most 3 colours per 16px tile), so objects and players read clearly.
 - **Per-sprite limits.** At most about 8 colours per object sprite, no semi-transparent pixels except shadows, no stray single pixels.
@@ -52,6 +52,10 @@ Characters stay on the pack's walk sheets for now. Animated characters are the h
   Silhouette, proportions, and colour come from the real species, simplified to pixel-art shapes.
 - **Palettes from photos.** A tool extracts dominant colours (k-means) from public-domain reference photos of each biome, then snaps them to the nearest palette ramps, so each biome's ground and flora feel like the real place. Reference photos must be public domain or CC0 (for example, US government works on Wikimedia Commons), with sources recorded.
 - **Not recommended as a main path:** converting photos directly into sprites (downscale and quantise). It works passably for ground textures and rocks but produces mushy small sprites; at most it is a starting draft for hand editing. Image-generation models are also left out for now: output is hard to keep consistent with a strict palette, and licensing is unsettled.
+
+## Spike result (task-33)
+
+Recipes pass beside the pack for trees, conifers, cacti, and rocks when they copy the pack's own drawing method: a flat-topped canopy in slanted light bands with lighter drips over each band edge, a lit top plane over a front face for rocks, fixed column steps for cacti. Physically shaded blobs looked like a different art style and were dropped. Across 50 seeds per recipe there were no off-palette pixels and at most 8 colours per sprite. Bushes and other small props fell short: at 16px every pixel is a design decision, so they are better as a hand-drawn base shape recoloured and varied by recipe, or drawn by hand. Tells to fix in the real generator: too-regular drips, missing root bases, identical cactus widths and arm shapes, and a crack in the same place on every rock.
 
 ## How to decide
 
