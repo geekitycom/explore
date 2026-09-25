@@ -29,6 +29,14 @@ export const FEATURE_COLOR: Record<Feature, Rgb | undefined> = {
   flowers: [217, 133, 159],
   tallgrass: [164, 194, 74],
   bigtree: [36, 70, 60],
+  picket: [242, 234, 241],
+  'picket-broken': [242, 234, 241],
+  splitrail: [150, 83, 64],
+  'splitrail-broken': [150, 83, 64],
+  railing: [59, 54, 67],
+  'railing-broken': [59, 54, 67],
+  drystone: [141, 151, 127],
+  'drystone-broken': [141, 151, 127],
 };
 
 /** The terrain most of a tile's corners share, with ties going to the one drawn on top. */

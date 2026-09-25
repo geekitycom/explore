@@ -2,6 +2,8 @@ import {
   BIOMES,
   BIOME_PHOTO_PALETTES,
   BIOME_RAMPS,
+  FENCES,
+  FENCE_KINDS,
   FLORA,
   CLOTH_COLORS,
   HAIR_COLORS,
@@ -22,6 +24,7 @@ import {
   SKIN_TONES,
   TERRAINS,
   TILE,
+  brokenFence,
   cornerIndex,
   drawRecipe,
   generateScreen,
@@ -412,6 +415,68 @@ function showStyle() {
   for (let y = TILE - 4; y < ctx.canvas.height; y += TILE) ctx.fillRect(0, y, ctx.canvas.width, 1);
 }
 
+/** Tiles of the fence showcase: a gated pen, runs both ways, a tee, a crossing, a lone post. */
+const FENCE_LAYOUT: readonly [number, number][] = [
+  ...[1, 2, 3, 5, 6, 7].map((x): [number, number] => [x, 1]),
+  ...[1, 2, 3, 4, 5, 6, 7].map((x): [number, number] => [x, 5]),
+  ...[2, 4].flatMap((y): [number, number][] => [
+    [1, y],
+    [7, y],
+  ]),
+  [1, 3],
+  ...[1, 2, 3, 4, 5, 6].map((y): [number, number] => [10, y]),
+  ...[13, 14, 15].map((x): [number, number] => [x, 3]),
+  [14, 2],
+  [14, 4],
+  ...[12, 13, 14, 15, 16].map((x): [number, number] => [x, 8]),
+  [14, 9],
+  [14, 10],
+  [18, 12],
+];
+
+function showFences(art: Art) {
+  for (const fence of FENCES) {
+    const row = section(`Fence: ${FENCE_KINDS[fence].name}`);
+    for (const broken of [false, true]) {
+      const { corners, features } = blankScreen('grass');
+      for (const [tx, ty] of FENCE_LAYOUT) {
+        features[tx + ty * SCREEN_W] = broken ? brokenFence(fence) : fence;
+      }
+      for (let x = 1; x <= 8; x++) {
+        features[x + 12 * SCREEN_W] = x % 2 ? fence : brokenFence(fence);
+      }
+      drawScreen(
+        figure(
+          row,
+          broken ? 'broken, above a mixed run' : 'whole, above a mixed run',
+          SCREEN_PX_W,
+          SCREEN_PX_H,
+        ),
+        { coord: { layer: OVERWORLD, sx: 99, sy: 99 }, biome: 'meadow', corners, features },
+        art,
+      );
+      const ctx = figure(
+        row,
+        `${broken ? 'broken' : 'whole'} pieces by links (bits n=1 e=2 s=4 w=8), 3 seeds`,
+        16 * (TILE + 4),
+        3 * (TILE + 4),
+      );
+      ctx.fillStyle = RAMPS.grass[3];
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      for (let links = 0; links < 16; links++) {
+        for (let seed = 0; seed < 3; seed++) {
+          const { material } = FENCE_KINDS[fence];
+          const sprite = drawRecipe(
+            { family: 'fence', params: { style: fence, material, broken, links } },
+            seed,
+          );
+          ctx.drawImage(spriteCanvas(sprite), links * (TILE + 4) + 2, seed * (TILE + 4) + 2);
+        }
+      }
+    }
+  }
+}
+
 const SECTIONS = {
   style: showStyle,
   masks: showMasks,
@@ -419,6 +484,7 @@ const SECTIONS = {
   world: showWorld,
   flora: showFlora,
   recipes: showRecipes,
+  fences: showFences,
   avatars: showAvatars,
   motion: showMotion,
 };

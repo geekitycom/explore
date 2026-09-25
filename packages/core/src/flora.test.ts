@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { FLORA, speciesAt, type PlacedFeature } from './flora.ts';
+import { isFence } from './fences.ts';
+import { FLORA, speciesAt, type Plant } from './flora.ts';
 import { BIOME_RAMPS, PALETTE_BIOMES, RAMPS, type RampName } from './palette.ts';
 import { FEATURES, type Biome } from './world.ts';
 
-const PLACED = FEATURES.filter((f): f is PlacedFeature => f !== 'none');
+const PLANTS = FEATURES.filter((f): f is Plant => f !== 'none' && !isFence(f));
 const isRamp = (v: unknown): v is RampName => typeof v === 'string' && v in RAMPS;
 const names = (biome: Biome) =>
   Object.values(FLORA[biome]).flatMap((list) => list.map((s) => s.name));
@@ -36,7 +37,7 @@ describe('flora catalogue', () => {
 
   test('every biome lists at least one species for every feature', () => {
     for (const flora of Object.values(FLORA)) {
-      for (const feature of PLACED) expect(flora[feature].length).toBeGreaterThan(0);
+      for (const feature of PLANTS) expect(flora[feature].length).toBeGreaterThan(0);
     }
   });
 });

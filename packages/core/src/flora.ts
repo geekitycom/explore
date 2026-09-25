@@ -1,7 +1,10 @@
 import type { Recipe, TreeParams } from './recipes/index.ts';
-import type { Biome, Feature } from './world.ts';
+import type { Biome, Feature, FenceFeature } from './world.ts';
 
 export type PlacedFeature = Exclude<Feature, 'none'>;
+
+/** A feature the flora catalogue fills with a species; fences are built, not grown. */
+export type Plant = Exclude<PlacedFeature, FenceFeature>;
 
 /** A plant or stone modelled on a real one. */
 export type Species = {
@@ -14,7 +17,7 @@ export type Species = {
 };
 
 /** What stands on a tile holding each feature, per biome. The generator decides where features go. */
-export type Flora = Readonly<Record<PlacedFeature, readonly Species[]>>;
+export type Flora = Readonly<Record<Plant, readonly Species[]>>;
 
 const oak: Species = {
   name: 'English oak',
@@ -656,7 +659,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
 };
 
 /** The species on a tile, from a hash of the tile: heavier species win more often. */
-export function speciesAt(biome: Biome, feature: PlacedFeature, hash: number): Species {
+export function speciesAt(biome: Biome, feature: Plant, hash: number): Species {
   const species = FLORA[biome][feature];
   let roll = hash % species.reduce((sum, s) => sum + (s.weight ?? 1), 0);
   for (const s of species) {

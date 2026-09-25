@@ -5,6 +5,9 @@ import {
   TILE,
   drawRecipe,
   featureAt,
+  fenceLinks,
+  fenceSpecies,
+  isFence,
   speciesAt,
   type Family,
   type PlacedFeature,
@@ -22,7 +25,7 @@ const BUSH: Sway = { still: 6, bands: 1 };
 const GRASS: Sway = { still: 5, bands: 2 };
 const FLOWER: Sway = { still: 7, bands: 1 };
 
-/** How each family bends in the wind; stones, cacti, mushrooms, and rosettes never move. */
+/** How each family bends in the wind; stones, cacti, mushrooms, rosettes, and fences never move. */
 const SWAY: Record<Family, Sway | undefined> = {
   tree: ROUND_TREE,
   bush: BUSH,
@@ -33,6 +36,7 @@ const SWAY: Record<Family, Sway | undefined> = {
   reeds: GRASS,
   mushroom: undefined,
   rosette: undefined,
+  fence: undefined,
 };
 
 function swayOf({ family, params }: Recipe): Sway | undefined {
@@ -89,7 +93,8 @@ export type PlacedSprite = {
 
 /**
  * Features anchored bottom-centre on their tile, so 32px trees overhang the tiles above. Each
- * tile's species comes from the screen's biome in the flora catalogue.
+ * tile's species comes from the screen's biome in the flora catalogue; a fence piece joins the
+ * same fence on neighbouring tiles.
  */
 export function featureSprites(screen: Screen): PlacedSprite[] {
   const sprites: PlacedSprite[] = [];
@@ -98,7 +103,9 @@ export function featureSprites(screen: Screen): PlacedSprite[] {
       const feature = featureAt(screen, tx, ty);
       if (feature === 'none') continue;
       const hash = tileHash(screen.coord, tx, ty, FEATURES.indexOf(feature));
-      const species = speciesAt(screen.biome, feature, hash);
+      const species = isFence(feature)
+        ? fenceSpecies(feature, fenceLinks(screen, tx, ty))
+        : speciesAt(screen.biome, feature, hash);
       const { canvas, sprite } = speciesSprite(species, hash >>> 8);
       const bottom = (ty + 1) * TILE;
       sprites.push({

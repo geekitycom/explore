@@ -55,9 +55,20 @@ function opaqueColours(s: Sprite): Set<Hex> {
 }
 
 describe('recipes', () => {
-  test('cover the nine families', () => {
+  test('cover the ten families', () => {
     expect(RECIPE_FAMILIES.sort()).toEqual(
-      ['bush', 'cactus', 'flower', 'grass', 'mushroom', 'reeds', 'rock', 'rosette', 'tree'].sort(),
+      [
+        'bush',
+        'cactus',
+        'fence',
+        'flower',
+        'grass',
+        'mushroom',
+        'reeds',
+        'rock',
+        'rosette',
+        'tree',
+      ].sort(),
     );
   });
 

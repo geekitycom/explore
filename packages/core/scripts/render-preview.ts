@@ -55,6 +55,14 @@ export const FEATURE_RGB: Record<Feature, Rgb | undefined> = {
   flowers: [230, 120, 170],
   tallgrass: [140, 196, 90],
   bigtree: [10, 60, 25],
+  picket: [242, 234, 241],
+  'picket-broken': [242, 234, 241],
+  splitrail: [150, 83, 64],
+  'splitrail-broken': [150, 83, 64],
+  railing: [59, 54, 67],
+  'railing-broken': [59, 54, 67],
+  drystone: [141, 151, 127],
+  'drystone-broken': [141, 151, 127],
 };
 
 export const BIOME_RGB: Readonly<Record<string, Rgb>> = {

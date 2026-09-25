@@ -1,4 +1,5 @@
 import type { BiomeField, WildBiome } from './biome.ts';
+import { brokenFence } from './fences.ts';
 import { hash4, unit } from './noise.ts';
 import {
   LATTICE_H,
@@ -7,6 +8,7 @@ import {
   SCREEN_W,
   cornerAt,
   type Feature,
+  type Fence,
   type Screen,
   type Terrain,
 } from './world.ts';
@@ -35,6 +37,8 @@ type Mark = {
   readonly feature: Feature;
   /** Chance, 0..1, that the tile holds it, so a ruin's walls come out broken. */
   readonly chance?: number;
+  /** A run-down form the tile holds instead, with its chance, 0..1. */
+  readonly worn?: { readonly feature: Feature; readonly chance: number };
 };
 
 type PoiKindDef = {
@@ -65,14 +69,30 @@ function ring(n: number, rx: number, ry: number, feature: Feature, chance?: numb
 }
 
 /** The outline of a rectangle of tiles centred on the point. */
-function walls(rx: number, ry: number, feature: Feature, chance: number): Mark[] {
+function walls(rx: number, ry: number, feature: Feature, chance?: number): Mark[] {
   const marks: Mark[] = [];
   for (let dy = -ry; dy <= ry; dy++) {
     for (let dx = -rx; dx <= rx; dx++) {
-      if (Math.abs(dx) === rx || Math.abs(dy) === ry) marks.push({ dx, dy, feature, chance });
+      if (Math.abs(dx) !== rx && Math.abs(dy) !== ry) continue;
+      marks.push({ dx, dy, feature, ...(chance === undefined ? {} : { chance }) });
     }
   }
   return marks;
+}
+
+/**
+ * A rectangle of fence round the point, open at the middle of each side so it never shuts anyone
+ * in. `chance` leaves gaps and `broken` is the share of pieces fallen into disrepair.
+ */
+export function fenceRing(
+  rx: number,
+  ry: number,
+  fence: Fence,
+  { chance, broken = 0 }: { chance?: number; broken?: number } = {},
+): Mark[] {
+  return walls(rx, ry, fence, chance)
+    .filter(({ dx, dy }) => dx !== 0 && dy !== 0)
+    .map((m) => (broken > 0 ? { ...m, worn: { feature: brokenFence(fence), chance: broken } } : m));
 }
 
 const at = (feature: Feature, ...offsets: [number, number][]): Mark[] =>
@@ -100,7 +120,10 @@ export const POI_KINDS = {
     reach: [7, 5],
     ground: 'dirt',
     biomes: { scrubland: 3, highlands: 2, desert: 3, meadow: 1 },
-    landmark: [...walls(4, 2, 'rock', 0.8), ...at('rock', [-2, -1], [2, 1])],
+    landmark: [
+      ...fenceRing(4, 2, 'drystone', { chance: 0.85, broken: 0.6 }),
+      ...at('rock', [-2, -1], [2, 1]),
+    ],
   },
   lakeside: {
     reach: [5, 4],
@@ -120,6 +143,7 @@ export const POI_KINDS = {
     landmark: [
       ...ring(28, 7, 5, 'bush', 0.85),
       ...at('tree', [-4, -3], [4, -3], [-4, 3], [4, 3]),
+      ...fenceRing(2, 2, 'picket'),
       ...at('flowers', [-1, -1], [1, -1], [-1, 1], [1, 1]),
     ],
   },
@@ -345,6 +369,9 @@ export function landmarkAt(poi: Poi, gtx: number, gty: number): Feature | undefi
   if (!mark) return undefined;
   if (mark.chance !== undefined && unit(hash4(cx, cy, mark.dx, mark.dy)) >= mark.chance) {
     return undefined;
+  }
+  if (mark.worn && unit(hash4(cy, cx, mark.dy, mark.dx)) < mark.worn.chance) {
+    return mark.worn.feature;
   }
   return mark.feature;
 }

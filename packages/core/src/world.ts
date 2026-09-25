@@ -10,6 +10,13 @@ export const SCREEN_PX_H = SCREEN_H * TILE;
 export const TERRAINS = ['water', 'sand', 'dirt', 'path', 'grass', 'darkgrass', 'snow'] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
+/** Fences join neighbouring tiles of the same fence into runs, corners, and rings. */
+export const FENCES = ['picket', 'splitrail', 'railing', 'drystone'] as const;
+export type Fence = (typeof FENCES)[number];
+
+/** A fence tile: the fence whole, or fallen into disrepair. */
+export type FenceFeature = Fence | `${Fence}-broken`;
+
 export const FEATURES = [
   'none',
   'tree',
@@ -18,10 +25,19 @@ export const FEATURES = [
   'flowers',
   'tallgrass',
   'bigtree',
+  ...FENCES,
+  ...FENCES.map((f) => `${f}-broken` as const),
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
-export const BLOCKING_FEATURES: ReadonlySet<Feature> = new Set(['tree', 'bush', 'rock', 'bigtree']);
+export const BLOCKING_FEATURES: ReadonlySet<Feature> = new Set<Feature>([
+  'tree',
+  'bush',
+  'rock',
+  'bigtree',
+  ...FENCES,
+  ...FENCES.map((f) => `${f}-broken` as const),
+]);
 
 export const BIOMES = [
   'garden',

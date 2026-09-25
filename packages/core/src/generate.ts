@@ -5,6 +5,7 @@ import {
   type BiomeParams,
   type BiomeSample,
 } from './biome.ts';
+import { isFence } from './fences.ts';
 import { secretGarden } from './garden.ts';
 import { fbm, hash4, hashString, unit, type Noise2 } from './noise.ts';
 import type { Land } from './poi.ts';
@@ -42,7 +43,7 @@ const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
  * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
  * points, and opens onto that neighbour's walkable edge (decision D23).
  */
-export const GENERATOR_VERSION = 5;
+export const GENERATOR_VERSION = 6;
 
 /**
  * Looks up a stored screen that an older generator made; undefined for a screen the current
@@ -719,8 +720,9 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
       const feature = mark ? landmarkFor(mark, corners) : featureFor(f, gtx, gty, corners);
       const clear = mark ? onRoad : reserved;
       const cleared =
-        BLOCKING_FEATURES.has(feature) &&
-        (onCrossing(crossings, tx, ty) || clear(site.plan, gtx, gty));
+        (BLOCKING_FEATURES.has(feature) &&
+          (onCrossing(crossings, tx, ty) || clear(site.plan, gtx, gty))) ||
+        (isFence(feature) && onEdge(tx, ty));
       draft.features.push(cleared ? 'none' : feature);
     }
   }
@@ -729,6 +731,10 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
   repair(draft, tilesOf(crossings), treeCost);
   return draft;
 }
+
+/** Fences keep off a screen's edge tiles, so no fence has to join one on the next screen. */
+const onEdge = (tx: number, ty: number) =>
+  tx === 0 || ty === 0 || tx === SCREEN_W - 1 || ty === SCREEN_H - 1;
 
 const touches = (gtx: number, gty: number, test: (gx: number, gy: number) => boolean) =>
   CORNER_OFFSETS.some(([dx, dy]) => test(gtx + dx, gty + dy));
