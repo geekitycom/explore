@@ -1,0 +1,51 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, expect, test } from 'vitest';
+import { openDatabase } from './db.ts';
+import { hashPassword } from './password.ts';
+import { createSession, sessionUser } from './sessions.ts';
+import { insertUser } from './users.ts';
+import { wipeWorld } from './wipe.ts';
+import {
+  ensureGarden,
+  getOrCreateScreen,
+  getScreen,
+  loadPlayerState,
+  savePlayerState,
+} from './world.ts';
+import { DEFAULT_AVATAR, GARDEN_COORD, secretGarden } from '@explore/core';
+
+const dirs: string[] = [];
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
+test('wiping keeps accounts, forgets the world, and restores the garden; twice is the same as once', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'explore-wipe-'));
+  dirs.push(dir);
+  const path = join(dir, 'world.db');
+  let db = openDatabase(path);
+  ensureGarden(db);
+  const user = insertUser(db, {
+    username: 'wanderer',
+    passwordHash: await hashPassword('correct horse'),
+    avatar: DEFAULT_AVATAR,
+  })!;
+  const { token } = createSession(db, user.id);
+  const east = { ...GARDEN_COORD, sx: 1 };
+  getOrCreateScreen(db, east, user.id);
+  savePlayerState(db, user.id, { coord: east, pose: { x: 50, y: 60, dir: 'e', moving: false } });
+  db.close();
+
+  db = openDatabase(path);
+  expect(wipeWorld(db)).toEqual({ screens: 2, players: 1 });
+  expect(getScreen(db, east)).toBeUndefined();
+  expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
+  expect(loadPlayerState(db, user.id)).toBeUndefined();
+  expect(sessionUser(db, `session=${token}`)?.username).toBe('wanderer');
+
+  expect(wipeWorld(db)).toEqual({ screens: 1, players: 0 });
+  expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
+  db.close();
+});
