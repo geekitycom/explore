@@ -84,6 +84,33 @@ describe('landmarks', () => {
     expect(shown / marks).toBeGreaterThan(0.5);
   });
 
+  test.each(['graveyard', 'burialground'] as const)(
+    'a %s is reached by a road and keeps every grave and fence it rolls, so none shuts a tile in',
+    (kind) => {
+      const { world, poi } = found.get(kind)!;
+      const at = tiles(world);
+      const rolled: Feature[] = [];
+      const missing: string[] = [];
+      for (const { dx, dy } of POI_KINDS[kind].landmark) {
+        const gtx = Math.floor(poi.x) + dx;
+        const gty = Math.floor(poi.y) + dy;
+        const mark = landmarkAt(poi, gtx, gty);
+        if (!mark || !BLOCKING_FEATURES.has(mark)) continue;
+        rolled.push(mark);
+        if (at(gtx, gty) !== mark) missing.push(`${dx},${dy} ${mark}`);
+      }
+      expect(rolled.filter((f) => f === 'grave').length).toBeGreaterThan(4);
+      expect(missing).toEqual([]);
+      const roads = networkOf(world, OVERWORLD).roadsIn({
+        x0: poi.x,
+        y0: poi.y,
+        x1: poi.x,
+        y1: poi.y,
+      });
+      expect(roads.some((r) => r.a === poi || r.b === poi)).toBe(true);
+    },
+  );
+
   test('stand whole within one screen, unless the footprint is too big for one', () => {
     const split: string[] = [];
     for (const { poi } of found.values()) {

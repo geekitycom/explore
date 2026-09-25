@@ -55,7 +55,7 @@ function opaqueColours(s: Sprite): Set<Hex> {
 }
 
 describe('recipes', () => {
-  test('cover the eleven families', () => {
+  test('cover the twelve families', () => {
     expect(RECIPE_FAMILIES.sort()).toEqual(
       [
         'bones',
@@ -64,6 +64,7 @@ describe('recipes', () => {
         'fence',
         'flower',
         'grass',
+        'grave',
         'mushroom',
         'reeds',
         'rock',
@@ -77,6 +78,18 @@ describe('recipes', () => {
     '%s bones vary between seeds',
     (form) => {
       const recipe: Recipe = { family: 'bones', params: { form, bone: 'sand' } };
+      const distinct = new Set(SEEDS.map((seed) => bytes(drawRecipe(recipe, seed)).join()));
+      expect(distinct.size).toBeGreaterThanOrEqual(SEEDS.length / 2);
+    },
+  );
+
+  test.each(['headstone', 'cross', 'cairn', 'open'] as const)(
+    '%s graves vary between seeds',
+    (form) => {
+      const recipe: Recipe = {
+        family: 'grave',
+        params: { form, material: 'stone', earth: 'grass', moss: 'sage' },
+      };
       const distinct = new Set(SEEDS.map((seed) => bytes(drawRecipe(recipe, seed)).join()));
       expect(distinct.size).toBeGreaterThanOrEqual(SEEDS.length / 2);
     },
@@ -205,6 +218,7 @@ describe('recipes', () => {
       'mushroom',
       'rosette',
       'bones',
+      'grave',
     ] as const) {
       const s = drawRecipe(SAMPLE_RECIPES[family], 1);
       expect([s.width, s.height]).toEqual([TILE, TILE]);

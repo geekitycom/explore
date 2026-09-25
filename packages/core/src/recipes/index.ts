@@ -3,6 +3,7 @@ import type { Sprite } from '../sprite.ts';
 import { bones, type BonesParams } from './bones.ts';
 import { cactus, type CactusParams } from './cactus.ts';
 import { fence, type FenceParams } from './fence.ts';
+import { grave, type GraveParams } from './grave.ts';
 import {
   bush,
   flower,
@@ -29,6 +30,7 @@ export type {
   FenceParams,
   FlowerParams,
   GrassParams,
+  GraveParams,
   MushroomParams,
   ReedsParams,
   RockParams,
@@ -48,6 +50,7 @@ type FamilyParams = {
   rosette: RosetteParams;
   fence: FenceParams;
   bones: BonesParams;
+  grave: GraveParams;
 };
 
 export type Family = keyof FamilyParams;
@@ -69,6 +72,7 @@ const FAMILIES: { [F in Family]: (params: FamilyParams[F], rng: Rng) => Sprite }
   rosette,
   fence,
   bones,
+  grave,
 };
 
 export const RECIPE_FAMILIES = Object.keys(FAMILIES) as Family[];
@@ -101,4 +105,8 @@ export const SAMPLE_RECIPES: { [F in Family]: Recipe & { family: F } } = {
   rosette: { family: 'rosette', params: { leaves: 'sage' } },
   fence: { family: 'fence', params: { style: 'picket', material: 'snow', links: 0 } },
   bones: { family: 'bones', params: { form: 'scatter', bone: 'sand' } },
+  grave: {
+    family: 'grave',
+    params: { form: 'headstone', material: 'stone', earth: 'grass', moss: 'sage' },
+  },
 };

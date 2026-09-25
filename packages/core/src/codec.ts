@@ -40,6 +40,7 @@ const FEATURE_CODE: Record<Feature, string> = {
   drystone: 'W',
   'drystone-broken': 'w',
   bones: 'b',
+  grave: 'G',
 };
 
 const invert = <K extends string>(codes: Record<K, string>, keys: readonly K[]) =>

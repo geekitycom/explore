@@ -44,7 +44,7 @@ const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
  * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
  * points, and opens onto that neighbour's walkable edge (decision D23).
  */
-export const GENERATOR_VERSION = 7;
+export const GENERATOR_VERSION = 8;
 
 /**
  * Looks up a stored screen that an older generator made; undefined for a screen the current

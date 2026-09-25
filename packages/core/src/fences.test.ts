@@ -75,6 +75,8 @@ describe('generated fences', () => {
   test.each([
     ['ruin', false],
     ['town', true],
+    ['graveyard', false],
+    ['burialground', false],
   ] as const)('a %s is fenced, and no fence stands on a screen edge', (kind, seam) => {
     const { world, poi } = find(kind, seam);
     const sx = Math.floor(poi.x / SCREEN_W);

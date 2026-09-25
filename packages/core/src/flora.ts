@@ -1,5 +1,5 @@
 import type { RampName } from './palette.ts';
-import type { BonesParams, Recipe, TreeParams } from './recipes/index.ts';
+import type { BonesParams, GraveParams, Recipe, TreeParams } from './recipes/index.ts';
 import type { Biome, Feature, FenceFeature } from './world.ts';
 
 export type PlacedFeature = Exclude<Feature, 'none'>;
@@ -104,6 +104,28 @@ function remains(bone: RampName): Species[] {
   ];
 }
 
+/** Grave markers, grown over with the biome's turf and weathered in its stone and wood. */
+function graves(m: {
+  stone: RampName;
+  wood: RampName;
+  turf: RampName;
+  soil: RampName;
+  moss?: RampName;
+}): Species[] {
+  const moss = m.moss ? { moss: m.moss } : {};
+  const of = (name: string, weight: number, params: GraveParams): Species => ({
+    name,
+    recipe: { family: 'grave', params },
+    weight,
+  });
+  return [
+    of('Headstone', 4, { form: 'headstone', material: m.stone, earth: m.turf, ...moss }),
+    of('Wooden cross', 3, { form: 'cross', material: m.wood, earth: m.turf }),
+    of('Cairn', 1, { form: 'cairn', material: m.stone, earth: m.turf, ...moss }),
+    of('Open grave', 1, { form: 'open', material: m.wood, earth: m.soil }),
+  ];
+}
+
 function bigtree(name: string, params: Omit<TreeParams, 'tiles'>): Species {
   return { name, recipe: { family: 'tree', params: { ...params, tiles: 3 } } };
 }
@@ -148,6 +170,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('stone'),
+    grave: graves({ stone: 'stone', wood: 'bark', turf: 'grass', soil: 'bark', moss: 'grass' }),
   },
   meadow: {
     tree: [
@@ -201,6 +224,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('stone'),
+    grave: graves({ stone: 'stone', wood: 'bark', turf: 'grass', soil: 'bark', moss: 'grass' }),
   },
   forest: {
     tree: [{ ...beech, weight: 3 }, oak, { ...spruce, weight: 2 }],
@@ -243,6 +267,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('stone'),
+    grave: graves({ stone: 'stone', wood: 'bark', turf: 'grass', soil: 'bark', moss: 'pine' }),
   },
   lakeland: {
     tree: [
@@ -330,6 +355,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('stone'),
+    grave: graves({ stone: 'stone', wood: 'bark', turf: 'grass', soil: 'bark', moss: 'grass' }),
   },
   scrubland: {
     tree: [
@@ -399,6 +425,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('stone'),
+    grave: graves({ stone: 'stone', wood: 'bark', turf: 'straw', soil: 'bark', moss: 'sage' }),
   },
   desert: {
     tree: [
@@ -458,6 +485,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       },
     ],
     bones: remains('sand'),
+    grave: graves({ stone: 'sage', wood: 'sand', turf: 'sand', soil: 'sand' }),
   },
   highlands: {
     tree: [
@@ -539,6 +567,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('granite'),
+    grave: graves({ stone: 'granite', wood: 'bark', turf: 'pine', soil: 'bark', moss: 'gold' }),
   },
   taiga: {
     tree: [
@@ -610,6 +639,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('snow'),
+    grave: graves({ stone: 'stone', wood: 'bark', turf: 'snow', soil: 'bark', moss: 'pine' }),
   },
   tundra: {
     tree: [
@@ -680,6 +710,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       }),
     ],
     bones: remains('snow'),
+    grave: graves({ stone: 'stone', wood: 'sage', turf: 'snow', soil: 'stone', moss: 'sage' }),
   },
 };
 

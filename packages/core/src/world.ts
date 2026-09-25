@@ -28,6 +28,7 @@ export const FEATURES = [
   ...FENCES,
   ...FENCES.map((f) => `${f}-broken` as const),
   'bones',
+  'grave',
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
@@ -38,6 +39,7 @@ export const BLOCKING_FEATURES: ReadonlySet<Feature> = new Set<Feature>([
   'bigtree',
   ...FENCES,
   ...FENCES.map((f) => `${f}-broken` as const),
+  'grave',
 ]);
 
 export const BIOMES = [

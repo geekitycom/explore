@@ -98,6 +98,30 @@ export function fenceRing(
 const at = (feature: Feature, ...offsets: [number, number][]): Mark[] =>
   offsets.map(([dx, dy]) => ({ dx, dy, feature }));
 
+/** Every tile within rx, ry of the point, each holding the feature by chance. */
+function patch(rx: number, ry: number, feature: Feature, chance: number): Mark[] {
+  const marks: Mark[] = [];
+  for (let dy = -ry; dy <= ry; dy++) {
+    for (let dx = -rx; dx <= rx; dx++) marks.push({ dx, dy, feature, chance });
+  }
+  return marks;
+}
+
+/**
+ * A fenced plot of two rows of graves either side of the path between the side gates, with a
+ * walk between each row and the fence, so every tile inside stays in reach. Weeds fill the rest.
+ */
+function graveyard(
+  fence: Fence,
+  { broken, graves, weeds }: { broken: number; graves: number; weeds: number },
+): Mark[] {
+  return [
+    ...fenceRing(4, 3, fence, { chance: 0.9, broken }),
+    ...patch(3, 1, 'grave', graves).filter(({ dx, dy }) => dx !== 0 && dy !== 0),
+    ...patch(3, 2, 'tallgrass', weeds),
+  ];
+}
+
 /**
  * Every kind of point of interest. A new kind is one entry here: its footprint is reserved, its
  * landmark stands in it, and roads reach it without other changes. Towns and caves are placed now
@@ -123,6 +147,20 @@ export const POI_KINDS = {
     landmark: [
       ...fenceRing(4, 2, 'drystone', { chance: 0.85, broken: 0.6 }),
       ...at('rock', [-2, -1], [2, 1]),
+      { dx: 2, dy: -1, feature: 'grave', chance: 0.6 },
+    ],
+  },
+  graveyard: {
+    reach: [7, 6],
+    biomes: { meadow: 1, forest: 1, lakeland: 1, highlands: 1 },
+    landmark: graveyard('railing', { broken: 0.3, graves: 0.85, weeds: 0.25 }),
+  },
+  burialground: {
+    reach: [7, 6],
+    biomes: { scrubland: 1.5, desert: 1, taiga: 1, tundra: 1 },
+    landmark: [
+      ...patch(3, 2, 'bush', 0.5).filter(({ dx, dy }) => Math.abs(dx) === 3 && Math.abs(dy) === 2),
+      ...graveyard('splitrail', { broken: 0.5, graves: 0.7, weeds: 0.6 }),
     ],
   },
   lakeside: {

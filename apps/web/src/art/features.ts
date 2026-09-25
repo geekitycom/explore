@@ -25,7 +25,7 @@ const BUSH: Sway = { still: 6, bands: 1 };
 const GRASS: Sway = { still: 5, bands: 2 };
 const FLOWER: Sway = { still: 7, bands: 1 };
 
-/** How each family bends in the wind; stones, cacti, mushrooms, rosettes, fences, and bones never move. */
+/** How each family bends in the wind; stones, cacti, mushrooms, rosettes, fences, bones, and graves never move. */
 const SWAY: Record<Family, Sway | undefined> = {
   tree: ROUND_TREE,
   bush: BUSH,
@@ -38,6 +38,7 @@ const SWAY: Record<Family, Sway | undefined> = {
   rosette: undefined,
   fence: undefined,
   bones: undefined,
+  grave: undefined,
 };
 
 function swayOf({ family, params }: Recipe): Sway | undefined {
