@@ -56,3 +56,14 @@ export async function logout(): Promise<void> {
 export async function updateAvatar(avatar: Avatar): Promise<User> {
   return (await request<{ user: User }>('PUT', '/api/me/avatar', { avatar })).user;
 }
+
+export type WorldMap = {
+  layer: string;
+  you: { layer: string; sx: number; sy: number };
+  garden: { layer: string; sx: number; sy: number } | null;
+  screens: unknown[];
+};
+
+export async function fetchMap(): Promise<WorldMap> {
+  return request<WorldMap>('GET', '/api/map');
+}

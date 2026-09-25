@@ -275,6 +275,36 @@ describe('world socket', () => {
     expect(back.you).toMatchObject({ x: SCREEN_PX_W - 8, dir: 'w', moving: false });
   });
 
+  it('maps every discovered screen and where the viewer is, only when logged in', async () => {
+    const { base } = await start();
+    const cookie = await signup(base, 'alice');
+    const alice = await connect(base, cookie);
+    await nextOf(alice, 'screen');
+    const east = await travelEast(alice);
+
+    const res = await fetch(`http://${base}/api/map`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const map = (await res.json()) as {
+      layer: string;
+      you: { sx: number; sy: number };
+      garden: { sx: number; sy: number };
+      screens: unknown[];
+    };
+    expect(map.layer).toBe('overworld');
+    expect(map.you).toMatchObject({ sx: 1, sy: 0 });
+    expect(map.garden).toMatchObject({ sx: 0, sy: 0 });
+    expect(map.screens.map((r) => decodeScreen(r).coord)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sx: 0, sy: 0 }),
+        expect.objectContaining({ sx: 1, sy: 0 }),
+      ]),
+    );
+    expect(map.screens).toHaveLength(2);
+    expect(map.screens).toContainEqual(east.screen);
+
+    expect((await fetch(`http://${base}/api/map`)).status).toBe(401);
+  });
+
   it('refuses to travel from away from the edge', async () => {
     const { base } = await start();
     const alice = await connect(base, await signup(base, 'alice'));

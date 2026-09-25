@@ -1,4 +1,4 @@
-import { fetchMe, logout, type User } from './api.ts';
+import { fetchMap, fetchMe, logout, type User } from './api.ts';
 import { avatarSheet, walkFrameRect } from './art/avatars.ts';
 import { createAudioEngine } from './audio/engine.ts';
 import { tuneFor } from './audio/mood.ts';
@@ -6,13 +6,20 @@ import { createMusic } from './audio/music.ts';
 import { loadArt } from './art/load.ts';
 import { startGame, type GameStatus } from './game/game.ts';
 import { canvasRenderer } from './game/render.ts';
+import { mapView } from './map/map-view.ts';
 import { authView, type AuthMode } from './ui/auth.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
 import { soundSettings } from './ui/sound-settings.ts';
 import './style.css';
 
-type View = { kind: 'loading' } | { kind: 'auth'; mode: AuthMode } | { kind: 'game'; user: User };
+type Place = 'game' | 'map';
+
+type View =
+  | { kind: 'loading' }
+  | { kind: 'auth'; mode: AuthMode; then: Place }
+  | { kind: 'game'; user: User }
+  | { kind: 'map' };
 
 const STATUS_TEXT: Record<GameStatus, string> = {
   connecting: 'Connecting…',
@@ -50,12 +57,14 @@ function gameView(user: User) {
       h('span', { class: 'who' }, user.username),
       status,
       soundSettings(audio),
+      h('a', { class: 'link', href: '/map' }, 'Map'),
       h(
         'button',
         {
           type: 'button',
           class: 'link',
-          onclick: () => void logout().then(() => show({ kind: 'auth', mode: 'login' })),
+          onclick: () =>
+            void logout().then(() => show({ kind: 'auth', mode: 'login', then: 'game' })),
         },
         'Log out',
       ),
@@ -90,10 +99,21 @@ function show(view: View) {
         authView({
           mode: view.mode,
           drawAvatar,
-          onSwitch: (mode) => show({ kind: 'auth', mode }),
-          onAuthenticated: (user) => show({ kind: 'game', user }),
+          onSwitch: (mode) => show({ kind: 'auth', mode, then: view.then }),
+          onAuthenticated: (user) =>
+            show(view.then === 'map' ? { kind: 'map' } : { kind: 'game', user }),
         }),
       );
+      return;
+    case 'map':
+      root.replaceChildren(h('p', { class: 'loading' }, 'Loading the map…'));
+      void fetchMap().then((data) => {
+        const map = mapView(data);
+        root.replaceChildren(map.el);
+        map.mount();
+        Object.assign(window, { exploreMap: map.state });
+        stopGame = map.dispose;
+      });
       return;
     case 'game':
       gameView(view.user);
@@ -101,4 +121,6 @@ function show(view: View) {
   }
 }
 
-show(initialUser ? { kind: 'game', user: initialUser } : { kind: 'auth', mode: 'signup' });
+const place: Place = location.pathname === '/map' ? 'map' : 'game';
+if (!initialUser) show({ kind: 'auth', mode: place === 'map' ? 'login' : 'signup', then: place });
+else show(place === 'map' ? { kind: 'map' } : { kind: 'game', user: initialUser });

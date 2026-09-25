@@ -17,6 +17,7 @@ import {
   sessionUser,
 } from './sessions.ts';
 import { findUserCredentials, insertUser, updateAvatar, type User } from './users.ts';
+import { worldMapJson } from './map.ts';
 
 type Env = { Variables: { user: User } };
 
@@ -143,6 +144,10 @@ export function createApp({
     const { avatar } = await parseBody(c, avatarBody);
     return c.json({ user: updateAvatar(db, c.get('user').id, avatar) });
   });
+
+  app.get('/api/map', requireUser, (c) =>
+    c.body(worldMapJson(db, c.get('user').id), 200, { 'content-type': 'application/json' }),
+  );
 
   app.all('/api/*', () => {
     throw new ApiError(404, 'not_found', 'No such endpoint');

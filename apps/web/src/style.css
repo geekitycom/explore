@@ -291,3 +291,41 @@ legend {
 .sound-row input[type='checkbox'] {
   justify-self: start;
 }
+
+.map {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.map-stage {
+  min-height: 0;
+  margin: 0 16px;
+  overflow: hidden;
+}
+
+.map-canvas {
+  display: block;
+  outline: 3px solid var(--ink-soft);
+  outline-offset: -3px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.map-canvas:active {
+  cursor: grabbing;
+}
+
+.map-readout {
+  margin: 0;
+  padding: 0.5rem 16px;
+  min-height: 1.4em;
+  color: var(--paper-edge);
+  font-size: 0.9rem;
+}
+
+.game-bar a.link {
+  color: inherit;
+}
