@@ -1,5 +1,6 @@
 import { fetchMap, fetchMe, logout, type User } from './api.ts';
 import { avatarSheet, walkFrameRect } from './art/avatars.ts';
+import { ambientMix, createAmbience } from './audio/ambience.ts';
 import { createAudioEngine } from './audio/engine.ts';
 import { tuneFor } from './audio/mood.ts';
 import { createMusic } from './audio/music.ts';
@@ -40,8 +41,15 @@ const drawAvatar: DrawAvatar = (ctx, avatar, dir, frame) => {
 
 const audio = createAudioEngine();
 const music = createMusic(audio);
+const ambience = createAmbience(audio);
 Object.assign(window, {
-  exploreAudio: () => ({ state: audio.state(), tune: music.current(), settings: audio.settings() }),
+  exploreAudio: () => ({
+    state: audio.state(),
+    tune: music.current(),
+    ambience: ambience.mix(),
+    ambienceLoaded: ambience.loaded(),
+    settings: audio.settings(),
+  }),
 });
 
 let stopGame: (() => void) | undefined;
@@ -89,11 +97,15 @@ function gameView(user: User) {
     (s) => {
       status.textContent = STATUS_TEXT[s];
     },
-    (screen) => music.play(tuneFor(screen)),
+    (screen) => {
+      music.play(tuneFor(screen));
+      ambience.set(ambientMix(screen));
+    },
   );
   stopGame = () => {
     game.stop();
     music.stop();
+    ambience.stop();
   };
 }
 

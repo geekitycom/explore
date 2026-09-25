@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { AMBIENT_SOUNDS } from '../audio/ambience.ts';
 import { SHEETS } from './sheets.ts';
 
 const ROOT = '../../public/assets/ninja-adventure/';
@@ -13,7 +14,7 @@ const sources = Object.values(
   }),
 )[0]!;
 
-describe('shipped art', () => {
+describe('shipped art and audio', () => {
   it('lives only under the CC0 Ninja Adventure directory, with its license', () => {
     expect(shipped.every((path) => !path.startsWith('../'))).toBe(true);
     expect(shipped).toContain('LICENSE.txt');
@@ -29,5 +30,9 @@ describe('shipped art', () => {
 
   it('ships every sheet the registry loads', () => {
     for (const path of Object.values(SHEETS)) expect(shipped).toContain(path);
+  });
+
+  it('ships every ambient sound the client loads', () => {
+    for (const path of Object.values(AMBIENT_SOUNDS)) expect(shipped).toContain(path);
   });
 });

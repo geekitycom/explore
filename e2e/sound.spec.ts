@@ -1,8 +1,11 @@
+/// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
 
 type AudioSnapshot = {
   state: string;
   tune: string | undefined;
+  ambience: { wind: number; river: number; waves: number };
+  ambienceLoaded: string[];
   settings: { muted: boolean; music: number; effects: number };
 };
 
@@ -19,7 +22,9 @@ const coord = (page: Page) =>
       ).exploreState().screen?.coord,
   );
 
-test('music waits for input, follows the world, and settings persist', async ({ page }) => {
+test('music and ambience wait for input, follow the world, and settings persist', async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'error' || m.type() === 'warning') errors.push(m.text());
@@ -39,6 +44,8 @@ test('music waits for input, follows the world, and settings persist', async ({ 
   await page.keyboard.press('Shift');
   await expect.poll(async () => (await audio(page)).state).toBe('running');
   await expect.poll(async () => (await audio(page)).tune).toBe('garden:1');
+  expect((await audio(page)).ambience.wind).toBeGreaterThan(0);
+  await expect.poll(async () => (await audio(page)).ambienceLoaded).toContain('wind');
 
   await page.keyboard.down('ArrowDown');
   await expect
@@ -64,4 +71,50 @@ test('music waits for input, follows the world, and settings persist', async ({ 
   await expect(page.getByLabel('Mute')).toBeChecked();
 
   expect(errors.filter((e) => /AudioContext/i.test(e))).toEqual([]);
+});
+
+test('ambience plays on the effects bus and obeys mute and the effects volume', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('explore.sound', JSON.stringify({ muted: false, music: 0, effects: 0.7 }));
+    const node = AudioNode.prototype as unknown as {
+      connect: (this: AudioNode, ...args: unknown[]) => unknown;
+    };
+    const connect = node.connect;
+    let analyser: AnalyserNode | undefined;
+    node.connect = function (dest, ...rest) {
+      if (dest instanceof AudioDestinationNode) {
+        analyser ??= this.context.createAnalyser();
+        connect.call(this, analyser);
+      }
+      return connect.call(this, dest, ...rest);
+    };
+    Object.assign(window, {
+      outputLevel: () => {
+        if (!analyser) return 0;
+        const samples = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(samples);
+        return Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
+      },
+    });
+  });
+  const level = () =>
+    page.evaluate(() => (window as unknown as { outputLevel: () => number }).outputLevel());
+
+  await page.goto('/');
+  await page.getByLabel('Username').fill(`amb${Date.now().toString(36)}`);
+  await page.getByLabel('Password').fill('correct horse');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByLabel('Game world')).toBeVisible();
+  await page.keyboard.press('Shift');
+  await expect.poll(level, { timeout: 10_000 }).toBeGreaterThan(0.002);
+
+  await page.getByRole('button', { name: 'Sound' }).click();
+  await page.getByLabel('Mute').check();
+  await expect.poll(level).toBe(0);
+  await page.getByLabel('Mute').uncheck();
+  await expect.poll(level).toBeGreaterThan(0.002);
+  await page.getByLabel('Effects').fill('0');
+  await expect.poll(level).toBe(0);
 });

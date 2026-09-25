@@ -1,6 +1,6 @@
 # Sources
 
-All art in this directory comes from one pack.
+All art and audio in this directory comes from one pack.
 
 - Pack: Ninja Adventure Asset Pack
 - Authors: pixel-boy (Pixel-boy), with AAA as credited in the pack's README
@@ -21,4 +21,7 @@ Files are copied unchanged and keep their paths from the pack's `Ninja Adventure
 - `Backgrounds/Animated/Plant/SpriteSheet16x16.png`
 - `FX/Particle/LeafPink.png`
 - `Actor/Animal/Fish/SpriteSheetWhite.png`
+- `Audio/Sounds/Ambient/Wind2.wav`
+- `Audio/Sounds/Ambient/River.wav`
+- `Audio/Sounds/Ambient/Wave.wav`
 - `LICENSE.txt`
