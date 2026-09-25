@@ -6,22 +6,12 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
 import { createGame } from './play.ts';
-import { outdatedScreens } from './world.ts';
 
 const SAVE_INTERVAL_MS = 5000;
 
 const dbPath = process.env.DB_PATH ?? './data/explore.db';
 mkdirSync(dirname(dbPath), { recursive: true });
 const db = openDatabase(dbPath);
-const outdated = outdatedScreens(db);
-if (outdated > 0) {
-  console.error(
-    `${dbPath} holds ${outdated} screens made by an older world generator, which this version ` +
-      'cannot load. The world was left untouched. To start a fresh world (accounts are kept), run:\n\n' +
-      '  pnpm world:wipe --yes\n',
-  );
-  process.exit(1);
-}
 const game = createGame(db);
 
 const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));

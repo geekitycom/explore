@@ -1,5 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
+import { upgradeScreenRecords } from './world.ts';
 
+/**
+ * Schema changes, one per version. A migration may add to or rewrite stored screens and
+ * positions, never delete them (decision D22); a world is reset only by pnpm world:wipe --yes.
+ */
 const migrations: readonly string[] = [
   `CREATE TABLE users (
     id INTEGER PRIMARY KEY,
@@ -75,10 +80,15 @@ const migrations: readonly string[] = [
   INSERT OR IGNORE INTO visits (layer, sx, sy) SELECT layer, sx, sy FROM player_state;`,
 ];
 
-export function openDatabase(path: string): DatabaseSync {
+/**
+ * Opens the database, applies pending migrations, and lifts stored screens to the current record
+ * version. A wipe skips the lift, so a record that cannot be lifted never blocks the reset.
+ */
+export function openDatabase(path: string, { upgradeRecords = true } = {}): DatabaseSync {
   const db = new DatabaseSync(path);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   migrate(db);
+  if (upgradeRecords) upgradeScreenRecords(db);
   return db;
 }
 

@@ -1,17 +1,22 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 import {
   CHUNK_H,
   CHUNK_W,
   DEFAULT_AVATAR,
   GARDEN_SPAWN,
+  GENERATOR_VERSION,
+  OVERWORLD,
+  SCREEN_H,
   SCREEN_PX_W,
+  SCREEN_RECORD_VERSION,
   canOccupy,
   decodeScreen,
   encodeScreen,
+  seamOpenings,
   secretGarden,
   type Avatar,
   type LayerId,
@@ -27,7 +32,7 @@ import { openDatabase } from './db.ts';
 import { createGame } from './play.ts';
 import type { Conn } from './presence.ts';
 import { insertUser } from './users.ts';
-import { savePlayerState } from './world.ts';
+import { getScreen, savePlayerState } from './world.ts';
 
 type Running = { db: DatabaseSync; base: string; stop: () => Promise<void> };
 
@@ -421,6 +426,49 @@ describe('world socket', () => {
     const resumed = await nextOf(again, 'screen');
     expect(resumed.screen).toEqual<ScreenRecord>(arrival.screen);
     expect(resumed.you).toEqual(arrival.you);
+  });
+
+  it('resumes a player in a screen an older generator made and walks them into new land', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'explore-play-'));
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    const path = join(dir, 'explore.db');
+    const legacy = new DatabaseSync(path);
+    legacy.exec(readFileSync(new URL('../fixtures/world-v3.sql', import.meta.url), 'utf8'));
+    legacy.close();
+
+    const { db, base } = await start(path);
+    const cookie = await signup(base, 'alice');
+    const { id } = db.prepare("SELECT id FROM users WHERE username = 'alice'").get() as {
+      id: number;
+    };
+    const edgeOf = { layer: OVERWORLD, sx: 1, sy: 1 };
+    const stood = getScreen(db, edgeOf)!;
+    const y = Array.from({ length: SCREEN_H }, (_, ty) => ty * 16 + 12).find((y) =>
+      canOccupy(stood, SCREEN_PX_W - 8, y),
+    )!;
+    const pose: Pose = { x: SCREEN_PX_W - 8, y, dir: 'e', moving: false };
+    savePlayerState(db, id, { coord: edgeOf, pose });
+
+    const alice = await connect(base, cookie);
+    const resumed = await nextOf(alice, 'screen');
+    expect(resumed.screen).toEqual(encodeScreen(stood));
+    expect(resumed.screen.v).toBe(SCREEN_RECORD_VERSION);
+    expect(resumed.you).toEqual(pose);
+    expect(db.prepare('SELECT gen_version FROM screens WHERE sx = 1 AND sy = 1').get()).toEqual({
+      gen_version: 0,
+    });
+
+    alice.send({ t: 'travel', dir: 'e' });
+    const arrival = await nextOf(alice, 'screen');
+    expect(arrival.screen).toMatchObject({ sx: 2, sy: 1 });
+    const fresh = decodeScreen(arrival.screen);
+    expect(canOccupy(fresh, arrival.you.x, arrival.you.y)).toBe(true);
+    const entered = Math.floor(arrival.you.y / 16);
+    expect(seamOpenings(stood, fresh, 'e').map(([, ty]) => ty)).toContain(entered);
+    expect(db.prepare('SELECT gen_version FROM screens WHERE sx = 2 AND sy = 1').get()).toEqual({
+      gen_version: GENERATOR_VERSION,
+    });
+    expect(encodeScreen(getScreen(db, edgeOf)!)).toEqual(resumed.screen);
   });
 
   it('keeps players on different layers apart, even at the same sx, sy', async () => {

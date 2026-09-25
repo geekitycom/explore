@@ -5,13 +5,15 @@ import {
   chunkScreens,
   generateScreen,
   type ChunkCoord,
+  type Older,
   type Screen,
   type ScreenCoord,
   type World,
 } from '@explore/core';
-import { getScreen, isChunkStored, loadWorld, storeChunk } from './world.ts';
+import { getScreen, isChunkStored, loadWorld, olderScreen, storeChunk } from './world.ts';
 
-export type Generate = (world: World, coord: ScreenCoord) => Screen;
+/** Builds one screen, stitched to the stored screens `older` finds around it. */
+export type Generate = (world: World, coord: ScreenCoord, older: Older) => Screen;
 
 /** A chunk being built: its screens so far, in `coords` order. */
 type Job = {
@@ -34,12 +36,14 @@ const NEARBY = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({ dx, dy })));
 export class Chunks {
   readonly #db: DatabaseSync;
   readonly #generate: Generate;
+  readonly #older: Older;
   readonly #jobs = new Map<string, Job>();
   #turn: NodeJS.Immediate | undefined;
 
   constructor(db: DatabaseSync, generate: Generate = generateScreen) {
     this.#db = db;
     this.#generate = generate;
+    this.#older = (coord) => olderScreen(db, coord);
   }
 
   screenAt(coord: ScreenCoord, userId: number): Screen {
@@ -85,7 +89,7 @@ export class Chunks {
   #step(job: Job): boolean {
     const key = chunkKey(job.chunk);
     try {
-      job.screens.push(this.#generate(job.world, job.coords[job.screens.length]!));
+      job.screens.push(this.#generate(job.world, job.coords[job.screens.length]!, this.#older));
     } catch (error) {
       this.#jobs.delete(key);
       throw error;

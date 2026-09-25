@@ -5,11 +5,17 @@ import {
   DEFAULT_AVATAR,
   GARDEN_COORD,
   GENERATOR_VERSION,
+  LATTICE_H,
+  LATTICE_W,
   OVERWORLD,
+  SCREEN_H,
+  SCREEN_W,
   chunkScreens,
+  cornerAt,
   encodeScreen,
   generateScreen,
   screenKey,
+  seamOpenings,
   secretGarden,
   type ScreenCoord,
 } from '@explore/core';
@@ -34,9 +40,9 @@ function setup() {
   const db = openDatabase(':memory:');
   ensureGarden(db);
   const generated: string[] = [];
-  const chunks = new Chunks(db, (world, coord) => {
+  const chunks = new Chunks(db, (world, coord, older) => {
     generated.push(screenKey(coord));
-    return generateScreen(world, coord);
+    return generateScreen(world, coord, older);
   });
   const alice = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
   const bob = insertUser(db, { username: 'bob', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
@@ -95,6 +101,18 @@ it('keeps a screen stored by an older generator when its chunk is built around i
     created_by: null,
     gen_version: 0,
   });
+  const kept = getScreen(db, at(2, 0))!;
+  const west = getScreen(db, at(1, 0))!;
+  const east = getScreen(db, at(3, 0))!;
+  const south = getScreen(db, at(2, 1))!;
+  for (let cy = 0; cy < LATTICE_H; cy++) {
+    expect(cornerAt(west, SCREEN_W, cy)).toBe(cornerAt(kept, 0, cy));
+    expect(cornerAt(east, 0, cy)).toBe(cornerAt(kept, SCREEN_W, cy));
+  }
+  for (let cx = 0; cx < LATTICE_W; cx++)
+    expect(cornerAt(south, cx, 0)).toBe(cornerAt(kept, cx, SCREEN_H));
+  expect(seamOpenings(kept, east, 'e').length).toBeGreaterThan(0);
+  expect(seamOpenings(kept, south, 's').length).toBeGreaterThan(0);
 });
 
 it('generates a chunk once when two players arrive at it in the same turn', () => {

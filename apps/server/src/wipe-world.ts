@@ -17,7 +17,7 @@ if (!existsSync(dbPath)) {
   process.exit(1);
 }
 
-const db = openDatabase(dbPath);
+const db = openDatabase(dbPath, { upgradeRecords: false });
 const { screens, players } = wipeWorld(db);
 db.close();
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;

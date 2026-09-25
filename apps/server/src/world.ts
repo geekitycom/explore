@@ -10,6 +10,7 @@ import {
   layerIdSchema,
   randomWorldSeed,
   secretGarden,
+  upgradeScreenRecord,
   type ChunkCoord,
   type Pose,
   type Screen,
@@ -73,14 +74,37 @@ export function storeChunk(db: DatabaseSync, screens: readonly Screen[], userId:
 }
 
 /**
- * How many stored screens an older generator made. They cannot be read or mixed with new
- * screens, and only an admin decides to throw a world away, so the server refuses to start.
+ * Rewrites every stored screen recorded in an earlier format as the current one, keeping its
+ * cells, in one transaction. Runs at every open and changes nothing once records are current.
+ * Never deletes a screen: a record it cannot lift stops the open (decision D22).
  */
-export function outdatedScreens(db: DatabaseSync): number {
+export function upgradeScreenRecords(db: DatabaseSync): number {
+  const rows = db
+    .prepare("SELECT layer, sx, sy, data FROM screens WHERE json_extract(data, '$.v') IS NOT ?")
+    .all(SCREEN_RECORD_VERSION) as { layer: string; sx: number; sy: number; data: string }[];
+  if (rows.length === 0) return 0;
+  const world = loadWorld(db);
+  const update = db.prepare('UPDATE screens SET data = ? WHERE layer = ? AND sx = ? AND sy = ?');
+  db.exec('BEGIN');
+  try {
+    for (const { layer, sx, sy, data } of rows) {
+      const record = upgradeScreenRecord(JSON.parse(data), world);
+      update.run(JSON.stringify(record), layer, sx, sy);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+  return rows.length;
+}
+
+/** A stored screen an older generator made, which new neighbours stitch to. */
+export function olderScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Screen | undefined {
   const row = db
-    .prepare("SELECT count(*) AS n FROM screens WHERE json_extract(data, '$.v') IS NOT ?")
-    .get(SCREEN_RECORD_VERSION) as { n: number };
-  return row.n;
+    .prepare('SELECT data FROM screens WHERE layer = ? AND sx = ? AND sy = ? AND gen_version < ?')
+    .get(layer, sx, sy, GENERATOR_VERSION) as { data: string } | undefined;
+  return row && decodeScreen(JSON.parse(row.data));
 }
 
 export function ensureGarden(db: DatabaseSync): void {

@@ -8,10 +8,10 @@ import {
   arrivalPose,
   canOccupy,
   clientMessageSchema,
-  crossingTiles,
   encodeScreen,
   neighborCoord,
   screenBiome,
+  seamOpenings,
   type ClientMessage,
   type Dir,
   type Pose,
@@ -103,9 +103,15 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
     }
     const coord = neighborCoord(player.room.screen.coord, dir);
     const room = roomAt(coord, player.user.id);
+    const openings = seamOpenings(player.room.screen, room.screen, dir);
+    if (openings.length === 0) {
+      correct(player);
+      return;
+    }
+    const pose = arrivalPose(room.screen, dir, player.pose, openings);
     presence.exit(player);
     player.room = room;
-    player.pose = arrivalPose(room.screen, dir, player.pose, crossingTiles(loadWorld(db), coord));
+    player.pose = pose;
     player.acceptedAt = now();
     sendScreen(player);
     save(player);
