@@ -26,17 +26,21 @@ const FADE_S = 1.5;
 const LAKE_SHARE = 0.25;
 
 /** How much wind open ground of each terrain carries. */
-const WIND: Partial<Record<Terrain, number>> = { water: 0, sand: 0.8, dirt: 0.6, grass: 1 };
-
-/** Terrains added after this table still sit outdoors, so they get some wind. */
-const UNLISTED_WIND = 0.5;
+const WIND: Readonly<Record<Terrain, number>> = {
+  water: 0,
+  sand: 0.8,
+  dirt: 0.6,
+  grass: 1,
+  darkgrass: 0.8,
+  snow: 1,
+};
 
 const share = <T>(items: readonly T[], match: (item: T) => boolean) =>
   items.filter(match).length / items.length;
 
 export function ambientMix({ corners, features }: Screen): AmbientMix {
   const water = share(corners, (t) => t === 'water');
-  const open = corners.reduce((sum, t) => sum + (WIND[t] ?? UNLISTED_WIND), 0) / corners.length;
+  const open = corners.reduce((sum, t) => sum + WIND[t], 0) / corners.length;
   const cover = share(features, (f) => f === 'tree' || f === 'bush');
   const wet = water === 0 ? 0 : Math.min(1, 0.4 + water * 2);
   return {

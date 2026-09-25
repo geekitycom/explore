@@ -39,8 +39,8 @@ describe('ambientMix', () => {
     expect(ambientMix(withFeatures(uniformScreen(), trees)).wind).toBeLessThan(0.5);
   });
 
-  test('a terrain it does not know still gets some wind and no water', () => {
-    const mix = ambientMix(uniformScreen('snow' as Terrain));
+  test('open snow carries wind and no water', () => {
+    const mix = ambientMix(uniformScreen('snow'));
     expect(mix.wind).toBeGreaterThan(0);
     expect(mix.river + mix.waves).toBe(0);
     expect(inRange(mix)).toBe(true);
