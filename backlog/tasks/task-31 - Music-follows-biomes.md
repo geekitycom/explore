@@ -1,11 +1,11 @@
 ---
 id: TASK-31
 title: Music follows biomes
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 01:32'
-updated_date: '2026-09-25 14:10'
+updated_date: '2026-09-25 19:16'
 labels: []
 milestone: m-3
 dependencies:
@@ -27,7 +27,7 @@ Key the music to the biome patch instead of per-screen heuristics, so one tune c
 <!-- AC:BEGIN -->
 - [x] #1 Walking within one biome patch never changes the tune
 - [x] #2 Entering a different biome crossfades to its tune
-- [ ] #3 Every biome has a mood, and the new moods are distinct by ear (checked with Andrew)
+- [x] #3 Every biome has a mood, and the new moods are distinct by ear (checked with Andrew)
 - [x] #4 Players in the same biome patch hear the same tune
 <!-- AC:END -->
 
@@ -47,4 +47,12 @@ Key the music to the biome patch instead of per-screen heuristics, so one tune c
 Patch id travels in the 'screen' message (patch: BiomeCell), computed on the server by the new core screenBiome(world, coord), which generateScreen also uses for the stored biome. The stored record and SCREEN_RECORD_VERSION are unchanged, so no world wipe is needed. Tune key is ${biome}:${seed} with the seed hashed from the patch cell; the garden keeps garden:1. Moods are keyed on Biome directly (lake became lakeland); new styles: scrubland (frontier: major, gallop bass and drums, strummed arp), desert (harmonic minor, drone bass, hand drums), highlands (mixolydian, drone, march snare), taiga (phrygian, rolling arp, echo), tundra (slow minor, high twinkle arp, heavy echo, no drums).
 Validation: pnpm lint, typecheck, test (269 pass), format:check, e2e (11 pass; sound.spec walks garden to meadow and back and sees the tune change). mood.test.ts checks over a 25x25 screen grid of a real world that each patch has one tune and patches have distinct tunes.
 AC3 open: 20-second WAV renders of every biome mood (seed 42) are at /private/tmp/claude-501/-Users-andrewshell-code-geekity-explore/5fcbf254-9b57-47b2-a2bf-c0a00fadf132/scratchpad/render/*.wav for Andrew to listen to. Task stays In Progress until he signs off.
+
+Andrew listened in game on 2026-09-25 and confirmed the biome moods sound good and distinct.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Music keys to the biome patch sent with each screen (screenBiome/BiomeCell), so one tune carries across a patch and crossfades on entering another. Added frontier, desert, highland, taiga and tundra moods; removed screenMood and the 4x4 tune regions. Verified by mood.test.ts (one tune per patch over a 25x25 generated grid), the e2e sound walk, and Andrew's listening check.
+<!-- SECTION:FINAL_SUMMARY:END -->
