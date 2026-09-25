@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { playing, signUp, unique } from './helpers.ts';
 
 type Snapshot = {
   phase: string;
@@ -7,19 +8,10 @@ type Snapshot = {
   others?: Map<number, { name: string; x: number; y: number }>;
 };
 
-const unique = (tag: string) =>
-  `${tag}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
-
-async function signUp(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByLabel('Username').fill(name);
-  await page.getByLabel('Password').fill('correct horse');
-  await page.getByRole('button', { name: 'Create account' }).click();
+async function enter(page: Page, name: string) {
+  await signUp(page, name);
   await expect(page.getByLabel('Game world')).toBeVisible();
-  await page.waitForFunction(
-    () =>
-      (window as unknown as { exploreState?: () => Snapshot }).exploreState?.().phase === 'playing',
-  );
+  await playing(page);
 }
 
 const snapshot = (page: Page) =>
@@ -43,8 +35,8 @@ test('two players in the garden see each other walk', async ({ browser }) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()]);
   const [pa, pb] = await Promise.all([a.newPage(), b.newPage()]);
   const [na, nb] = [unique('ann'), unique('ben')];
-  await signUp(pa, na);
-  await signUp(pb, nb);
+  await enter(pa, na);
+  await enter(pb, nb);
 
   await expect.poll(async () => (await snapshot(pa)).others.map((o) => o.name)).toEqual([nb]);
   expect((await snapshot(pb)).others.map((o) => o.name)).toEqual([na]);
@@ -63,7 +55,7 @@ test('two players in the garden see each other walk', async ({ browser }) => {
 });
 
 test('walking off an edge opens a new screen that matches on return', async ({ page }) => {
-  await signUp(page, unique('cat'));
+  await enter(page, unique('cat'));
   expect((await snapshot(page)).coord).toEqual({ layer: 'overworld', sx: 0, sy: 0 });
 
   await page.keyboard.down('ArrowDown');

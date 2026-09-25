@@ -1,7 +1,7 @@
 import { BIOMES, createRng, type Biome, type Rng } from '@explore/core';
 
-export type Voice = 'lead' | 'harm' | 'bass';
-export type DrumKind = 'kick' | 'snare' | 'hat';
+type Voice = 'lead' | 'harm' | 'bass';
+type DrumKind = 'kick' | 'snare' | 'hat';
 
 /** Steps are 16th notes, 16 per bar. Pitches are MIDI numbers. */
 export type NoteEvent =
@@ -233,7 +233,7 @@ type MoodStyle = {
   echo: number;
 };
 
-export const MOOD_STYLES: Record<Biome, MoodStyle> = {
+const MOOD_STYLES: Record<Biome, MoodStyle> = {
   garden: {
     scale: 'lydian',
     root: 65,

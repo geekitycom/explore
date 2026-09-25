@@ -30,7 +30,7 @@ export type Sway = {
   readonly bands: number;
 };
 
-export type Slice = { readonly y: number; readonly h: number; readonly dx: -1 | 0 | 1 };
+type Slice = { readonly y: number; readonly h: number; readonly dx: -1 | 0 | 1 };
 
 /** Horizontal slices of a sprite `height` tall, top first, with how far each shifts. */
 export function swaySlices(height: number, sway: Sway, lean: number): Slice[] {

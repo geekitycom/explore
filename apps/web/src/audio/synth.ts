@@ -129,7 +129,6 @@ export function createSynth(ctx: BaseAudioContext, song: Song, out: AudioNode) {
 
   const loopSec = song.steps * stepSec;
   return {
-    loopSec,
     /** Schedules every event starting in [from, to) seconds of song time, wrapping the loop. */
     schedule(songStart: number, from: number, to: number) {
       for (let loop = Math.floor(from / loopSec); loop <= Math.floor(to / loopSec); loop++) {

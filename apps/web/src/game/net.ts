@@ -1,6 +1,6 @@
 import type { ClientMessage, ServerMessage } from '@explore/core';
 
-export const REPLACED_CLOSE_CODE = 4000;
+const REPLACED_CLOSE_CODE = 4000;
 
 export type Connection = { send: (message: ClientMessage) => void; close: () => void };
 

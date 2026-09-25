@@ -19,6 +19,7 @@ function field(name: string, label: string, input: HTMLInputElement) {
   input.setAttribute('aria-describedby', error.id);
   return {
     el: h('label', { class: 'field', for: name }, h('span', {}, label), input, error),
+    input,
     error,
   };
 }
@@ -70,8 +71,8 @@ export function authView({ mode, drawAvatar, onSwitch, onAuthenticated }: Props)
   async function submitForm() {
     for (const el of [...Object.values(errors), formError]) el.textContent = '';
     submit.disabled = true;
-    const name = (form.elements.namedItem('username') as HTMLInputElement).value.trim();
-    const pass = (form.elements.namedItem('password') as HTMLInputElement).value;
+    const name = username.input.value.trim();
+    const pass = password.input.value;
     try {
       const user = picker ? await signup(name, pass, picker.value()) : await login(name, pass);
       picker?.dispose();

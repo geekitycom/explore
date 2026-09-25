@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { playing, signUp, unique } from './helpers.ts';
 
 type Avatar = { hairStyle: string; shirt: string };
 type Snapshot = {
@@ -6,18 +7,9 @@ type Snapshot = {
   others?: Map<number, { name: string; avatar: Avatar }>;
 };
 
-const unique = (tag: string) =>
-  `${tag}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
-
-async function signUp(page: Page, name: string) {
-  await page.goto('/');
-  await page.getByLabel('Username').fill(name);
-  await page.getByLabel('Password').fill('correct horse');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await page.waitForFunction(
-    () =>
-      (window as unknown as { exploreState?: () => Snapshot }).exploreState?.().phase === 'playing',
-  );
+async function enter(page: Page, name: string) {
+  await signUp(page, name);
+  await playing(page);
 }
 
 const ownAvatar = (page: Page) =>
@@ -39,8 +31,8 @@ test('a player restyles in game and others on the screen see it live', async ({ 
   let benSockets = 0;
   pb.on('websocket', () => benSockets++);
   const [na, nb] = [unique('ann'), unique('ben')];
-  await signUp(pa, na);
-  await signUp(pb, nb);
+  await enter(pa, na);
+  await enter(pb, nb);
   await expect
     .poll(() => othersAvatars(pb))
     .toEqual([{ name: na, hairStyle: 'spiky', shirt: 'green' }]);

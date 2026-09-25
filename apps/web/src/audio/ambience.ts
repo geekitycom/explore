@@ -8,7 +8,7 @@ export const AMBIENT_SOUNDS = {
   waves: 'Audio/Sounds/Ambient/Wave.wav',
 } as const;
 
-export type AmbientLayer = keyof typeof AMBIENT_SOUNDS;
+type AmbientLayer = keyof typeof AMBIENT_SOUNDS;
 
 /** How loud each layer should be, from 0 (silent) to 1 (full). */
 export type AmbientMix = Readonly<Record<AmbientLayer, number>>;

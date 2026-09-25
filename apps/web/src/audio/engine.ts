@@ -34,11 +34,10 @@ export function createAudioEngine() {
   addEventListener('keydown', unlock);
   addEventListener('pointerdown', unlock);
 
-  const onVisibility = () => {
+  document.addEventListener('visibilitychange', () => {
     if (!buses) return;
     void (document.hidden ? buses.ctx.suspend() : buses.ctx.resume());
-  };
-  document.addEventListener('visibilitychange', onVisibility);
+  });
 
   return {
     settings: () => settings,
@@ -52,12 +51,6 @@ export function createAudioEngine() {
       else waiting.push(fn);
     },
     state: () => buses?.ctx.state ?? 'locked',
-    dispose() {
-      removeEventListener('keydown', unlock);
-      removeEventListener('pointerdown', unlock);
-      document.removeEventListener('visibilitychange', onVisibility);
-      void buses?.ctx.close();
-    },
   };
 }
 

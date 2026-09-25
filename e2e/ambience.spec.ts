@@ -1,15 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { playing, signUp } from './helpers.ts';
 
 async function enterGarden(page: Page, tag: string) {
-  await page.goto('/');
-  await page.getByLabel('Username').fill(`${tag}${Date.now().toString(36)}`);
-  await page.getByLabel('Password').fill('correct horse');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await page.waitForFunction(
-    () =>
-      (window as unknown as { exploreState?: () => { phase: string } }).exploreState?.().phase ===
-      'playing',
-  );
+  await signUp(page, `${tag}${Date.now().toString(36)}`);
+  await playing(page);
   await page.waitForTimeout(300);
 }
 

@@ -1,6 +1,6 @@
 export type SoundSettings = { muted: boolean; music: number; effects: number };
 
-export const DEFAULT_SOUND: SoundSettings = { muted: false, music: 0.5, effects: 0.7 };
+const DEFAULT_SOUND: SoundSettings = { muted: false, music: 0.5, effects: 0.7 };
 
 const KEY = 'explore.sound';
 

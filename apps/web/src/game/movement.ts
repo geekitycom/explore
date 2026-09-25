@@ -8,9 +8,9 @@ import {
   type Screen,
 } from '@explore/core';
 
-export type Held = ReadonlySet<Dir>;
+type Held = ReadonlySet<Dir>;
 
-export type Step = { pose: Pose; exit: Dir | undefined };
+type Step = { pose: Pose; exit: Dir | undefined };
 
 function exitDir(x: number, y: number): Dir | undefined {
   if (x < 0) return 'w';

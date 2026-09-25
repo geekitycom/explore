@@ -35,7 +35,7 @@ const SWAY: Record<Family, Sway | undefined> = {
   rosette: undefined,
 };
 
-export function swayOf({ family, params }: Recipe): Sway | undefined {
+function swayOf({ family, params }: Recipe): Sway | undefined {
   return family === 'tree' && params.shape === 'conifer' ? PINE : SWAY[family];
 }
 
@@ -53,7 +53,7 @@ export function spriteCanvas(sprite: Sprite): HTMLCanvasElement {
   return canvas;
 }
 
-export type DrawnSprite = { readonly canvas: HTMLCanvasElement; readonly sprite: Sprite };
+type DrawnSprite = { readonly canvas: HTMLCanvasElement; readonly sprite: Sprite };
 
 const drawn = new Map<Recipe, Map<number, DrawnSprite>>();
 

@@ -12,7 +12,7 @@ const KEY_DIRS: Record<string, Dir> = {
 };
 
 /** Tracks held movement keys. Releases everything on blur so a key can't stick down. */
-export function keyboard(target: Window = window) {
+export function keyboard() {
   const held = new Set<Dir>();
   let lastPressed: Dir | undefined;
 
@@ -29,17 +29,17 @@ export function keyboard(target: Window = window) {
   };
   const clear = () => held.clear();
 
-  target.addEventListener('keydown', down);
-  target.addEventListener('keyup', up);
-  target.addEventListener('blur', clear);
+  window.addEventListener('keydown', down);
+  window.addEventListener('keyup', up);
+  window.addEventListener('blur', clear);
 
   return {
     held: held as ReadonlySet<Dir>,
     lastPressed: () => lastPressed,
     dispose: () => {
-      target.removeEventListener('keydown', down);
-      target.removeEventListener('keyup', up);
-      target.removeEventListener('blur', clear);
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', clear);
     },
   };
 }

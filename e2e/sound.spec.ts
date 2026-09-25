@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
+import { signUp } from './helpers.ts';
 
 type AudioSnapshot = {
   state: string;
@@ -30,10 +31,7 @@ test('music and ambience wait for input, follow the world, and settings persist'
     if (m.type() === 'error' || m.type() === 'warning') errors.push(m.text());
   });
 
-  await page.goto('/');
-  await page.getByLabel('Username').fill(`snd${Date.now().toString(36)}`);
-  await page.getByLabel('Password').fill('correct horse');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await signUp(page, `snd${Date.now().toString(36)}`);
   await expect(page.getByLabel('Game world')).toBeVisible();
 
   await page.reload();
@@ -102,10 +100,7 @@ test('ambience plays on the effects bus and obeys mute and the effects volume', 
   const level = () =>
     page.evaluate(() => (window as unknown as { outputLevel: () => number }).outputLevel());
 
-  await page.goto('/');
-  await page.getByLabel('Username').fill(`amb${Date.now().toString(36)}`);
-  await page.getByLabel('Password').fill('correct horse');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await signUp(page, `amb${Date.now().toString(36)}`);
   await expect(page.getByLabel('Game world')).toBeVisible();
   await page.keyboard.press('Shift');
   await expect.poll(level, { timeout: 10_000 }).toBeGreaterThan(0.002);

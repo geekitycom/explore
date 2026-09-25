@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { playing, signUp } from './helpers.ts';
 
 type Coord = { sx: number; sy: number };
 
@@ -16,13 +17,6 @@ const coord = (page: Page) =>
         .screen?.coord,
   );
 
-const playing = (page: Page) =>
-  page.waitForFunction(
-    () =>
-      (window as unknown as { exploreState?: () => { phase: string } }).exploreState?.().phase ===
-      'playing',
-  );
-
 /** Screens of the garden's chunk that no e2e spec walks onto, though the server stores them. */
 const unvisited = Array.from({ length: 16 }, (_, i) => `${i % 4},${Math.floor(i / 4)}`).filter(
   (key) => key !== '0,0' && key !== '0,1',
@@ -32,10 +26,7 @@ test('the map shows screens players stood on, and logged-out visitors log in fir
   page,
 }) => {
   const name = `map${Date.now().toString(36)}`;
-  await page.goto('/');
-  await page.getByLabel('Username').fill(name);
-  await page.getByLabel('Password').fill('correct horse');
-  await page.getByRole('button', { name: 'Create account' }).click();
+  await signUp(page, name);
   await expect(page.getByLabel('Game world')).toBeVisible();
   await playing(page);
 

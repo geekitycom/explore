@@ -18,10 +18,7 @@ import './style.css';
 type Place = 'game' | 'map';
 
 type View =
-  | { kind: 'loading' }
-  | { kind: 'auth'; mode: AuthMode; then: Place }
-  | { kind: 'game'; user: User }
-  | { kind: 'map' };
+  { kind: 'auth'; mode: AuthMode; then: Place } | { kind: 'game'; user: User } | { kind: 'map' };
 
 const STATUS_TEXT: Record<GameStatus, string> = {
   connecting: 'Connecting…',
@@ -113,9 +110,6 @@ function show(view: View) {
   stopGame?.();
   stopGame = undefined;
   switch (view.kind) {
-    case 'loading':
-      root.replaceChildren(h('p', { class: 'loading' }, 'Loading…'));
-      return;
     case 'auth':
       root.replaceChildren(
         authView({

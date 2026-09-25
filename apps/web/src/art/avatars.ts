@@ -11,7 +11,7 @@ import { mix, parseHex, type Pixels, type Rgba } from './color.ts';
 import type { SheetId, Rect } from './sheets.ts';
 import type { Art } from './load.ts';
 
-export type RolePalette = {
+type RolePalette = {
   readonly skin: Rgba;
   readonly skinShade: Rgba;
   readonly hair: Rgba;
@@ -25,7 +25,7 @@ export type RolePalette = {
   readonly pantsLight: Rgba;
 };
 
-export type Role = keyof RolePalette;
+type Role = keyof RolePalette;
 type RoleRule = Role | 'keep';
 
 /** A source color's role, optionally different on the head and the body. */
@@ -142,7 +142,7 @@ const SKIN_ROLES: ReadonlySet<Role | undefined> = new Set(['skin', 'skinShade'])
  * The role of every pixel of a walk sheet, or undefined to keep it. Head and body are told
  * apart per frame from the frame's top drawn row, since frames bob up and down.
  */
-export function pixelRoles(source: Uint8ClampedArray, base: AvatarBase): (Role | undefined)[] {
+function pixelRoles(source: Uint8ClampedArray, base: AvatarBase): (Role | undefined)[] {
   const rules = new Map(
     Object.entries(base.colors).map(([hex, rule]) => {
       const [r, g, b] = parseHex(hex);

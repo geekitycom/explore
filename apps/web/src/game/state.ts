@@ -8,7 +8,7 @@ import {
 } from '@explore/core';
 
 /** Another player as drawn: their last reported pose plus where we are currently drawing them. */
-export type Remote = PlayerView & { drawX: number; drawY: number };
+type Remote = PlayerView & { drawX: number; drawY: number };
 
 export type GameState =
   | { phase: 'connecting' }

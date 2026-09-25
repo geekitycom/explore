@@ -26,7 +26,7 @@ export function startGame(
   initialUser: User,
   renderer: Renderer,
   onStatus: (s: GameStatus) => void,
-  onScreen: (screen: Screen, patch: BiomeCell) => void = () => {},
+  onScreen: (screen: Screen, patch: BiomeCell) => void,
 ) {
   let user = initialUser;
   let state: GameState = { phase: 'connecting' };
