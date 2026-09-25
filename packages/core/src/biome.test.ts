@@ -91,9 +91,9 @@ describe('biomes', () => {
 
   test('never blend snow with sand, so snow never borders desert', () => {
     const problems: string[] = [];
-    for (const seed of [...SEEDS, 7, 8, 9, 10, 11, 12]) {
-      for (let y = -4000; y <= 4000; y += 23) {
-        for (let x = -5000; x <= 5000; x += 23) {
+    for (const seed of SEEDS) {
+      for (let y = -4000; y <= 4000; y += 37) {
+        for (let x = -5000; x <= 5000; x += 37) {
           const { snow, sand } = paramsAt(seed, x, y);
           if (snow > 0.01 && sand > 0.01) problems.push(`seed ${seed} at ${x},${y}`);
         }

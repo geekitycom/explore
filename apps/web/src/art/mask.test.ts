@@ -71,6 +71,7 @@ describe('layerRegion', () => {
   });
 
   it('has no speckle: every pixel shares a side with a pixel of its own kind', () => {
+    const speckles: string[] = [];
     for (const [name, fringes] of Object.entries(fringeSets))
       for (const lattice of randomLattices) {
         const region = layerRegion(lattice, W, H, 2, fringes);
@@ -82,9 +83,10 @@ describe('layerRegion', () => {
               region[y * PX_W + x + 1] === v ||
               region[(y - 1) * PX_W + x] === v ||
               region[(y + 1) * PX_W + x] === v;
-            expect(same, `${name} at ${x},${y}`).toBe(true);
+            if (!same) speckles.push(`${name} at ${x},${y}`);
           }
       }
+    expect(speckles).toEqual([]);
   });
 
   it('runs a diagonal coast as a straight line, one pixel per row, not in stairs', () => {
