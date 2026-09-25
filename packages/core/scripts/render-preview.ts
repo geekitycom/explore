@@ -1,5 +1,6 @@
-import { crc32, deflateSync } from 'node:zlib';
+import { crc32 } from 'node:zlib';
 import { SCREEN_H, SCREEN_W, TERRAINS, type Feature, type Terrain } from '../src/world.ts';
+import { encodeRgbPng } from './png.ts';
 import type { PreviewPoi, SourceScreen, WorldSource } from './world-source.ts';
 
 export type Rgb = readonly [number, number, number];
@@ -26,7 +27,7 @@ export type PreviewOptions = {
   readonly grid: boolean;
 };
 
-export type PreviewStats = {
+type PreviewStats = {
   readonly width: number;
   readonly height: number;
   readonly screensWithoutBiome: number;
@@ -71,7 +72,7 @@ export const BIOME_RGB: Readonly<Record<string, Rgb>> = {
 export const ROAD_RGB: Rgb = [230, 140, 30];
 
 /** Footprints that points of interest reserve are washed toward this under the pois overlay. */
-export const FOOTPRINT_RGB: Rgb = [255, 255, 255];
+const FOOTPRINT_RGB: Rgb = [255, 255, 255];
 
 export const POI_RGB: Readonly<Record<string, Rgb>> = {
   hub: [255, 255, 255],
@@ -269,7 +270,7 @@ export function renderPreview(
   }
 
   return {
-    png: encodePng(canvas),
+    png: encodeRgbPng(canvas.width, canvas.height, canvas.rgb),
     stats: {
       width: canvas.width,
       height: canvas.height,
@@ -279,31 +280,4 @@ export function renderPreview(
       dressing,
     },
   };
-}
-
-function pngChunk(type: string, data: Buffer): Buffer {
-  const body = Buffer.concat([Buffer.from(type), data]);
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([len, body, crc]);
-}
-
-/** An 8-bit RGB PNG with no row filtering. */
-function encodePng({ width, height, rgb }: Canvas): Buffer {
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header.set([8, 2, 0, 0, 0], 8);
-  const stride = width * 3;
-  const rows = Buffer.alloc((stride + 1) * height);
-  for (let y = 0; y < height; y++)
-    rgb.copy(rows, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', deflateSync(rows)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
 }

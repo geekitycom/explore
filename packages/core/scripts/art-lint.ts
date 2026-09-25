@@ -42,7 +42,7 @@ export const SHIPPED_ART: Readonly<Record<string, ArtSheet>> = {
 };
 
 /** A style violation at its position in the whole sheet, with the colour found there. */
-export type ArtFinding = {
+type ArtFinding = {
   readonly rule: StyleRule;
   readonly x: number;
   readonly y: number;

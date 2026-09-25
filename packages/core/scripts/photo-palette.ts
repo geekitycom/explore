@@ -16,10 +16,10 @@ import {
 } from '../src/palette.ts';
 
 /** A colour in OKLab, where Euclidean distance tracks perceived difference. */
-export type Lab = readonly [number, number, number];
+type Lab = readonly [number, number, number];
 
 /** Pixels in OKLab with a weight each, so every photo counts equally however big it is. */
-export type Samples = { readonly labs: readonly Lab[]; readonly weights: readonly number[] };
+type Samples = { readonly labs: readonly Lab[]; readonly weights: readonly number[] };
 
 function toLinear(v: number): number {
   const c = v / 255;
@@ -31,7 +31,7 @@ function fromLinear(c: number): number {
   return Math.round(Math.min(1, Math.max(0, v)) * 255);
 }
 
-export function rgbToLab(r: number, g: number, b: number): Lab {
+function rgbToLab(r: number, g: number, b: number): Lab {
   const [lr, lg, lb] = [toLinear(r), toLinear(g), toLinear(b)];
   const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
   const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
@@ -135,7 +135,7 @@ const DARKEST = Math.min(...RAMP_LABS.map(([L]) => L));
  * darkest ramp colour. So before snapping, lightness maps into the ramps' range and chroma scales
  * up by `chroma`.
  */
-export function clusterSamples(samples: Samples, k: number, chroma: number): PhotoCluster[] {
+function clusterSamples(samples: Samples, k: number, chroma: number): PhotoCluster[] {
   return kmeans(samples, k).map(({ centre: [L, a, b], share }) => ({
     colour: labToHex([L, a, b]),
     snapped: snap([DARKEST + L * (1 - DARKEST), a * chroma, b * chroma]),

@@ -2,6 +2,7 @@ import { crc32, deflateSync, inflateSync } from 'node:zlib';
 import type { PixelImage } from '../src/sprite.ts';
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const RGB = 2;
 const RGBA = 6;
 
 function paeth(a: number, b: number, c: number): number {
@@ -63,20 +64,36 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([len, body, crc]);
 }
 
-/** An 8-bit RGBA PNG with no row filtering. */
-export function encodePng({ width, height, rgba }: PixelImage): Buffer {
+function encode(
+  width: number,
+  height: number,
+  colourType: number,
+  channels: number,
+  pixels: Uint8Array | Uint8ClampedArray,
+  level?: number,
+): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
-  header.set([8, RGBA, 0, 0, 0], 8);
-  const stride = width * 4;
+  header.set([8, colourType, 0, 0, 0], 8);
+  const stride = width * channels;
   const rows = Buffer.alloc((stride + 1) * height);
   for (let y = 0; y < height; y++)
-    rows.set(rgba.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
+    rows.set(pixels.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
   return Buffer.concat([
     SIGNATURE,
     chunk('IHDR', header),
-    chunk('IDAT', deflateSync(rows, { level: 9 })),
+    chunk('IDAT', deflateSync(rows, { level })),
     chunk('IEND', Buffer.alloc(0)),
   ]);
+}
+
+/** An 8-bit RGBA PNG with no row filtering. */
+export function encodePng({ width, height, rgba }: PixelImage): Buffer {
+  return encode(width, height, RGBA, 4, rgba, 9);
+}
+
+/** An 8-bit RGB PNG with no row filtering. */
+export function encodeRgbPng(width: number, height: number, rgb: Uint8Array): Buffer {
+  return encode(width, height, RGB, 3, rgb);
 }

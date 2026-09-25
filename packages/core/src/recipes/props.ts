@@ -84,7 +84,6 @@ function stamp(
   );
 }
 
-/** Lit and shaded colours of a ramp: second-lightest and third-lightest. */
 function tones(r: Ramp): { lit: Hex; shaded: Hex; light: Hex; dark: Hex } {
   const n = r.length;
   return {
