@@ -7,6 +7,7 @@ import {
   CHUNK_H,
   CHUNK_W,
   DEFAULT_AVATAR,
+  GARDEN_COORD,
   GARDEN_SPAWN,
   GENERATOR_VERSION,
   OVERWORLD,
@@ -32,7 +33,7 @@ import { openDatabase } from './db.ts';
 import { createGame } from './play.ts';
 import type { Conn } from './presence.ts';
 import { insertUser } from './users.ts';
-import { getScreen, savePlayerState } from './world.ts';
+import { getScreen, loadPlayerState, savePlayerState } from './world.ts';
 
 type Running = { db: DatabaseSync; base: string; stop: () => Promise<void> };
 
@@ -563,5 +564,22 @@ describe('game', () => {
     game.receive(stale, JSON.stringify({ t: 'move', x: 162, y: 202, dir: 'e', moving: true }));
     game.disconnect(stale);
     expect(bobSaw).toEqual([]);
+  });
+
+  it('saves every position when stopped, so the database can close before sockets do', () => {
+    const db = openDatabase(':memory:');
+    let clock = 0;
+    const game = createGame(db, { now: () => (clock += 100) });
+    const alice = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+    const player = game.connect(alice, { send: () => {}, close: () => {} });
+    game.receive(player, JSON.stringify({ t: 'move', x: 162, y: 202, dir: 'e', moving: true }));
+
+    game.stop();
+    expect(loadPlayerState(db, alice.id)).toEqual({
+      coord: GARDEN_COORD,
+      pose: { x: 162, y: 202, dir: 'e', moving: false },
+    });
+    db.close();
+    expect(() => game.disconnect(player)).not.toThrow();
   });
 });
