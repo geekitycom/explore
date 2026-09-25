@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 17:08'
-updated_date: '2026-09-25 18:11'
+updated_date: '2026-09-25 19:25'
 labels: []
 dependencies: []
 ordinal: 45000
@@ -29,6 +29,8 @@ generate.test.ts asserts a mean under 10 ms per screen by wall clock. That budge
 1. Keep the budget as it is (mean of 200 cold screens under 10 ms): a median or min over batches would measure cheaper terrain, since batch cost varies with content far more than with noise.
 2. Remove parallel load by construction: move the test to generate.perf.test.ts, exclude *.perf.test.ts from the main vitest run, and run it alone afterwards in pnpm test.
 3. Prove it fails when generation is slower (a busy wait in generateScreen), then read the isolated duration on CI and compare with the in-suite 1930 to 1990 ms.
+
+4. The isolated test still measured 10.77 ms on CI (run 36177721115), so the budget was spent: profile generateScreen and remove repeated work at its root, keeping every screen byte-identical (hash thousands of screens before and after), with no GENERATOR_VERSION bump and the budget unchanged.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -39,4 +41,6 @@ Evidence before changing anything: on CI the test took 1930, 1986 and 1990 ms fo
 Implemented: generate.perf.test.ts holds the test unchanged; pnpm test runs vitest with --exclude **/*.perf.test.ts, then vitest run perf.test alone. Locally: 444 tests then 1, all pass. With a 6 ms busy wait in generateScreen it failed at 10.0 ms (2003 ms for 200); with 8 ms it failed with "expected 12.025 to be less than 10". Locally the budget is about 2x the current 5 ms cost, so it catches regressions around a doubling here, and smaller ones on slower CI hardware.
 
 Not landed: commit signing through 1Password was locked for 45 minutes, so the change is staged but uncommitted in this worktree. Still to do after commit and push: read the isolated duration of the perf test on CI. If it is still near 10 ms, the budget is spent on CI hardware and the fix is a generation speed-up or a budget decision, not the test.
+
+Isolated on CI, run 36177721115 measured 10.77 ms per screen (2158 ms for 200), and runs 36177347176, 36177473690 and 36177624118 failed at 10.63 to 11.58, so isolation alone did not restore headroom. Profiling 600 screens locally: road routing about 35%, terrain 45% (water depth, biome), crossings re-evaluating terrain the corners had already computed about 28%.
 <!-- SECTION:NOTES:END -->
