@@ -1,4 +1,4 @@
-import { MOVE_INTERVAL_MS, type Pose } from '@explore/core';
+import { MOVE_INTERVAL_MS, type Pose, type Screen } from '@explore/core';
 import type { User } from '../api.ts';
 import { keyboard } from './input.ts';
 import { step } from './movement.ts';
@@ -16,7 +16,12 @@ const samePose = (a: Pose, b: Pose) =>
   a.x === b.x && a.y === b.y && a.dir === b.dir && a.moving === b.moving;
 
 /** Runs one player's session: input, prediction, networking, and the frame loop. */
-export function startGame(user: User, renderer: Renderer, onStatus: (s: GameStatus) => void) {
+export function startGame(
+  user: User,
+  renderer: Renderer,
+  onStatus: (s: GameStatus) => void,
+  onScreen: (screen: Screen) => void = () => {},
+) {
   let state: GameState = { phase: 'connecting' };
   let lastSent: Pose | undefined;
   let lastSentAt = 0;
@@ -27,6 +32,7 @@ export function startGame(user: User, renderer: Renderer, onStatus: (s: GameStat
     onMessage: (message) => {
       state = applyMessage(state, message);
       if (message.t === 'screen' || message.t === 'correct') lastSent = undefined;
+      if (message.t === 'screen' && state.phase !== 'connecting') onScreen(state.screen);
     },
     onStatus,
   });

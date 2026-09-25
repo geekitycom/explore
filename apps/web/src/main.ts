@@ -1,11 +1,15 @@
 import { fetchMe, logout, type User } from './api.ts';
 import { avatarSheet, walkFrameRect } from './art/avatars.ts';
+import { createAudioEngine } from './audio/engine.ts';
+import { tuneFor } from './audio/mood.ts';
+import { createMusic } from './audio/music.ts';
 import { loadArt } from './art/load.ts';
 import { startGame, type GameStatus } from './game/game.ts';
 import { canvasRenderer } from './game/render.ts';
 import { authView, type AuthMode } from './ui/auth.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
+import { soundSettings } from './ui/sound-settings.ts';
 import './style.css';
 
 type View = { kind: 'loading' } | { kind: 'auth'; mode: AuthMode } | { kind: 'game'; user: User };
@@ -26,6 +30,12 @@ const drawAvatar: DrawAvatar = (ctx, avatar, dir, frame) => {
   ctx.drawImage(avatarSheet(avatar, art), src.x, src.y, src.w, src.h, 0, 0, src.w, src.h);
 };
 
+const audio = createAudioEngine();
+const music = createMusic(audio);
+Object.assign(window, {
+  exploreAudio: () => ({ state: audio.state(), tune: music.current(), settings: audio.settings() }),
+});
+
 let stopGame: (() => void) | undefined;
 
 function gameView(user: User) {
@@ -39,6 +49,7 @@ function gameView(user: User) {
       { class: 'game-bar' },
       h('span', { class: 'who' }, user.username),
       status,
+      soundSettings(audio),
       h(
         'button',
         {
@@ -53,10 +64,18 @@ function gameView(user: User) {
     h('p', { class: 'hint' }, 'Arrow keys or WASD to walk. Walk off an edge to explore.'),
   );
   root.replaceChildren(view);
-  const game = startGame(user, canvasRenderer(canvas, art), (s) => {
-    status.textContent = STATUS_TEXT[s];
-  });
-  stopGame = game.stop;
+  const game = startGame(
+    user,
+    canvasRenderer(canvas, art),
+    (s) => {
+      status.textContent = STATUS_TEXT[s];
+    },
+    (screen) => music.play(tuneFor(screen)),
+  );
+  stopGame = () => {
+    game.stop();
+    music.stop();
+  };
 }
 
 function show(view: View) {
