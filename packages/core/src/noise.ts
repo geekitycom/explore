@@ -36,15 +36,21 @@ const smooth = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 /** Smoothly interpolated value noise with one random value per integer lattice point, in [0, 1). */
 export function valueNoise(seed: number): Noise2 {
   const at = (ix: number, iy: number) => unit(hash4(seed, ix, iy, 0));
+  // Successive samples mostly fall in the same cell, so its corners are kept.
+  let cellX = NaN;
+  let cellY = NaN;
+  let [nw, ne, sw, se] = [0, 0, 0, 0];
   return (x, y) => {
     const ix = Math.floor(x);
     const iy = Math.floor(y);
+    if (ix !== cellX || iy !== cellY) {
+      [nw, ne, sw, se] = [at(ix, iy), at(ix + 1, iy), at(ix, iy + 1), at(ix + 1, iy + 1)];
+      [cellX, cellY] = [ix, iy];
+    }
     const fx = smooth(x - ix);
     const fy = smooth(y - iy);
-    const nw = at(ix, iy);
-    const sw = at(ix, iy + 1);
-    const top = nw + (at(ix + 1, iy) - nw) * fx;
-    const bottom = sw + (at(ix + 1, iy + 1) - sw) * fx;
+    const top = nw + (ne - nw) * fx;
+    const bottom = sw + (se - sw) * fx;
     return top + (bottom - top) * fy;
   };
 }

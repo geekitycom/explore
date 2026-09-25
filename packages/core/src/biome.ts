@@ -209,6 +209,11 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
 
 const PARAM_KEYS = Object.keys(BIOME_PARAMS.meadow) as (keyof BiomeParams)[];
 
+/** Each biome's params in PARAM_KEYS order, which blending reads faster than by name. */
+const PARAM_VALUES = Object.fromEntries(
+  Object.entries(BIOME_PARAMS).map(([biome, params]) => [biome, PARAM_KEYS.map((k) => params[k])]),
+) as Record<WildBiome, number[]>;
+
 /** A biome patch, named by the grid cell whose site owns it. */
 export type BiomeCell = { readonly x: number; readonly y: number };
 
@@ -360,22 +365,28 @@ export function biomeField(seed: number, pins: readonly BiomePin[]): BiomeField 
       if (distance[i]! < distance[owner]!) owner = i;
     }
     const { site, biome } = near[owner]!;
-    const blend: [BiomeParams, number][] = [];
+    const blend: [readonly number[], number][] = [];
     for (let i = 0; i < n; i++) {
       const gap = distance[i]! - distance[owner]!;
       if (i !== owner && gap < BAND)
-        blend.push([BIOME_PARAMS[near[i]!.biome], (1 - gap / BAND) ** 2]);
+        blend.push([PARAM_VALUES[near[i]!.biome], (1 - gap / BAND) ** 2]);
     }
-    return { biome, cell: site.cell, params: blended(BIOME_PARAMS[biome], blend) };
+    return { biome, cell: site.cell, params: blended(biome, blend) };
   };
 }
 
-function blended(base: BiomeParams, others: readonly [BiomeParams, number][]): BiomeParams {
+function blended(biome: WildBiome, others: readonly [readonly number[], number][]): BiomeParams {
+  const base = BIOME_PARAMS[biome];
   if (others.length === 0) return base;
-  const total = 1 + others.reduce((sum, [, w]) => sum + w, 0);
+  let weights = 0;
+  for (const [, w] of others) weights += w;
+  const total = 1 + weights;
+  const values = PARAM_VALUES[biome];
   const params = { ...base };
-  for (const k of PARAM_KEYS) {
-    params[k] = others.reduce((sum, [p, w]) => sum + w * p[k], base[k]) / total;
+  for (let i = 0; i < PARAM_KEYS.length; i++) {
+    let sum = values[i]!;
+    for (const [other, w] of others) sum += w * other[i]!;
+    params[PARAM_KEYS[i]!] = sum / total;
   }
   return params;
 }
