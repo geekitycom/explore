@@ -344,6 +344,7 @@ export function biomeField(seed: number, pins: readonly BiomePin[]): BiomeField 
   const near: Patch[] = [];
   let nearX = NaN;
   let nearY = NaN;
+  const rough: number[] = [];
   const distance: number[] = [];
   return (x, y) => {
     const wx = x + (warpX(x, y) - 0.5) * 2 * WARP;
@@ -357,12 +358,23 @@ export function biomeField(seed: number, pins: readonly BiomePin[]): BiomeField 
       }
       [nearX, nearY] = [hx, hy];
     }
+    // Math.hypot is slow. A plain square root rules out each site more than BAND beyond the
+    // nearest, and only the rest get the exact distance the owner and the blend are chosen by.
     const n = near.length;
-    let owner = 0;
+    let closest = Infinity;
     for (let i = 0; i < n; i++) {
       const { site } = near[i]!;
-      distance[i] = Math.hypot(site.x - wx, site.y - wy);
-      if (distance[i]! < distance[owner]!) owner = i;
+      const dx = site.x - wx;
+      const dy = site.y - wy;
+      rough[i] = Math.sqrt(dx * dx + dy * dy);
+      closest = Math.min(closest, rough[i]!);
+    }
+    let owner = -1;
+    for (let i = 0; i < n; i++) {
+      const { site } = near[i]!;
+      distance[i] =
+        rough[i]! < closest + BAND + 1e-6 ? Math.hypot(site.x - wx, site.y - wy) : Infinity;
+      if (owner < 0 || distance[i]! < distance[owner]!) owner = i;
     }
     const { site, biome } = near[owner]!;
     const blend: [readonly number[], number][] = [];
