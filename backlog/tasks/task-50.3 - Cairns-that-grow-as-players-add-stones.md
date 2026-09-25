@@ -4,6 +4,7 @@ title: Cairns that grow as players add stones
 status: To Do
 assignee: []
 created_date: '2026-09-25 21:47'
+updated_date: '2026-09-25 22:53'
 labels: []
 milestone: m-5
 dependencies:
@@ -25,4 +26,12 @@ Any player can add one stone to a cairn, or start a new one on open ground away 
 - [ ] #2 A cairn shows at least four visible size stages based on its stone count, and the count is visible up close
 - [ ] #3 Cairn sprites are recipes that pass pnpm lint:art
 - [ ] #4 Cairns never block a road or trap a player
+- [ ] #5 Cairns are not an inventory item: when the player stops facing a cairn, or open ground away from roads, the hint bar offers E to add a stone or start a cairn and shows the daily stones left
+- [ ] #6 Late cairn stages have a wide base, not a column
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Interaction design settled in a throwaway demo on 2026-09-25 (local only, _local/traces-demo, not in the repo).
+<!-- SECTION:NOTES:END -->

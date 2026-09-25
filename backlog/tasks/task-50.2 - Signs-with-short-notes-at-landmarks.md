@@ -4,6 +4,7 @@ title: Signs with short notes at landmarks
 status: To Do
 assignee: []
 created_date: '2026-09-25 21:47'
+updated_date: '2026-09-25 22:53'
 labels: []
 milestone: m-5
 dependencies:
@@ -26,4 +27,11 @@ A player can plant a sign with a short note (for example up to 80 characters) ne
 - [ ] #3 Authors can remove their own signs; an admin command removes any sign; players can report a sign and reports are recorded
 - [ ] #4 Signs never block a road or trap a player
 - [ ] #5 A sign sprite exists as a recipe and passes pnpm lint:art
+- [ ] #6 Players start with one sign in inventory slot 1 and get one more each day up to the allowance; using it on open ground within two tiles of a road opens a note dialog with a live character count
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Interaction design settled in a throwaway demo on 2026-09-25 (local only, _local/traces-demo, not in the repo). Reading: the note shows in a bubble with the author's name when the player stands next to the sign, no key press.
+<!-- SECTION:NOTES:END -->
