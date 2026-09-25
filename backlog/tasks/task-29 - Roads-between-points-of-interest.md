@@ -4,6 +4,7 @@ title: Roads between points of interest
 status: To Do
 assignee: []
 created_date: '2026-09-25 01:32'
+updated_date: '2026-09-25 01:33'
 labels: []
 milestone: m-3
 dependencies:
@@ -29,4 +30,5 @@ Scatter points of interest (clearings, ruins, lakesides, groves, stone circles) 
 - [ ] #3 Roads avoid water where reasonable and ford it otherwise
 - [ ] #4 Every point of interest is reachable from the garden by road
 - [ ] #5 Roads are visible in the preview tool and in /map
+- [ ] #6 Points of interest reserve fixed footprints (flattened, unblocked, reachable) for future towns, houses, and cave entrances, visible in the preview tool
 <!-- AC:END -->

@@ -3,7 +3,7 @@ id: doc-3
 title: World generation v2 design
 type: specification
 created_date: '2026-09-25 01:32'
-updated_date: '2026-09-25 01:32'
+updated_date: '2026-09-25 01:33'
 ---
 # World generation v2: biomes, roads, and chunks
 
@@ -23,13 +23,25 @@ Today each screen only sees its eight neighbours, so nothing can be coherent bey
 
 Coordinates carry a layer from the start: `{ layer, sx, sy }`, with `overworld` as the only layer for now. Later phases add interiors (houses, caves, towns' buildings) as their own layers. An entrance is a feature on an overworld tile that links to a place in another layer. Towns and cave mouths are points of interest that roads already connect to, so the road network does not need rework when places arrive.
 
+### Reserving room for places
+
+Points of interest are placed before terrain is dressed, and each one gets a fixed footprint even before places exist. Inside a footprint, blocking features are suppressed, terrain is flattened to grass or dirt, and connectivity repair treats it as open. A town footprint is about 1x1 to 2x2 screens; a house or cave mouth is a few tiles. Until towns ship, a reserved town renders as a clearing with a road junction. When places arrive, a stamp fills the footprint the same way the garden stamp works, so existing chunks keep their shape and only chunks whose footprints gain content need a new `gen_version`. The kind follows the biome at the site: towns in meadow or scrubland near roads, caves in highlands, tundra, or rock clusters.
+
+### Interiors (later phase)
+
+- A layer id names its owner, for example `place:<poiId>` or `cave:<poiId>:<n>` for a multi-level cave. A `LayerDef { id, kind, source, bounds, mood }` is derived from the id and its point of interest, so it needs no table.
+- Entrances are one-character features (`door`, `cavemouth`) on walkable trigger tiles. A `links` table stores both directions (`from { layer, sx, sy, tx, ty }` to `to { ... }`), written in the same transaction as the interior.
+- An interior is small and bounded, generated whole on first entry, and stored with the same screen codec. Its seed is `hash(worldSeed, layerId)`.
+- Houses are hand-built stamps picked by hash. Caves can use Spelunky's approach, a small grid of screens with a guaranteed path from entrance to exit and a template per screen whose openings match that path [15], with rooms-and-mazes inside each screen for connected layouts [16]. Towns are stamp layers.
+- Minecraft's dimensions are the precedent for separate spaces reached through portals [14]. The `links` table is the researcher's own design.
+
 ## Data shapes (core, pure)
 
 - `WorldSeed`: a branded number in a one-row `world` table. Wiping the world means a new seed.
 - `Fields`: elevation, moisture, temperature, warp, and detail, each fractal noise with its own derived seed, evaluated at global coordinates. Low octaves shape land, high octaves add detail [1].
 - `BiomeCell { id, site, biome }`: one jittered site per cell of a grid about 8x8 screens. The biome comes from a temperature and moisture table sampled at the site [1]. A tile belongs to the nearest site to its domain-warped position `p + fbm(p)` [4], so borders are organic.
 - `BiomeParams`: water, sand, and dirt thresholds, and densities for trees, bushes, rocks, flowers, tall grass, and clearings. Tiles blend nearby sites' params with distance falloff, and weights jittered by noise so borders dither instead of drawing a line [5]. The blend band is about one screen wide.
-- `Poi { id, region, at, kind }`: at most one per 6x6-screen region, placed with a seeded offset per grid cell and a minimum separation, which needs no global state [3]. Kinds now: `hub` (the garden), `clearing`, `ruin`, `lakeside`, `grove`, `stones`. Reserved for later layers: `town`, `cave`, `house`.
+- `Poi { id, region, at, kind, footprint, ports }`: at most one primary point per 6x6-screen region, placed with a seeded offset per grid cell and a minimum separation, which needs no global state [3]. Kinds now: `hub` (the garden), `clearing`, `ruin`, `lakeside`, `grove`, `stones`. Reserved for later layers: `town`, `cave`, `house`. Houses and caves can also be secondary points, a few per region, joined to the nearest road by a short spur routed with A*.
 - `RoadEdge { a, b, path }`: a pure function of the seed and its two ends, cached.
 - Chunk record: `chunks { layer, cx, cy, gen_version, created_at }`, plus screen rows `{ v: 2, layer, sx, sy, biome, corners, features }`. The per-screen seed goes away.
 - Terrain gains `darkgrass` (forest floor) and `snow`, for the layer order water, sand, dirt, grass, darkgrass, snow. Each new terrain needs its 16 corner masks, built from the pack's fill tiles (decision-17).
@@ -49,6 +61,8 @@ The table is keyed by temperature (cold, temperate, hot) and moisture (dry, mid,
 | Taiga | cold, wet | snow with darkgrass, dense trees | taiga (new) |
 | Tundra | cold, dry | snow, rocks, sparse bushes | snow (new) |
 | Garden | stamp only | the hand-built garden | garden |
+
+Interiors later get their own moods (home, town, cave), one per layer.
 
 Music keys on `(biome, cellId)`. The current tune keeps playing while the biome label stays the same, so it only changes when you walk into a different biome patch. This replaces the per-screen mood heuristics and the 4x4 tune regions.
 
@@ -80,6 +94,8 @@ The garden becomes a stamp: `STAMPS = [{ layer: overworld, screen: (0,0), data: 
 - Sub-patches within a biome (a flower field, a birch stand) from the detail field.
 - Jittered or Poisson placement rather than high-frequency noise [1][13].
 
+Layer pitfalls: presence broadcasts and save and resume must key on layer, an entrance must never be generated before its footprint is reserved, and a link must be written in both directions together.
+
 Pitfalls to avoid: creases where blend radius or jitter is too small [5]; roads routed from one side only, which split at seams; any shared random stream, since every decision must hash `(seed, purpose, coords)`; and tuning blind, which is why the preview tool comes first [1].
 
 ## Migration
@@ -101,3 +117,6 @@ Nothing is deployed, so there is no compatibility layer. The world is wiped (tas
 11. https://www.redblobgames.com/x/1723-procedural-river-growing/
 12. https://galaxykate0.tumblr.com/post/139774965871/so-you-want-to-build-a-generator (search snippet only)
 13. https://www.redblobgames.com/x/1830-jittered-grid/
+14. https://minecraft.wiki/w/Dimension
+15. https://spelunky.fandom.com/wiki/Level_Generation/2 (search snippet only)
+16. https://journal.stuffwithstuff.com/2014/12/21/rooms-and-mazes/
