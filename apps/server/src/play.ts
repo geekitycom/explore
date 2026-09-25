@@ -20,7 +20,7 @@ import {
 import { Chunks } from './chunks.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import type { User } from './users.ts';
-import { ensureGarden, loadPlayerState, loadWorld, savePlayerState } from './world.ts';
+import { ensureGarden, loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 
 /** How far past the speed cap a move may be, absorbing network jitter. */
 const SPEED_SLACK = 1.5;
@@ -67,6 +67,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
 
   /** Sends the player's screen, then builds the chunks they could walk into next. */
   const sendScreen = (player: Player) => {
+    recordVisit(db, player.room.screen.coord);
     const others = presence.enter(player);
     player.conn.send({
       t: 'screen',

@@ -16,18 +16,37 @@ const coord = (page: Page) =>
         .screen?.coord,
   );
 
-test('the map shows discovered screens, and logged-out visitors log in first', async ({ page }) => {
+const playing = (page: Page) =>
+  page.waitForFunction(
+    () =>
+      (window as unknown as { exploreState?: () => { phase: string } }).exploreState?.().phase ===
+      'playing',
+  );
+
+/** Screens of the garden's chunk that no e2e spec walks onto, though the server stores them. */
+const unvisited = Array.from({ length: 16 }, (_, i) => `${i % 4},${Math.floor(i / 4)}`).filter(
+  (key) => key !== '0,0' && key !== '0,1',
+);
+
+test('the map shows screens players stood on, and logged-out visitors log in first', async ({
+  page,
+}) => {
   const name = `map${Date.now().toString(36)}`;
   await page.goto('/');
   await page.getByLabel('Username').fill(name);
   await page.getByLabel('Password').fill('correct horse');
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByLabel('Game world')).toBeVisible();
-  await page.waitForFunction(
-    () =>
-      (window as unknown as { exploreState?: () => { phase: string } }).exploreState?.().phase ===
-      'playing',
-  );
+  await playing(page);
+
+  await page.waitForTimeout(300);
+  await page.getByRole('link', { name: 'Map' }).click();
+  await expect(page.getByLabel(/^World map with/)).toBeVisible();
+  await expect.poll(() => mapScreens(page)).toContain('0,0');
+  const fresh = await mapScreens(page);
+  expect(fresh.filter((key) => unvisited.includes(key))).toEqual([]);
+  await page.getByRole('link', { name: 'Back to the game' }).click();
+  await playing(page);
 
   await page.keyboard.down('ArrowDown');
   await expect.poll(() => coord(page), { intervals: [20] }).toMatchObject({ sx: 0, sy: 1 });

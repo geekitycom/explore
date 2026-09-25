@@ -66,6 +66,13 @@ const migrations: readonly string[] = [
   );
   INSERT INTO world (id, seed) VALUES (1, abs(random()) % 2147483648);`,
   `ALTER TABLE screens ADD COLUMN gen_version INTEGER NOT NULL DEFAULT 0;`,
+  `CREATE TABLE visits (
+    layer TEXT NOT NULL,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    PRIMARY KEY (layer, sx, sy)
+  ) WITHOUT ROWID;
+  INSERT OR IGNORE INTO visits (layer, sx, sy) SELECT layer, sx, sy FROM player_state;`,
 ];
 
 export function openDatabase(path: string): DatabaseSync {

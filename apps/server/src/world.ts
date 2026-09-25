@@ -106,6 +106,15 @@ export function getScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Scr
   return row && decodeScreen(JSON.parse(row.data));
 }
 
+/** The map shows a screen once any player has stood on it. */
+export function recordVisit(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): void {
+  db.prepare('INSERT INTO visits (layer, sx, sy) VALUES (?, ?, ?) ON CONFLICT DO NOTHING').run(
+    layer,
+    sx,
+    sy,
+  );
+}
+
 export function loadPlayerState(db: DatabaseSync, userId: number): PlayerState | undefined {
   const row: unknown = db
     .prepare('SELECT layer, sx, sy, x, y, dir FROM player_state WHERE user_id = ?')

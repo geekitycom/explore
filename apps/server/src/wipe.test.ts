@@ -8,7 +8,15 @@ import { createSession, sessionUser } from './sessions.ts';
 import { insertUser } from './users.ts';
 import { wipeWorld } from './wipe.ts';
 import { Chunks } from './chunks.ts';
-import { ensureGarden, getScreen, loadPlayerState, loadWorld, savePlayerState } from './world.ts';
+import { worldMapJson } from './map.ts';
+import {
+  ensureGarden,
+  getScreen,
+  loadPlayerState,
+  loadWorld,
+  recordVisit,
+  savePlayerState,
+} from './world.ts';
 import { CHUNK_H, CHUNK_W, DEFAULT_AVATAR, GARDEN_COORD, secretGarden } from '@explore/core';
 
 const dirs: string[] = [];
@@ -32,6 +40,7 @@ test('wiping keeps accounts, forgets the world, rolls a new seed, and restores t
   const before = new Chunks(db).screenAt(east, user.id);
   const seed = loadWorld(db).seed;
   savePlayerState(db, user.id, { coord: east, pose: { x: 50, y: 60, dir: 'e', moving: false } });
+  recordVisit(db, east);
   db.close();
 
   db = openDatabase(path);
@@ -39,6 +48,7 @@ test('wiping keeps accounts, forgets the world, rolls a new seed, and restores t
   expect(getScreen(db, east)).toBeUndefined();
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
   expect(loadPlayerState(db, user.id)).toBeUndefined();
+  expect(JSON.parse(worldMapJson(db, user.id))).toMatchObject({ screens: [] });
   expect(sessionUser(db, `session=${token}`)?.username).toBe('wanderer');
 
   expect(wipeWorld(db)).toEqual({ screens: 1, players: 0 });

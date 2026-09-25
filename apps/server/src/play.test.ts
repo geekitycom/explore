@@ -140,6 +140,19 @@ async function nextOf<T extends ServerMessage['t']>(
   return message as Extract<ServerMessage, { t: T }>;
 }
 
+type WorldMap = {
+  layer: string;
+  you: { sx: number; sy: number };
+  garden: { sx: number; sy: number } | null;
+  screens: ScreenRecord[];
+};
+
+async function fetchMap(base: string, cookie: string): Promise<WorldMap> {
+  const res = await fetch(`http://${base}/api/map`, { headers: { cookie } });
+  expect(res.status).toBe(200);
+  return (await res.json()) as WorldMap;
+}
+
 const SPAWN: Pose = { ...GARDEN_SPAWN, moving: false };
 const STEP_PX = 7;
 
@@ -309,32 +322,24 @@ describe('world socket', () => {
     expect(back.you).toMatchObject({ x: SCREEN_PX_W - 8, dir: 'w', moving: false });
   });
 
-  it('maps every discovered screen and where the viewer is, only when logged in', async () => {
-    const { base } = await start();
+  it('maps the screens players stood on and where the viewer is, only when logged in', async () => {
+    const { base, db } = await start();
     const cookie = await signup(base, 'alice');
     const alice = await connect(base, cookie);
     await nextOf(alice, 'screen');
-    const east = await travelEast(alice);
+    expect(await fetchMap(base, cookie)).toMatchObject({ screens: [encodeScreen(secretGarden())] });
 
-    const res = await fetch(`http://${base}/api/map`, { headers: { cookie } });
-    expect(res.status).toBe(200);
-    const map = (await res.json()) as {
-      layer: string;
-      you: { sx: number; sy: number };
-      garden: { sx: number; sy: number };
-      screens: unknown[];
-    };
+    const east = await travelEast(alice);
+    const map = await fetchMap(base, cookie);
     expect(map.layer).toBe('overworld');
     expect(map.you).toMatchObject({ sx: 1, sy: 0 });
     expect(map.garden).toMatchObject({ sx: 0, sy: 0 });
-    expect(map.screens.map((r) => decodeScreen(r).coord)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ sx: 0, sy: 0 }),
-        expect.objectContaining({ sx: 1, sy: 0 }),
-      ]),
-    );
-    expect(map.screens.length).toBeGreaterThanOrEqual(CHUNK_W * CHUNK_H);
-    expect(map.screens).toContainEqual(east.screen);
+    expect(map.screens).toEqual([encodeScreen(secretGarden()), east.screen]);
+    const { n } = db.prepare('SELECT count(*) AS n FROM screens').get() as { n: number };
+    expect(n).toBeGreaterThanOrEqual(CHUNK_W * CHUNK_H);
+
+    const bobCookie = await signup(base, 'bob');
+    expect((await fetchMap(base, bobCookie)).screens).toEqual(map.screens);
 
     expect((await fetch(`http://${base}/api/map`)).status).toBe(401);
   });
@@ -394,7 +399,7 @@ describe('world socket', () => {
     expect(screen.you).toEqual({ x: 180, y: 202, dir: 'e', moving: false });
   });
 
-  it('keeps the screen and the position across a restart on a file database', async () => {
+  it('keeps the screen, the position, and the map across a restart on a file database', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'explore-play-'));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
     const path = join(dir, 'explore.db');
@@ -408,6 +413,10 @@ describe('world socket', () => {
     await first.stop();
 
     const second = await start(path);
+    expect((await fetchMap(second.base, cookie)).screens).toEqual([
+      encodeScreen(secretGarden()),
+      arrival.screen,
+    ]);
     const again = await connect(second.base, cookie);
     const resumed = await nextOf(again, 'screen');
     expect(resumed.screen).toEqual<ScreenRecord>(arrival.screen);
