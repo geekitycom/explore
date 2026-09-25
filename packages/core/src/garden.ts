@@ -1,4 +1,4 @@
-import { decodeScreen } from './codec.ts';
+import { SCREEN_RECORD_VERSION, decodeScreen } from './codec.ts';
 import { OVERWORLD, type Screen, type ScreenCoord } from './world.ts';
 
 export const GARDEN_COORD: ScreenCoord = { layer: OVERWORLD, sx: 0, sy: 0 };
@@ -47,8 +47,9 @@ const FEATURES = [
 
 export function secretGarden(): Screen {
   return decodeScreen({
-    v: 3,
+    v: SCREEN_RECORD_VERSION,
     ...GARDEN_COORD,
+    biome: 'garden',
     corners: CORNERS.join(''),
     features: FEATURES.join(''),
   });

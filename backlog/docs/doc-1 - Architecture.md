@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 02:38'
+updated_date: '2026-09-25 13:57'
 ---
 # Architecture
 
@@ -23,26 +23,27 @@ pnpm workspace, TypeScript everywhere, Node 24.
 
 - A screen is `SCREEN_W = 20` by `SCREEN_H = 15` tiles of `TILE = 16` px (320x240 logical pixels, drawn at an integer scale).
 - Screens are addressed by `ScreenCoord { layer, sx, sy }`. `overworld` is the only layer today; houses, caves, and towns will be layers of their own (decision-20). The world is unbounded. `(0, 0)` is the secret garden. `sy` grows southward.
-- Terrain is stored on the corner lattice, not on tiles. Each screen stores `(SCREEN_W + 1) * (SCREEN_H + 1)` corners, each one of `water | sand | grass | dirt`. A tile's look comes from its four corners. Two adjacent screens share their boundary lattice line, and diagonal screens share one corner point. Seams therefore match by construction: the generator copies every shared lattice point from any existing neighbor (including diagonals) before generating the rest.
+- Terrain is stored on the corner lattice, not on tiles. Each screen stores `(SCREEN_W + 1) * (SCREEN_H + 1)` corners, each one of `water | sand | dirt | grass | darkgrass | snow`. A tile's look comes from its four corners. Two adjacent screens share their boundary lattice line, and diagonal screens share one corner point. Seams therefore match by construction: the generator copies every shared lattice point from any existing neighbor (including diagonals) before generating the rest.
 - Features sit on tiles: `none | tree | bush | rock | flowers | tallgrass`. `tree`, `bush`, and `rock` block movement. When a neighbor exists, the generator copies the neighbor's facing edge column or row of features onto its own edge, so a tree line or open meadow continues across the seam.
 - A tile is walkable when it has no blocking feature and fewer than 3 of its corners are water.
-- Persisted screen record: `{ v: 2, layer, sx, sy, seed, corners: string, features: string }` where `corners` and `features` are compact one-character-per-cell strings. The codec lives in core and is versioned by `v`.
+- Persisted screen record: `{ v: 4, layer, sx, sy, biome, corners: string, features: string }` where `corners` and `features` are compact one-character-per-cell strings. The codec lives in core and is versioned by `v`.
 
 ## Generation
 
 Every tile is a pure function of the world seed, the layer, and its global position (decision-19). The seed lives in a one-row `world` table and a wipe rolls a new one. `generateScreen(world, coord)` assembles a screen from per-point functions, so shared lattice points agree whatever order screens are generated in.
 
-1. **Stamps.** Inside a stamp's footprint (the secret garden at overworld 0,0, boundary included) the functions return the hand-built cells. A clearing weight fades from the footprint to 1.5 screens out, thinning blocking features and suppressing dirt, and dirt trails continue the garden's exits into the meadow.
-2. **Terrain.** Lakes are disjoint star-shaped blobs, at most one per cell of the lake grid, sized so no screen is all water and never touching each other or the garden clearing, so land stays connected by construction. Dirt comes from a dryness field; everything else is grass. All noise is hash-based fBm seeded per purpose, never a shared random stream.
-3. **Features.** A low-frequency forest field sets tree chance, clumped by a finer field so forests have glades; bushes ring tree stands, rocks favour dirt, flowers grow in bloom patches. `TEMPERATE` is the single parameter set biomes will blend (task-27).
-4. **Crossings.** Each seam's crossing tiles are a pure function of the seam, so both screens agree. Both sides clear blocking features on them.
-5. **Repair.** Per screen, the components holding crossings are joined by the cheapest feature-clearing path. Repair never raises water and never touches a shared lattice point.
+1. **Biomes.** `biomeField` in `biome.ts` puts one jittered site in each cell of a grid eight screens square. A site's biome comes from temperature, moisture, and elevation sampled there (meadow, forest, lakeland, scrubland, desert, highlands, taiga, tundra). A hot site with a cold site within two cells turns temperate, so snow never meets desert. A point belongs to the site nearest its domain-warped position, and its `BiomeParams` blend every site almost as near, so borders wander and blend over about a screen. The garden's cell is pinned to a meadow site. `biomeAt(world, layer, gx, gy)` returns the biome, its patch (cell), and the blended params; each screen records the biome at its centre.
+2. **Stamps.** Inside a stamp's footprint (the secret garden at overworld 0,0, boundary included) the functions return the hand-built cells. A clearing weight fades from the footprint to 1.5 screens out, thinning blocking features and suppressing dirt, and dirt trails continue the garden's exits into the meadow.
+3. **Terrain.** Lakes are disjoint star-shaped blobs, at most one per cell of the lake grid, sized so no screen is all water and never touching each other or the garden clearing, so land stays connected by construction. Lake chance and size follow the biome params. The ground takes sand, dirt, snow, then darkgrass by comparing a noise field per terrain against the blended share, so blended borders dither; the rest is grass. All noise is hash-based fBm seeded per purpose, never a shared random stream.
+4. **Features.** A low-frequency forest field and the biome's woods share set tree chance, clumped by a finer field so forests have glades; bushes ring tree stands, rocks favour dirt, flowers and tall grass grow on grass and darkgrass. Densities come from the blended biome params.
+5. **Crossings.** Each seam's crossing tiles are a pure function of the seam, so both screens agree. Both sides clear blocking features on them.
+6. **Repair.** Per screen, the components holding crossings are joined by the cheapest feature-clearing path. Repair never raises water and never touches a shared lattice point.
 
 Guarantee (replacing the old decision-11 wording): every crossing leads on, and a traveller only ever arrives on a tile a crossing leads to; the arrival nudge searches only tiles reachable from the entry. Property tests grow 12x12 regions over several seeds and check seam equality in shuffled orders, crossings on every land seam, and that a BFS from the garden reaches every screen.
 
 ## Rendering
 
-Transition tiles are derived at render time from the corner lattice, not stored. Terrains draw in layer order (water, sand, dirt, grass). For each tile, the lowest terrain fills the tile and each higher terrain is drawn through one of 16 corner masks. Each screen's terrain is baked once into an offscreen canvas. Features and players are then drawn y-sorted so tall trees overlap correctly.
+Transition tiles are derived at render time from the corner lattice, not stored. Terrains draw in layer order (water, sand, dirt, grass, darkgrass, snow). For each tile, the lowest terrain fills the tile and each higher terrain is drawn through one of 16 corner masks. Each screen's terrain is baked once into an offscreen canvas. Features and players are then drawn y-sorted so tall trees overlap correctly.
 
 ### Animation
 

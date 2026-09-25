@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  BIOMES,
   FEATURES,
   LATTICE_H,
   LATTICE_W,
@@ -13,7 +14,14 @@ import {
   type WorldSeed,
 } from './world.ts';
 
-const TERRAIN_CODE: Record<Terrain, string> = { water: 'w', sand: 's', dirt: 'd', grass: 'g' };
+const TERRAIN_CODE: Record<Terrain, string> = {
+  water: 'w',
+  sand: 's',
+  dirt: 'd',
+  grass: 'g',
+  darkgrass: 'k',
+  snow: 'n',
+};
 const FEATURE_CODE: Record<Feature, string> = {
   none: '.',
   tree: 'T',
@@ -47,7 +55,7 @@ export const worldSeedSchema = z
   .transform((n) => n as WorldSeed);
 
 /** Bumped whenever stored screens can no longer be read or no longer match the generator. */
-export const SCREEN_RECORD_VERSION = 3;
+export const SCREEN_RECORD_VERSION = 4;
 
 /** The persisted, versioned form of a screen. One character per lattice point or tile. */
 export const screenRecordSchema = z.object({
@@ -55,6 +63,7 @@ export const screenRecordSchema = z.object({
   layer: layerIdSchema,
   sx: z.number().int(),
   sy: z.number().int(),
+  biome: z.enum(BIOMES),
   corners: codeString(LATTICE_W * LATTICE_H, TERRAIN_BY_CODE),
   features: codeString(SCREEN_W * SCREEN_H, FEATURE_BY_CODE),
 });
@@ -67,6 +76,7 @@ export function encodeScreen(screen: Screen): ScreenRecord {
     layer: screen.coord.layer,
     sx: screen.coord.sx,
     sy: screen.coord.sy,
+    biome: screen.biome,
     corners: screen.corners.map((t) => TERRAIN_CODE[t]).join(''),
     features: screen.features.map((f) => FEATURE_CODE[f]).join(''),
   };
@@ -76,6 +86,7 @@ export function decodeScreen(raw: unknown): Screen {
   const r = screenRecordSchema.parse(raw);
   return {
     coord: { layer: r.layer, sx: r.sx, sy: r.sy },
+    biome: r.biome,
     corners: r.corners,
     features: r.features,
   };

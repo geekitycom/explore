@@ -7,13 +7,26 @@ export const SCREEN_PX_W = SCREEN_W * TILE;
 export const SCREEN_PX_H = SCREEN_H * TILE;
 
 /** Draw order, bottom first. Transitions draw each higher terrain over the lower ones. */
-export const TERRAINS = ['water', 'sand', 'dirt', 'grass'] as const;
+export const TERRAINS = ['water', 'sand', 'dirt', 'grass', 'darkgrass', 'snow'] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
 export const FEATURES = ['none', 'tree', 'bush', 'rock', 'flowers', 'tallgrass'] as const;
 export type Feature = (typeof FEATURES)[number];
 
 export const BLOCKING_FEATURES: ReadonlySet<Feature> = new Set(['tree', 'bush', 'rock']);
+
+export const BIOMES = [
+  'garden',
+  'meadow',
+  'forest',
+  'lakeland',
+  'scrubland',
+  'desert',
+  'highlands',
+  'taiga',
+  'tundra',
+] as const;
+export type Biome = (typeof BIOMES)[number];
 
 /** A separate space of screens: the overworld now, interiors such as houses and caves later. */
 export type LayerId = string & { readonly __brand: 'LayerId' };
@@ -32,6 +45,8 @@ export type World = { readonly seed: WorldSeed };
  */
 export type Screen = {
   readonly coord: ScreenCoord;
+  /** The biome at the screen's centre. */
+  readonly biome: Biome;
   readonly corners: readonly Terrain[];
   readonly features: readonly Feature[];
 };

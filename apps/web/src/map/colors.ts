@@ -16,6 +16,8 @@ export const TERRAIN_COLOR: Record<Terrain, Rgb> = {
   sand: [232, 201, 143],
   dirt: [176, 122, 82],
   grass: [143, 174, 58],
+  darkgrass: [106, 150, 50],
+  snow: [240, 238, 244],
 };
 
 export const FEATURE_COLOR: Record<Feature, Rgb | undefined> = {

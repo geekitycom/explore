@@ -1,3 +1,4 @@
+import { biomeField, type BiomeField, type BiomeSample } from './biome.ts';
 import { secretGarden } from './garden.ts';
 import { fbm, hash4, hashString, unit, type Noise2 } from './noise.ts';
 import { isTileWalkable } from './walk.ts';
@@ -11,6 +12,7 @@ import {
   cornerIndex,
   featureAt,
   tileIndex,
+  type Biome,
   type Feature,
   type LayerId,
   type Screen,
@@ -18,28 +20,6 @@ import {
   type Terrain,
   type World,
 } from './world.ts';
-
-export type TerrainParams = {
-  readonly lakeChance: number;
-  readonly shore: number;
-  readonly dirtAbove: number;
-  readonly trees: number;
-  readonly bushes: number;
-  readonly rocks: number;
-  readonly flowers: number;
-  readonly tallgrass: number;
-};
-
-export const TEMPERATE: TerrainParams = {
-  lakeChance: 0.75,
-  shore: 2.5,
-  dirtAbove: 0.7,
-  trees: 1,
-  bushes: 1,
-  rocks: 1,
-  flowers: 1,
-  tallgrass: 1,
-};
 
 /** Inside its footprint, boundary included, the fields return this screen verbatim. */
 export type Stamp = { readonly screen: Screen };
@@ -61,6 +41,10 @@ const PURPOSE = {
   shore: 9,
   clump: 10,
   carve: 11,
+  biome: 12,
+  sand: 13,
+  snow: 14,
+  darkgrass: 15,
 } as const;
 
 /**
@@ -85,25 +69,51 @@ type Lake = {
 
 type Fields = {
   readonly seed: number;
-  readonly params: TerrainParams;
+  readonly biome: BiomeField;
   readonly stamps: readonly Stamp[];
   readonly lakes: Map<string, Lake | undefined>;
   readonly dryness: Noise2;
+  readonly sand: Noise2;
+  readonly snow: Noise2;
+  readonly darkgrass: Noise2;
   readonly forest: Noise2;
   readonly clump: Noise2;
   readonly bloom: Noise2;
   readonly shore: Noise2;
 };
 
+const fieldsCache = new Map<string, Fields>();
+
+/** Fields cache their lakes and biome sites, so they are kept for the few worlds and layers in use. */
 function fieldsOf(world: World, layer: LayerId): Fields {
+  const key = `${world.seed}/${layer}`;
+  let fields = fieldsCache.get(key);
+  if (!fields) {
+    if (fieldsCache.size >= 8) fieldsCache.clear();
+    fields = makeFields(world, layer);
+    fieldsCache.set(key, fields);
+  }
+  return fields;
+}
+
+function makeFields(world: World, layer: LayerId): Fields {
   const seed = hash4(world.seed, PURPOSE.layer, hashString(layer), 0);
   const field = (purpose: number) => hash4(seed, purpose, 0, 0);
+  const stamps = STAMPS.filter((s) => s.screen.coord.layer === layer);
+  const pins = stamps.map(({ screen }) => ({
+    x: (screen.coord.sx + 0.5) * SCREEN_W,
+    y: (screen.coord.sy + 0.5) * SCREEN_H,
+    biome: 'meadow' as const,
+  }));
   return {
     seed,
-    params: TEMPERATE,
-    stamps: STAMPS.filter((s) => s.screen.coord.layer === layer),
+    biome: biomeField(field(PURPOSE.biome), pins),
+    stamps,
     lakes: new Map(),
     dryness: fbm(field(PURPOSE.dryness), { wavelength: 22, octaves: 3 }),
+    sand: fbm(field(PURPOSE.sand), { wavelength: 14, octaves: 3 }),
+    snow: fbm(field(PURPOSE.snow), { wavelength: 16, octaves: 3 }),
+    darkgrass: fbm(field(PURPOSE.darkgrass), { wavelength: 18, octaves: 3 }),
     forest: fbm(field(PURPOSE.forest), { wavelength: 56, octaves: 3 }),
     clump: fbm(field(PURPOSE.clump), { wavelength: 5, octaves: 2 }),
     bloom: fbm(field(PURPOSE.bloom), { wavelength: 18, octaves: 2 }),
@@ -114,6 +124,13 @@ function fieldsOf(world: World, layer: LayerId): Fields {
 const clamp01 = (t: number) => Math.min(1, Math.max(0, t));
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** The noise level below which about `share` of a three-octave fBm field lies. */
+function threshold(share: number): number {
+  if (share <= 0) return -Infinity;
+  if (share >= 1) return Infinity;
+  return 0.5 + 0.088 * Math.log(share / (1 - share));
+}
 
 function stampAt(f: Fields, sx: number, sy: number): Stamp | undefined {
   return f.stamps.find((s) => s.screen.coord.sx === sx && s.screen.coord.sy === sy);
@@ -167,10 +184,11 @@ function lakeIn(f: Fields, cellX: number, cellY: number): Lake | undefined {
 
 function makeLake(f: Fields, cellX: number, cellY: number): Lake | undefined {
   const roll = (k: number) => unit(hash4(f.seed, PURPOSE.lake + k, cellX, cellY));
-  if (roll(0) >= f.params.lakeChance) return undefined;
+  const { params } = f.biome((cellX + 0.5) * LAKE_CELL_W, (cellY + 0.5) * LAKE_CELL_H);
+  if (roll(0) >= params.lakeChance) return undefined;
   const grow = 1 + LAKE_WOBBLE;
   const reach = Math.min(LAKE_CELL_W, LAKE_CELL_H) / 2 - LAKE_MARGIN;
-  const size = roll(1) ** 1.1;
+  const size = roll(1) ** (1.1 / params.lakeSize);
   const stretch = 0.45 + 0.55 * roll(2);
   const angle = roll(3) * Math.PI;
   let rx = lerp(LAKE_MIN_RADIUS, reach / grow, size);
@@ -270,10 +288,16 @@ function terrainAt(f: Fields, gx: number, gy: number): Terrain {
   if (stamped) return stamped;
   const depth = waterDepth(f, gx, gy);
   if (depth > 0) return 'water';
-  if (depth > -f.params.shore * (0.6 + 0.8 * f.shore(gx, gy))) return 'sand';
+  const p = f.biome(gx, gy).params;
+  if (depth > -p.shore * (0.6 + 0.8 * f.shore(gx, gy))) return 'sand';
   const c = clearing(f, gx, gy);
   if (onTrail(f, gx, gy, c)) return 'dirt';
-  return f.dryness(gx, gy) * (1 - c) > f.params.dirtAbove ? 'dirt' : 'grass';
+  const open = 1 - c;
+  if (f.sand(gx, gy) < threshold(p.sand * open)) return 'sand';
+  if (f.dryness(gx, gy) < threshold(p.dirt * open)) return 'dirt';
+  if (f.snow(gx, gy) < threshold(p.snow * open)) return 'snow';
+  if (f.darkgrass(gx, gy) < threshold(p.darkgrass * open)) return 'darkgrass';
+  return 'grass';
 }
 
 type Crossing = readonly number[];
@@ -376,6 +400,9 @@ function onCrossing(x: Crossings, tx: number, ty: number): boolean {
   );
 }
 
+const GROWS: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass', 'snow']);
+const GREEN: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass']);
+
 function featureFor(
   f: Fields,
   gtx: number,
@@ -384,25 +411,26 @@ function featureFor(
 ): Feature {
   const stamped = stampFeature(f, gtx, gty);
   if (stamped) return stamped;
-  const p = f.params;
   const x = gtx + 0.5;
   const y = gty + 0.5;
+  const p = f.biome(x, y).params;
   const open = 1 - clearing(f, x, y);
-  const allGrass = corners.every((t) => t === 'grass');
+  const grows = corners.every((t) => GROWS.has(t));
+  const green = corners.every((t) => GREEN.has(t));
   const hasWater = corners.includes('water');
   const hasDirt = corners.includes('dirt');
-  const forest = f.forest(x, y) * open;
-  const treeChance = clamp01((forest - 0.44) * 3.5) * 0.68 * p.trees;
+  const shrubs = grows || corners.every((t) => t === 'sand');
+  const treeChance = clamp01((threshold(p.woods) - f.forest(x, y)) * 3.5) * p.trees * open;
   const bushChance = (0.015 + 0.1 * treeChance) * p.bushes * open;
   const rockChance = (hasDirt ? 0.05 : 0.008) * p.rocks * open;
   const r = unit(hash4(f.seed, PURPOSE.place, gtx, gty));
   const stand = 0.35 * r + 0.65 * f.clump(x, y);
 
-  if (allGrass && stand < treeChance) return 'tree';
-  if (allGrass && stand < treeChance + bushChance) return 'bush';
+  if (grows && stand < treeChance) return 'tree';
+  if (shrubs && stand < treeChance + bushChance) return 'bush';
   if (!hasWater && r > 1 - rockChance) return 'rock';
-  if (allGrass && f.bloom(x, y) > 0.66 && r > 1 - 0.3 * p.flowers) return 'flowers';
-  if (allGrass && r > 1 - 0.08 * p.tallgrass) return 'tallgrass';
+  if (green && f.bloom(x, y) > 0.66 && r > 1 - 0.3 * p.flowers) return 'flowers';
+  if (green && r > 1 - 0.08 * p.tallgrass) return 'tallgrass';
   return 'none';
 }
 
@@ -427,7 +455,15 @@ export function fieldFeature(world: World, layer: LayerId, gtx: number, gty: num
   return BLOCKING_FEATURES.has(feature) && cleared ? 'none' : feature;
 }
 
-type Draft = { coord: ScreenCoord; corners: Terrain[]; features: Feature[] };
+/**
+ * The biome at a global lattice position, with the land parameters blended from nearby biomes.
+ * A pure function of the world seed, layer, and position; stamps do not change it.
+ */
+export function biomeAt(world: World, layer: LayerId, gx: number, gy: number): BiomeSample {
+  return fieldsOf(world, layer).biome(gx, gy);
+}
+
+type Draft = { coord: ScreenCoord; biome: Biome; corners: Terrain[]; features: Feature[] };
 
 export function generateScreen(world: World, coord: ScreenCoord): Screen {
   const f = fieldsOf(world, coord.layer);
@@ -440,7 +476,8 @@ export function generateScreen(world: World, coord: ScreenCoord): Screen {
   for (let cy = 0; cy < LATTICE_H; cy++) {
     for (let cx = 0; cx < LATTICE_W; cx++) corners.push(terrainAt(f, x0 + cx, y0 + cy));
   }
-  const draft: Draft = { coord, corners, features: [] };
+  const { biome } = f.biome(x0 + SCREEN_W / 2, y0 + SCREEN_H / 2);
+  const draft: Draft = { coord, biome, corners, features: [] };
   const crossings = crossingsOf(f, coord.sx, coord.sy);
   for (let ty = 0; ty < SCREEN_H; ty++) {
     for (let tx = 0; tx < SCREEN_W; tx++) {

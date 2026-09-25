@@ -16,6 +16,7 @@ import {
 export function uniformScreen(terrain: Terrain = 'grass', feature: Feature = 'none'): Screen {
   return {
     coord: { layer: OVERWORLD, sx: 0, sy: 0 },
+    biome: 'meadow',
     corners: Array<Terrain>(LATTICE_W * LATTICE_H).fill(terrain),
     features: Array<Feature>(SCREEN_W * SCREEN_H).fill(feature),
   };

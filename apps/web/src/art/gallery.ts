@@ -92,7 +92,7 @@ function maskScreen(upper: Terrain, lower: Terrain): Screen {
       if (mask & (1 << bit)) corners[cornerIndex(tx + dx, ty + dy)] = upper;
     });
   }
-  return { coord: { layer: OVERWORLD, sx: 99, sy: 99 }, corners, features };
+  return { coord: { layer: OVERWORLD, sx: 99, sy: 99 }, biome: 'meadow', corners, features };
 }
 
 const CORNER_OFFSETS = [

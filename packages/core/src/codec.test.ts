@@ -8,6 +8,8 @@ describe('screen codec', () => {
     withCorners(uniformScreen('grass'), [
       [3, 4, 'water'],
       [20, 15, 'sand'],
+      [5, 5, 'darkgrass'],
+      [6, 5, 'snow'],
     ]),
     [
       [0, 0, 'tree'],
@@ -17,19 +19,25 @@ describe('screen codec', () => {
 
   test('round-trips every cell', () => {
     const coord = { layer: 'cellar' as LayerId, sx: -3, sy: 7 };
-    const record = encodeScreen({ ...screen, coord });
-    expect(record).toMatchObject({ v: 3, layer: 'cellar', sx: -3, sy: 7 });
+    const record = encodeScreen({ ...screen, coord, biome: 'taiga' });
+    expect(record).toMatchObject({ v: 4, layer: 'cellar', sx: -3, sy: 7, biome: 'taiga' });
     expect(record.corners[4 * 21 + 3]).toBe('w');
-    expect(decodeScreen(JSON.parse(JSON.stringify(record)))).toEqual({ ...screen, coord });
+    expect(decodeScreen(JSON.parse(JSON.stringify(record)))).toEqual({
+      ...screen,
+      coord,
+      biome: 'taiga',
+    });
   });
 
-  test('rejects wrong length, unknown codes, unknown versions, and a missing layer', () => {
+  test('rejects wrong length, unknown codes, unknown versions, and a missing layer or biome', () => {
     const record = encodeScreen(screen);
     expect(() => decodeScreen({ ...record, corners: record.corners.slice(1) })).toThrow();
     expect(() => decodeScreen({ ...record, features: 'X' + record.features.slice(1) })).toThrow(
       /unknown cell code/,
     );
-    expect(() => decodeScreen({ ...record, v: 2 })).toThrow();
+    expect(() => decodeScreen({ ...record, v: 3 })).toThrow();
+    expect(() => decodeScreen({ ...record, biome: undefined })).toThrow();
+    expect(() => decodeScreen({ ...record, biome: 'swamp' })).toThrow();
     expect(() => decodeScreen({ ...record, layer: '' })).toThrow();
     expect(() => decodeScreen({ ...record, layer: undefined })).toThrow();
   });

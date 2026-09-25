@@ -1,7 +1,7 @@
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { SCREEN_H, SCREEN_W } from '../src/world.ts';
-import { TERRAIN_RGB, renderPreview, type PreviewOptions } from './render-preview.ts';
+import { BIOME_RGB, TERRAIN_RGB, renderPreview, type PreviewOptions } from './render-preview.ts';
 import { fieldsSource } from './world-source.ts';
 
 const options: PreviewOptions = {
@@ -35,6 +35,22 @@ describe('world preview', () => {
     const b = renderPreview(fieldsSource(7), options).png;
     expect(a.equals(b)).toBe(true);
     expect(a.equals(renderPreview(fieldsSource(8), options).png)).toBe(false);
+  });
+
+  it('colours tiles by biome in biome mode', () => {
+    const area = { x0: -12, y0: -12, w: 24, h: 24 };
+    const { png, stats } = renderPreview(fieldsSource(1), { ...options, area, mode: 'biome' });
+    expect(stats.screensWithoutBiome).toBe(0);
+    const at = (sx: number, sy: number) =>
+      pixelAt(png, (sx - area.x0) * SCREEN_W + 3, (sy - area.y0) * SCREEN_H + 3).join();
+    expect(at(0, 0)).toBe(BIOME_RGB.garden!.join());
+    const palette = new Set(Object.values(BIOME_RGB).map((rgb) => rgb.join()));
+    const seen = new Set<string>();
+    for (let sy = area.y0; sy < area.y0 + area.h; sy += 2) {
+      for (let sx = area.x0; sx < area.x0 + area.w; sx += 2) seen.add(at(sx, sy));
+    }
+    expect([...seen].every((rgb) => palette.has(rgb))).toBe(true);
+    expect(seen.size).toBeGreaterThanOrEqual(4);
   });
 
   it('draws the garden pond at screen 0,0', () => {

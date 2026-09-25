@@ -277,7 +277,7 @@ describe('world socket', () => {
     await nextOf(alice, 'join');
 
     const first = await travelEast(alice);
-    expect(first.screen).toMatchObject({ v: 3, layer: 'overworld', sx: 1, sy: 0 });
+    expect(first.screen).toMatchObject({ v: 4, layer: 'overworld', sx: 1, sy: 0 });
     const row = db.prepare('SELECT data, created_by FROM screens WHERE sx = 1 AND sy = 0').get();
     expect(row).toEqual({ data: JSON.stringify(first.screen), created_by: 1 });
 

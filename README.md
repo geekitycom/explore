@@ -66,7 +66,7 @@ pnpm --filter @explore/core preview -- --seed 1 --area -16,-16,32,32 --out world
 | `--grid`                | off                 | Faint lines on screen borders                                   |
 | `--out <file.png>`      | `world-preview.png` | Output path, relative to the directory you ran the command from |
 
-The same arguments always produce the same file, so you can compare two renders before and after a change. The command prints the colour legend and the area it drew. Biome mode draws greyed terrain until the generator produces biomes. The tool renders from a `WorldSource` in `packages/core/scripts/world-source.ts`. The current source generates each screen straight from the world seed, so any area renders the same screens the game would.
+The same arguments always produce the same file, so you can compare two renders before and after a change. The command prints the colour legend and the area it drew. Biome mode colours each tile by the biome at its centre, with the garden in pink. The tool renders from a `WorldSource` in `packages/core/scripts/world-source.ts`. The current source generates each screen straight from the world seed, so any area renders the same screens the game would.
 
 Design notes and decisions live in `backlog/docs`. Tasks live in `backlog/tasks`.
 

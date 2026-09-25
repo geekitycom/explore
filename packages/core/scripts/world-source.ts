@@ -1,6 +1,6 @@
 import { GARDEN_COORD } from '../src/garden.ts';
-import { generateScreen } from '../src/generate.ts';
-import type { Feature, Terrain, WorldSeed } from '../src/world.ts';
+import { biomeAt, generateScreen } from '../src/generate.ts';
+import { SCREEN_H, SCREEN_W, type Feature, type Terrain, type WorldSeed } from '../src/world.ts';
 
 /** A point of interest, positioned by tile within its screen. */
 export type PreviewPoi = { readonly kind: string; readonly tx: number; readonly ty: number };
@@ -28,7 +28,14 @@ export function fieldsSource(seed: number): WorldSource {
     name: 'world-seeded fields',
     screen(sx, sy) {
       const screen = generateScreen(world, { ...GARDEN_COORD, sx, sy });
-      return sx === 0 && sy === 0 ? { ...screen, pois: [{ kind: 'hub', tx: 10, ty: 7 }] } : screen;
+      const biomes = Array.from({ length: SCREEN_W * SCREEN_H }, (_, i) => {
+        if (screen.biome === 'garden') return 'garden';
+        const gx = sx * SCREEN_W + (i % SCREEN_W) + 0.5;
+        const gy = sy * SCREEN_H + Math.floor(i / SCREEN_W) + 0.5;
+        return biomeAt(world, GARDEN_COORD.layer, gx, gy).biome;
+      });
+      const pois = screen.biome === 'garden' ? [{ kind: 'hub', tx: 10, ty: 7 }] : [];
+      return { ...screen, biomes, pois };
     },
   };
 }

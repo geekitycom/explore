@@ -12,7 +12,7 @@ import {
   type Terrain,
 } from '@explore/core';
 import { describe, expect, it } from 'vitest';
-import { parseHex } from './color.ts';
+import { parseHex, toHex } from './color.ts';
 import { TERRAIN_ART, composeTerrain, type TerrainTextures } from './terrain.ts';
 
 const PLAIN: Record<Terrain, string> = {
@@ -20,6 +20,8 @@ const PLAIN: Record<Terrain, string> = {
   sand: '#f0f000',
   dirt: '#804000',
   grass: '#00f000',
+  darkgrass: '#006000',
+  snow: '#f0f0f0',
 };
 const DECOR = '#ff00ff';
 
@@ -39,6 +41,7 @@ function screenOf(terrainAt: (cx: number, cy: number) => Terrain): Screen {
     for (let cx = 0; cx < LATTICE_W; cx++) corners.push(terrainAt(cx, cy));
   return {
     coord: { layer: OVERWORLD, sx: 3, sy: -2 },
+    biome: 'meadow',
     corners,
     features: Array<Feature>(SCREEN_W * SCREEN_H).fill('none'),
   };
@@ -101,8 +104,30 @@ describe('composeTerrain', () => {
     expect(decorated).toBeGreaterThan(0);
   });
 
+  it('joins darkgrass and snow to every other terrain with the higher edge band', () => {
+    const pairs = TERRAINS.flatMap((upper, i) =>
+      TERRAINS.slice(0, i).map((lower) => [upper, lower] as const),
+    ).filter((pair) => pair.some((t) => t === 'darkgrass' || t === 'snow'));
+    for (const [upper, lower] of pairs) {
+      const pair = `${upper} over ${lower}`;
+      const pixels = composeTerrain(
+        screenOf((cx) => (cx <= 9 ? upper : lower)),
+        textures,
+      );
+      const y = 7 * TILE + 3;
+      const row = Array.from({ length: SCREEN_PX_W }, (_, x) => hexAt(pixels, x, y));
+      const own = (t: Terrain) => (hex: string) => hex === PLAIN[t] || hex === DECOR;
+      expect(row.slice(0, 8 * TILE).every(own(upper)), pair).toBe(true);
+      expect(row.slice(12 * TILE).every(own(lower)), pair).toBe(true);
+      for (const band of TERRAIN_ART[upper].inner) expect(row, pair).toContain(toHex(band.color));
+      for (let x = 0; x < SCREEN_PX_W; x++) {
+        expect(pixels[(y * SCREEN_PX_W + x) * 4 + 3], pair).toBe(255);
+      }
+    }
+  }, 20_000);
+
   it('is deterministic for a screen', () => {
-    const screen = screenOf((cx, cy) => TERRAINS[(cx * 3 + cy * 5) % 4]!);
+    const screen = screenOf((cx, cy) => TERRAINS[(cx * 3 + cy * 5) % TERRAINS.length]!);
     expect(composeTerrain(screen, textures)).toEqual(composeTerrain(screen, textures));
   });
 });

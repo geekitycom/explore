@@ -71,6 +71,24 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
     inner: [ring(1.2, '#a8a129')],
     outer: [ring(1.5, '#5a3a24', 70)],
   },
+  darkgrass: {
+    fills: [
+      cell('floor', 11, 12),
+      cell('floor', 12, 12),
+      cell('floor', 13, 12),
+      cell('floor', 14, 12),
+      cell('floor', 15, 12),
+    ],
+    decorChance: 0.15,
+    inner: [ring(1.2, '#56864c')],
+    outer: [ring(1.5, '#2f4a2a', 70)],
+  },
+  snow: {
+    fills: [cell('floor', 1, 15), cell('floor', 0, 18), cell('floor', 1, 18)],
+    decorChance: 0.04,
+    inner: [ring(1.2, '#d2c9c9'), ring(2.6, '#f2eaf1')],
+    outer: [ring(1.5, '#4a4a6a', 60)],
+  },
 };
 
 /** A tile's pixels (TILE*TILE RGBA) for each fill of each terrain, in TERRAIN_ART order. */
