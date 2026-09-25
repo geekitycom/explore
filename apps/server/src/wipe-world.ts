@@ -1,13 +1,14 @@
 import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { openDatabase } from './db.ts';
 import { wipeWorld } from './wipe.ts';
 
-const dbPath = process.env.DB_PATH ?? './data/explore.db';
+const dbPath = resolve(process.env.DB_PATH ?? './data/explore.db');
 
 if (!process.argv.includes('--yes')) {
   console.error(
     `This deletes every generated screen and saved position in ${dbPath}.\n` +
-      'Accounts are kept. Stop the server first, then run again with --yes.',
+      'Accounts are kept. Stop the server first, then run:\n\n  pnpm world:wipe --yes\n',
   );
   process.exit(1);
 }
