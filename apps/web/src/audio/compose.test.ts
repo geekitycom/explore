@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest';
-import { MOODS, compose, type NoteEvent } from './compose.ts';
+import { BIOMES, type Biome } from '@explore/core';
+import { compose, type NoteEvent } from './compose.ts';
 
 const pitched = (events: readonly NoteEvent[]) =>
   events.filter((e): e is Extract<NoteEvent, { midi: number }> => e.voice !== 'noise');
 const interval = (midi: number, root: number) => (((midi - root) % 12) + 12) % 12;
 
-describe.each(MOODS)('compose(%s)', (mood) => {
+describe.each(BIOMES)('compose(%s)', (mood) => {
   const seeds = [1, 2, 3, 42, 777, 123456];
 
   test('is deterministic per seed and varies across seeds', () => {
@@ -42,6 +43,6 @@ describe.each(MOODS)('compose(%s)', (mood) => {
 });
 
 test('moods differ in tempo range', () => {
-  const tempo = (mood: (typeof MOODS)[number]) => compose(mood, 5).bpm;
-  expect(tempo('meadow')).toBeGreaterThan(tempo('lake'));
+  const tempo = (mood: Biome) => compose(mood, 5).bpm;
+  expect(tempo('meadow')).toBeGreaterThan(tempo('lakeland'));
 });

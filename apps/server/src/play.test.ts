@@ -188,6 +188,7 @@ describe('world socket', () => {
     expect(await alice.next()).toEqual({
       t: 'screen',
       screen: encodeScreen(secretGarden()),
+      patch: { x: 0, y: 0 },
       you: SPAWN,
       others: [],
     });

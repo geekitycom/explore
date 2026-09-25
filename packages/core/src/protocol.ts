@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { avatarSchema, type Avatar } from './avatar.ts';
+import type { BiomeCell } from './biome.ts';
 import type { ScreenRecord } from './codec.ts';
 import { DIRS, SCREEN_PX_H, SCREEN_PX_W, type Dir } from './world.ts';
 
@@ -44,7 +45,7 @@ export const playerViewSchema = z.object({
 });
 
 export type ServerMessage =
-  | { t: 'screen'; screen: ScreenRecord; you: Pose; others: PlayerView[] }
+  | { t: 'screen'; screen: ScreenRecord; patch: BiomeCell; you: Pose; others: PlayerView[] }
   | { t: 'join'; player: PlayerView }
   | { t: 'leave'; id: number }
   | ({ t: 'moved'; id: number } & Pose)

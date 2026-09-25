@@ -15,7 +15,16 @@ const bob: PlayerView = {
 const you = { x: 160, y: 200, dir: 'n' as const, moving: false };
 
 function playing(): GameState {
-  return applyMessage({ phase: 'connecting' }, { t: 'screen', screen: garden, you, others: [bob] });
+  return applyMessage(
+    { phase: 'connecting' },
+    {
+      t: 'screen',
+      screen: garden,
+      patch: { x: 0, y: 0 },
+      you,
+      others: [bob],
+    },
+  );
 }
 
 describe('applyMessage', () => {

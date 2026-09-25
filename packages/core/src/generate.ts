@@ -463,6 +463,11 @@ export function biomeAt(world: World, layer: LayerId, gx: number, gy: number): B
   return fieldsOf(world, layer).biome(gx, gy);
 }
 
+/** The biome sample at a screen's centre, which names the screen's biome and patch. */
+export function screenBiome(world: World, { layer, sx, sy }: ScreenCoord): BiomeSample {
+  return biomeAt(world, layer, (sx + 0.5) * SCREEN_W, (sy + 0.5) * SCREEN_H);
+}
+
 type Draft = { coord: ScreenCoord; biome: Biome; corners: Terrain[]; features: Feature[] };
 
 export function generateScreen(world: World, coord: ScreenCoord): Screen {
@@ -476,7 +481,7 @@ export function generateScreen(world: World, coord: ScreenCoord): Screen {
   for (let cy = 0; cy < LATTICE_H; cy++) {
     for (let cx = 0; cx < LATTICE_W; cx++) corners.push(terrainAt(f, x0 + cx, y0 + cy));
   }
-  const { biome } = f.biome(x0 + SCREEN_W / 2, y0 + SCREEN_H / 2);
+  const { biome } = screenBiome(world, coord);
   const draft: Draft = { coord, biome, corners, features: [] };
   const crossings = crossingsOf(f, coord.sx, coord.sy);
   for (let ty = 0; ty < SCREEN_H; ty++) {

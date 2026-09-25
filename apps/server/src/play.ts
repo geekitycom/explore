@@ -11,6 +11,7 @@ import {
   crossingTiles,
   encodeScreen,
   neighborCoord,
+  screenBiome,
   type ClientMessage,
   type Dir,
   type Pose,
@@ -73,6 +74,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
     player.conn.send({
       t: 'screen',
       screen: encodeScreen(player.room.screen),
+      patch: screenBiome(loadWorld(db), player.room.screen.coord).cell,
       you: player.pose,
       others,
     });

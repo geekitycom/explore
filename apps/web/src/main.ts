@@ -97,8 +97,8 @@ function gameView(user: User) {
     (s) => {
       status.textContent = STATUS_TEXT[s];
     },
-    (screen) => {
-      music.play(tuneFor(screen));
+    (screen, patch) => {
+      music.play(tuneFor(screen.biome, patch));
       ambience.set(ambientMix(screen));
     },
   );

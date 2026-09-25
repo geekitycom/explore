@@ -1,7 +1,4 @@
-import { createRng, type Rng } from '@explore/core';
-
-export const MOODS = ['garden', 'meadow', 'lake', 'forest'] as const;
-export type Mood = (typeof MOODS)[number];
+import { BIOMES, createRng, type Biome, type Rng } from '@explore/core';
 
 export type Voice = 'lead' | 'harm' | 'bass';
 export type DrumKind = 'kick' | 'snare' | 'hat';
@@ -29,6 +26,9 @@ const SCALES = {
   minor: [0, 2, 3, 5, 7, 8, 10],
   dorian: [0, 2, 3, 5, 7, 9, 10],
   lydian: [0, 2, 4, 6, 7, 9, 11],
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  phrygian: [0, 1, 3, 5, 7, 8, 10],
+  harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
 } as const;
 
 const RHYTHMS: Record<'calm' | 'lively' | 'sparse', readonly (readonly Span[])[]> = {
@@ -136,6 +136,18 @@ const BASS: Record<string, Accompaniment> = {
     [6, 2, r],
     [10, 6, f],
   ],
+  gallop: (_, r, f) => [
+    [0, 2, r],
+    [3, 1, r],
+    [4, 2, f],
+    [8, 2, r],
+    [11, 1, r],
+    [12, 2, f],
+  ],
+  drone: (_, r) => [
+    [0, 12, r],
+    [12, 4, r - 12],
+  ],
 };
 
 const ARP: Record<string, Accompaniment> = {
@@ -147,6 +159,19 @@ const ARP: Record<string, Accompaniment> = {
     [2, 2, t[2]! + 12],
     [6, 2, t[1]! + 12],
     [12, 4, t[0]! + 12],
+  ],
+  strum: (t) => [
+    [0, 4, t[0]! + 12],
+    [1, 3, t[1]! + 12],
+    [2, 2, t[2]! + 12],
+    [8, 4, t[0]! + 12],
+    [9, 3, t[1]! + 12],
+    [10, 2, t[2]! + 12],
+  ],
+  twinkle: (t) => [
+    [0, 1, t[2]! + 24],
+    [5, 1, t[1]! + 24],
+    [11, 1, t[0]! + 24],
   ],
 };
 
@@ -171,6 +196,28 @@ const DRUMS: Record<string, readonly [number, DrumKind, number][]> = {
     [6, 'hat', 0.25],
     [14, 'hat', 0.35],
   ],
+  gallop: [
+    [0, 'kick', 0.8],
+    [3, 'hat', 0.3],
+    [4, 'snare', 0.5],
+    [8, 'kick', 0.8],
+    [11, 'hat', 0.3],
+    [12, 'snare', 0.5],
+  ],
+  march: [
+    [0, 'kick', 0.9],
+    [4, 'snare', 0.6],
+    [6, 'snare', 0.35],
+    [7, 'snare', 0.35],
+    [8, 'kick', 0.9],
+    [12, 'snare', 0.6],
+  ],
+  hand: [
+    [0, 'kick', 0.6],
+    [6, 'kick', 0.4],
+    [10, 'snare', 0.3],
+    [12, 'hat', 0.2],
+  ],
 };
 
 type MoodStyle = {
@@ -186,7 +233,7 @@ type MoodStyle = {
   echo: number;
 };
 
-export const MOOD_STYLES: Record<Mood, MoodStyle> = {
+export const MOOD_STYLES: Record<Biome, MoodStyle> = {
   garden: {
     scale: 'lydian',
     root: 65,
@@ -221,7 +268,7 @@ export const MOOD_STYLES: Record<Mood, MoodStyle> = {
     leadDuty: 0.5,
     echo: 0,
   },
-  lake: {
+  lakeland: {
     scale: 'minor',
     root: 62,
     bpm: [66, 78],
@@ -255,15 +302,100 @@ export const MOOD_STYLES: Record<Mood, MoodStyle> = {
     leadDuty: 0.125,
     echo: 0.3,
   },
+  scrubland: {
+    scale: 'major',
+    root: 64,
+    bpm: [104, 116],
+    rhythm: 'lively',
+    progressions: [
+      [0, 0, 3, 4],
+      [0, 3, 0, 4],
+      [0, 4, 0, 3],
+      [3, 0, 4, 0],
+    ],
+    bass: 'gallop',
+    arp: 'strum',
+    drums: 'gallop',
+    leadDuty: 0.25,
+    echo: 0,
+  },
+  desert: {
+    scale: 'harmonicMinor',
+    root: 62,
+    bpm: [76, 88],
+    rhythm: 'sparse',
+    progressions: [
+      [0, 0, 5, 4],
+      [0, 5, 0, 4],
+      [0, 3, 4, 0],
+      [5, 4, 0, 0],
+    ],
+    bass: 'drone',
+    arp: 'sparse',
+    drums: 'hand',
+    leadDuty: 0.125,
+    echo: 0.35,
+  },
+  highlands: {
+    scale: 'mixolydian',
+    root: 62,
+    bpm: [96, 108],
+    rhythm: 'lively',
+    progressions: [
+      [0, 6, 0, 4],
+      [0, 6, 3, 0],
+      [0, 3, 6, 0],
+      [6, 0, 3, 0],
+    ],
+    bass: 'drone',
+    arp: 'eighths',
+    drums: 'march',
+    leadDuty: 0.5,
+    echo: 0.15,
+  },
+  taiga: {
+    scale: 'phrygian',
+    root: 60,
+    bpm: [84, 94],
+    rhythm: 'sparse',
+    progressions: [
+      [0, 1, 0, 6],
+      [0, 5, 1, 0],
+      [0, 6, 5, 1],
+      [5, 1, 0, 0],
+    ],
+    bass: 'halves',
+    arp: 'rolling',
+    drums: 'ticks',
+    leadDuty: 0.25,
+    echo: 0.45,
+  },
+  tundra: {
+    scale: 'minor',
+    root: 69,
+    bpm: [56, 66],
+    rhythm: 'calm',
+    progressions: [
+      [0, 5, 0, 3],
+      [0, 2, 5, 0],
+      [5, 3, 0, 0],
+      [0, 3, 5, 6],
+    ],
+    bass: 'wholes',
+    arp: 'twinkle',
+    drums: 'none',
+    leadDuty: 0.125,
+    echo: 0.5,
+  },
 };
 
 const pick = <T>(rng: Rng, list: readonly T[]): T => list[Math.floor(rng() * list.length)]!;
 
 type Motif = { rhythm: readonly Span[]; contour: number[] };
 
-export function compose(mood: Mood, seed: number): Song {
-  const style = MOOD_STYLES[mood];
-  const rng = createRng(Math.imul(seed, 7919) + MOODS.indexOf(mood));
+export function compose(biome: Biome, seed: number): Song {
+  const style = MOOD_STYLES[biome];
+  const rng = createRng(Math.imul(seed, 7919) + BIOMES.indexOf(biome));
   const scale = SCALES[style.scale];
   const bpm = Math.round(style.bpm[0] + rng() * (style.bpm[1] - style.bpm[0]));
   const root = style.root + pick(rng, [-2, 0, 0, 2, 3]);

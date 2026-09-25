@@ -33,7 +33,7 @@ export function createMusic(engine: AudioEngine) {
       out.gain.setValueAtTime(0, now);
       out.gain.linearRampToValueAtTime(1, now + CROSSFADE_S);
       out.connect(music);
-      const synth = createSynth(ctx, compose(tune.mood, tune.seed), out);
+      const synth = createSynth(ctx, compose(tune.biome, tune.seed), out);
       const songStart = now + 0.05;
       let scheduled = 0;
       const tick = () => {

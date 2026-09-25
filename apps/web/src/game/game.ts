@@ -1,4 +1,10 @@
-import { MOVE_INTERVAL_MS, type Avatar, type Pose, type Screen } from '@explore/core';
+import {
+  MOVE_INTERVAL_MS,
+  type Avatar,
+  type BiomeCell,
+  type Pose,
+  type Screen,
+} from '@explore/core';
 import type { User } from '../api.ts';
 import { keyboard } from './input.ts';
 import { step } from './movement.ts';
@@ -20,7 +26,7 @@ export function startGame(
   initialUser: User,
   renderer: Renderer,
   onStatus: (s: GameStatus) => void,
-  onScreen: (screen: Screen) => void = () => {},
+  onScreen: (screen: Screen, patch: BiomeCell) => void = () => {},
 ) {
   let user = initialUser;
   let state: GameState = { phase: 'connecting' };
@@ -33,7 +39,8 @@ export function startGame(
     onMessage: (message) => {
       state = applyMessage(state, message);
       if (message.t === 'screen' || message.t === 'correct') lastSent = undefined;
-      if (message.t === 'screen' && state.phase !== 'connecting') onScreen(state.screen);
+      if (message.t === 'screen' && state.phase !== 'connecting')
+        onScreen(state.screen, state.patch);
     },
     onStatus,
   });

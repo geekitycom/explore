@@ -1,5 +1,6 @@
 import {
   decodeScreen,
+  type BiomeCell,
   type PlayerView,
   type Pose,
   type Screen,
@@ -14,6 +15,8 @@ export type GameState =
   | {
       phase: 'playing' | 'travelling';
       screen: Screen;
+      /** The biome patch the screen belongs to. */
+      patch: BiomeCell;
       you: Pose;
       others: ReadonlyMap<number, Remote>;
     };
@@ -25,6 +28,7 @@ export function applyMessage(state: GameState, message: ServerMessage): GameStat
     return {
       phase: 'playing',
       screen: decodeScreen(message.screen),
+      patch: message.patch,
       you: message.you,
       others: new Map(message.others.map((p) => [p.id, remote(p)])),
     };
