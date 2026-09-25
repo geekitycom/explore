@@ -4,6 +4,7 @@ title: Discovery jingle for brand-new screens
 status: To Do
 assignee: []
 created_date: '2026-09-24 23:28'
+updated_date: '2026-09-25 01:27'
 labels: []
 milestone: m-2
 dependencies:
@@ -25,3 +26,9 @@ When a player is the first ever to reach a screen, play a short generated fanfar
 - [ ] #2 The screen message carries a flag for newly generated screens, covered by server tests
 - [ ] #3 The jingle respects mute and effects volume
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Dropped on 2026-09-24: Andrew decided not to have a discovery jingle.
+<!-- SECTION:NOTES:END -->
