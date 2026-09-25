@@ -1,4 +1,10 @@
-import { biomeField, type BiomeField, type BiomeParams, type BiomeSample } from './biome.ts';
+import {
+  biomeField,
+  cellMemo,
+  type BiomeField,
+  type BiomeParams,
+  type BiomeSample,
+} from './biome.ts';
 import { secretGarden } from './garden.ts';
 import { fbm, hash4, hashString, unit, type Noise2 } from './noise.ts';
 import type { Land } from './poi.ts';
@@ -107,7 +113,9 @@ type LandFields = {
   readonly seed: number;
   readonly biome: BiomeField;
   readonly stamps: readonly Stamp[];
-  readonly lakes: Map<string, Lake | undefined>;
+  /** The lakes of a lake cell and its eight neighbours, since shores can spill into the next cell. */
+  readonly lakes: (cellX: number, cellY: number) => readonly Lake[];
+  /** The rivers of a river cell and its eight neighbours. */
   readonly rivers: (cellX: number, cellY: number) => readonly River[];
   readonly dryness: Noise2;
   readonly sand: Noise2;
@@ -153,8 +161,11 @@ function makeFields(world: World, layer: LayerId): Fields {
     seed,
     biome,
     stamps,
-    lakes: new Map(),
-    rivers: riverField(field(PURPOSE.river), biome, (box) => !inClearing(stamps, box)),
+    lakes: nineCells((cellX, cellY) => {
+      const lake = makeLake(fields, cellX, cellY);
+      return lake ? [lake] : [];
+    }),
+    rivers: nineCells(riverField(field(PURPOSE.river), biome, (box) => !inClearing(stamps, box))),
     dryness: fbm(field(PURPOSE.dryness), { wavelength: 22, octaves: 3 }),
     sand: fbm(field(PURPOSE.sand), { wavelength: 14, octaves: 3 }),
     snow: fbm(field(PURPOSE.snow), { wavelength: 16, octaves: 3 }),
@@ -169,6 +180,14 @@ function makeFields(world: World, layer: LayerId): Fields {
     ),
   };
   return { ...fields, network: roadNetwork(landOf(fields)) };
+}
+
+/** What a cell and its eight neighbours hold, north-west first, memoized per cell. */
+function nineCells<T>(
+  cell: (cx: number, cy: number) => readonly T[],
+): (cx: number, cy: number) => readonly T[] {
+  const one = cellMemo(cell);
+  return cellMemo((cx, cy) => AROUND.flatMap(({ dx, dy }) => one(cx + dx, cy + dy)));
 }
 
 function landOf(f: LandFields): Land {
@@ -242,14 +261,6 @@ function clearing(f: LandFields, x: number, y: number): number {
   return best;
 }
 
-function lakeIn(f: LandFields, cellX: number, cellY: number): Lake | undefined {
-  const key = `${cellX},${cellY}`;
-  if (f.lakes.has(key)) return f.lakes.get(key);
-  const lake = makeLake(f, cellX, cellY);
-  f.lakes.set(key, lake);
-  return lake;
-}
-
 /**
  * Lakes gather where a slow field says so, rather than one to a cell everywhere, and come in a
  * spread of sizes. A wide one is a main basin with up to three lobes budding off it, so its shore
@@ -303,12 +314,18 @@ function makeLake(f: LandFields, cellX: number, cellY: number): Lake | undefined
   };
 }
 
-/** How far inside a lake's water a point is, in lattice units; negative outside. */
-function lakeDepth({ basins, phase }: Lake, x: number, y: number): number {
-  let depth = -Infinity;
+/**
+ * How far inside a lake's water a point is, in lattice units, negative outside; or `floor` where
+ * that is deeper. A basin's shore lies within its wobbled long radius, so a basin that cannot
+ * reach past `floor` is skipped. The slack absorbs rounding, which keeps the result exact.
+ */
+function lakeDepth({ basins, phase }: Lake, x: number, y: number, floor: number): number {
+  let depth = floor;
   for (const basin of basins) {
     const ox = x - basin.cx;
     const oy = y - basin.cy;
+    const reach = Math.max(basin.rx, basin.ry) * (1 + LAKE_WOBBLE) - Math.hypot(ox, oy);
+    if (reach + 1e-6 <= depth) continue;
     const dx = ox * Math.cos(basin.angle) + oy * Math.sin(basin.angle);
     const dy = -ox * Math.sin(basin.angle) + oy * Math.cos(basin.angle);
     const angle = Math.atan2(dy, dx);
@@ -329,32 +346,23 @@ function riverDepthAt(f: LandFields, x: number, y: number): number {
   const cellX = Math.floor(x / RIVER_CELL_W);
   const cellY = Math.floor(y / RIVER_CELL_H);
   let depth = -Infinity;
-  for (let j = -1; j <= 1; j++) {
-    for (let i = -1; i <= 1; i++) {
-      for (const river of f.rivers(cellX + i, cellY + j)) {
-        depth = Math.max(depth, riverDepth(river, x, y));
-      }
-    }
-  }
+  for (const river of f.rivers(cellX, cellY)) depth = Math.max(depth, riverDepth(river, x, y));
   return depth;
 }
 
-/** Shores can spill into the next cell, so check all nine. */
 function waterDepth(f: LandFields, x: number, y: number): number {
-  const cellX = Math.floor(x / LAKE_CELL_W);
-  const cellY = Math.floor(y / LAKE_CELL_H);
   let depth = riverDepthAt(f, x, y);
-  for (let j = -1; j <= 1; j++) {
-    for (let i = -1; i <= 1; i++) {
-      const lake = lakeIn(f, cellX + i, cellY + j);
-      if (lake) depth = Math.max(depth, lakeDepth(lake, x, y));
-    }
+  for (const lake of f.lakes(Math.floor(x / LAKE_CELL_W), Math.floor(y / LAKE_CELL_H))) {
+    depth = lakeDepth(lake, x, y, depth);
   }
   return depth;
 }
 
 /** The screen being generated: its layer's fields and the stored older screens around it. */
-type Site = { readonly f: Fields; readonly plan: Plan; readonly older: readonly Screen[] };
+type Surroundings = { readonly f: Fields; readonly plan: Plan; readonly older: readonly Screen[] };
+
+/** Its terrain is memoized, since the crossings look again at points the corners already hold. */
+type Site = Surroundings & { readonly terrain: (gx: number, gy: number) => Terrain };
 
 const AROUND = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({ dx, dy })));
 
@@ -371,7 +379,8 @@ function siteOf(world: World, { layer, sx, sy }: ScreenCoord, older: Older): Sit
   }
   around.sort((a, b) => a.coord.sy - b.coord.sy || a.coord.sx - b.coord.sx);
   const f = fieldsOf(world, layer);
-  return { f, plan: planOf(f, sx, sy), older: around };
+  const surroundings = { f, plan: planOf(f, sx, sy), older: around };
+  return { ...surroundings, terrain: cellMemo((gx, gy) => siteTerrain(surroundings, gx, gy)) };
 }
 
 /** The network's plan for a screen's lattice and the points just outside it. */
@@ -390,7 +399,7 @@ function planOf(f: Fields, sx: number, sy: number): Plan {
  * older screen's edge and ends there. The result depends only on the point and the older
  * screens within reach, which two new screens sharing a seam both see, so they agree on it.
  */
-function siteTerrain({ f, plan, older }: Site, gx: number, gy: number): Terrain {
+function siteTerrain({ f, plan, older }: Surroundings, gx: number, gy: number): Terrain {
   let nearest: { screen: Screen; x: number; y: number; d: number } | undefined;
   for (const screen of older) {
     const x = Math.min(Math.max(gx - screen.coord.sx * SCREEN_W, 0), SCREEN_W);
@@ -446,7 +455,7 @@ const CROSSING_WIDTH = 2;
 function terrainWalkable(site: Site, gtx: number, gty: number): boolean {
   let water = 0;
   for (const [dx, dy] of CORNER_OFFSETS) {
-    if (siteTerrain(site, gtx + dx, gty + dy) === 'water') water++;
+    if (site.terrain(gtx + dx, gty + dy) === 'water') water++;
   }
   return water < 3;
 }
@@ -695,7 +704,7 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
   const y0 = coord.sy * SCREEN_H;
   const corners: Terrain[] = [];
   for (let cy = 0; cy < LATTICE_H; cy++) {
-    for (let cx = 0; cx < LATTICE_W; cx++) corners.push(siteTerrain(site, x0 + cx, y0 + cy));
+    for (let cx = 0; cx < LATTICE_W; cx++) corners.push(site.terrain(x0 + cx, y0 + cy));
   }
   const { biome } = screenBiome(world, coord);
   const draft: Draft = { coord, biome, corners, features: [] };

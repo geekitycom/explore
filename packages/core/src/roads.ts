@@ -315,7 +315,7 @@ export function roadNetwork(land: Land): Network {
       [2, 2],
     ] as const) {
       const wet = land.waterDepth(x + dx, y + dy);
-      const ford = land.riverDepth(x + dx, y + dy) > 0;
+      const ford = wet > 0 && land.riverDepth(x + dx, y + dy) > 0;
       depth = Math.max(depth, wet);
       lake ||= wet > 0 && !ford;
       river ||= ford;

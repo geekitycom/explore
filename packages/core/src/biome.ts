@@ -335,23 +335,29 @@ export function biomeField(seed: number, pins: readonly BiomePin[]): BiomeField 
     return { site, biome: biomeOf({ heat, moisture: moisture(x, y), elevation: elevation(x, y) }) };
   });
 
+  // Successive points mostly share a cell, so the patches around the last one are kept.
   const near: Patch[] = [];
+  let nearX = NaN;
+  let nearY = NaN;
   const distance: number[] = [];
   return (x, y) => {
     const wx = x + (warpX(x, y) - 0.5) * 2 * WARP;
     const wy = y + (warpY(x, y) - 0.5) * 2 * WARP;
     const hx = cellX(wx);
     const hy = cellY(wy);
-    let n = 0;
-    let owner = 0;
-    for (let dy = -SEARCH; dy <= SEARCH; dy++) {
-      for (let dx = -SEARCH; dx <= SEARCH; dx++) {
-        const patch = patchAt(hx + dx, hy + dy);
-        near[n] = patch;
-        distance[n] = Math.hypot(patch.site.x - wx, patch.site.y - wy);
-        if (distance[n]! < distance[owner]!) owner = n;
-        n++;
+    if (hx !== nearX || hy !== nearY) {
+      let k = 0;
+      for (let dy = -SEARCH; dy <= SEARCH; dy++) {
+        for (let dx = -SEARCH; dx <= SEARCH; dx++) near[k++] = patchAt(hx + dx, hy + dy);
       }
+      [nearX, nearY] = [hx, hy];
+    }
+    const n = near.length;
+    let owner = 0;
+    for (let i = 0; i < n; i++) {
+      const { site } = near[i]!;
+      distance[i] = Math.hypot(site.x - wx, site.y - wy);
+      if (distance[i]! < distance[owner]!) owner = i;
     }
     const { site, biome } = near[owner]!;
     const blend: [BiomeParams, number][] = [];

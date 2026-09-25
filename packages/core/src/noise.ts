@@ -41,8 +41,10 @@ export function valueNoise(seed: number): Noise2 {
     const iy = Math.floor(y);
     const fx = smooth(x - ix);
     const fy = smooth(y - iy);
-    const top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * fx;
-    const bottom = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * fx;
+    const nw = at(ix, iy);
+    const sw = at(ix, iy + 1);
+    const top = nw + (at(ix + 1, iy) - nw) * fx;
+    const bottom = sw + (at(ix + 1, iy + 1) - sw) * fx;
     return top + (bottom - top) * fy;
   };
 }
