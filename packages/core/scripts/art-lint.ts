@@ -34,10 +34,6 @@ export const SHIPPED_ART: Readonly<Record<string, ArtSheet>> = {
   'assets/ninja-adventure/Actor/Character/Princess/SeparateAnim/Walk.png': CHARACTER,
   'assets/ninja-adventure/Actor/Character/SamuraiBlue/SeparateAnim/Walk.png': CHARACTER,
   'assets/ninja-adventure/Actor/Character/Villager3/SeparateAnim/Walk.png': CHARACTER,
-  'assets/ninja-adventure/Backgrounds/Animated/Plant/SpriteSheet16x16.png': {
-    cell: { w: 16, h: 16 },
-    exempt: { 'open-outline': 'the stem meets the ground, which the pack never outlines' },
-  },
   'assets/ninja-adventure/FX/Particle/LeafPink.png': { cell: { w: 12, h: 7 }, exempt: {} },
   'assets/ninja-adventure/Actor/Animal/Fish/SpriteSheetWhite.png': {
     cell: { w: 16, h: 16 },

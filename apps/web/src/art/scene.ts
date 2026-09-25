@@ -39,7 +39,7 @@ export type Actor = {
 };
 
 export function buildScene(screen: Screen, art: Art): Scene {
-  const features = featureSprites(screen, art);
+  const features = featureSprites(screen);
   return {
     screen,
     terrain: bakeTerrain(screen, art),
@@ -48,7 +48,7 @@ export function buildScene(screen: Screen, art: Art): Scene {
     butterflies: butterflies(screen),
     fish: fishes(screen),
     petalSources: features
-      .filter((f) => f.variant.sheds)
+      .filter((f) => f.species.sheds)
       .map((f) => ({
         x: f.dx + 6,
         y: f.dy + f.src.h - 14,
@@ -98,13 +98,8 @@ function drawFeature(
   motion: boolean,
   actors: readonly Actor[],
 ) {
-  const { image, src, dx, dy, variant, frames } = f;
-  if (motion && frames) {
-    const frame = Math.floor(clock * 5 + f.phase * frames) % frames;
-    ctx.drawImage(image, src.x + frame * src.w, src.y, src.w, src.h, dx, dy, src.w, src.h);
-    return;
-  }
-  if (!motion || !variant.sway) {
+  const { image, src, dx, dy, sway } = f;
+  if (!motion || !sway) {
     ctx.drawImage(image, src.x, src.y, src.w, src.h, dx, dy, src.w, src.h);
     return;
   }
@@ -116,7 +111,7 @@ function drawFeature(
   const lean = trampled
     ? rustle(clock + f.phase)
     : gust(scene.screen.coord, dx + src.w / 2, clock + f.phase * 0.4);
-  for (const slice of swaySlices(src.h, variant.sway, lean)) {
+  for (const slice of swaySlices(src.h, sway, lean)) {
     ctx.drawImage(
       image,
       src.x,

@@ -2,15 +2,21 @@ import { describe, expect, test } from 'vitest';
 import { OUTLINE, RAMPS, type Hex, type RampName } from '../palette.ts';
 import { SHADOW, hexAt, styleViolations, type Sprite } from '../sprite.ts';
 import { TILE } from '../world.ts';
+import { FLORA } from '../flora.ts';
 import { RECIPE_FAMILIES, SAMPLE_RECIPES, drawRecipe, type Recipe } from './index.ts';
 
 const SEEDS = Array.from({ length: 24 }, (_, i) => i * 7919 + 3);
 const RAMP_NAMES = Object.keys(RAMPS) as RampName[];
 const isRamp = (v: unknown): v is RampName => typeof v === 'string' && v in RAMPS;
 
-/** Every sample, plus each of its ramp params swapped for every ramp, plus the other sizes. */
+/**
+ * Every sample, plus each of its ramp params swapped for every ramp, plus the other sizes, plus
+ * every species in the flora catalogue.
+ */
 function species(): Recipe[] {
-  const out: Recipe[] = [];
+  const out: Recipe[] = Object.values(FLORA).flatMap((flora) =>
+    Object.values(flora).flatMap((list) => list.map((s) => s.recipe)),
+  );
   for (const sample of Object.values(SAMPLE_RECIPES)) {
     out.push(sample);
     for (const [key, value] of Object.entries(sample.params)) {

@@ -1,6 +1,8 @@
 import {
+  BIOMES,
   BIOME_PHOTO_PALETTES,
   BIOME_RAMPS,
+  FLORA,
   CLOTH_COLORS,
   HAIR_COLORS,
   HAIR_STYLES,
@@ -33,13 +35,7 @@ import {
   type WorldSeed,
 } from '@explore/core';
 import { AVATAR_BASES, WALK_FRAMES, avatarSheet, walkFrameRect } from './avatars.ts';
-import {
-  FEATURE_ART,
-  SPECIES_SEEDS,
-  featureSprites,
-  spriteCanvas,
-  variantImage,
-} from './features.ts';
+import { SPECIES_SEEDS, featureSprites, speciesSprite, spriteCanvas } from './features.ts';
 import { tileHash } from './sheets.ts';
 import { loadArt, type Art } from './load.ts';
 import { bakeTerrain } from './terrain.ts';
@@ -77,7 +73,7 @@ function figure(parent: HTMLElement, caption: string, w: number, h: number, scal
 
 function drawScreen(ctx: CanvasRenderingContext2D, screen: Screen, art: Art, ox = 0, oy = 0) {
   ctx.drawImage(bakeTerrain(screen, art), ox, oy);
-  const sprites = featureSprites(screen, art).sort((a, b) => a.sortY - b.sortY);
+  const sprites = featureSprites(screen).sort((a, b) => a.sortY - b.sortY);
   for (const { image, src, dx, dy } of sprites) {
     ctx.drawImage(image, src.x, src.y, src.w, src.h, ox + dx, oy + dy, src.w, src.h);
   }
@@ -197,28 +193,33 @@ function showEdges(art: Art) {
   });
 }
 
-function showFeatures(art: Art) {
-  const row = section('Feature variants, three seeds each');
+/** Each biome's species side by side on the biome's ground, three seeds each. */
+function showFlora() {
   const seeds = [0, 1, 2];
-  for (const [feature, variants] of Object.entries(FEATURE_ART)) {
-    const ctx = figure(row, feature, variants.length * seeds.length * 34, 34);
-    variants.forEach((variant, i) =>
-      seeds.forEach((seed, j) => {
-        const { image, src } = variantImage(variant, art, seed);
-        const x = (i * seeds.length + j) * 34;
-        ctx.fillStyle = '#adbc3a';
-        ctx.fillRect(x, 0, 33, 34);
-        const dx = x + (33 - src.w) / 2;
-        ctx.drawImage(image, src.x, src.y, src.w, src.h, dx, 34 - src.h, src.w, src.h);
-      }),
-    );
+  const cellW = 34;
+  const cellH = 3 * TILE + 2;
+  for (const biome of BIOMES) {
+    const row = section(`Flora: ${biome}`);
+    const ground = biome === 'garden' ? 'grass' : BIOME_RAMPS[biome].ground[0]!;
+    for (const [feature, species] of Object.entries(FLORA[biome])) {
+      for (const s of species) {
+        const weight = s.weight ? ` x${s.weight}` : '';
+        const ctx = figure(row, `${s.name} (${feature}${weight})`, seeds.length * cellW, cellH, 2);
+        ctx.fillStyle = RAMPS[ground][RAMPS[ground].length - 2]!;
+        ctx.fillRect(0, 0, ctx.canvas.width, cellH);
+        seeds.forEach((seed, i) => {
+          const { canvas, sprite } = speciesSprite(s, seed);
+          ctx.drawImage(canvas, i * cellW + (cellW - sprite.width) / 2, cellH - sprite.height);
+        });
+      }
+    }
   }
 }
 
 const RECIPE_SEEDS = 12;
 
 /** Every recipe family at several seeds, then one species planted with per-tile seeds. */
-function showRecipes(art: Art) {
+function showRecipes() {
   const row = section(`Recipe families, ${RECIPE_SEEDS} seeds each`);
   for (const family of RECIPE_FAMILIES) {
     const recipe = SAMPLE_RECIPES[family];
@@ -244,10 +245,7 @@ function showRecipes(art: Art) {
 
   const planted = section('Per-tile seeds: one species per row, neighbours differ');
   const cols = 16;
-  const rows = FEATURE_ART.tree.filter(
-    (v, i, all) =>
-      'recipe' in v && all.findIndex((w) => 'recipe' in w && w.recipe === v.recipe) === i,
-  );
+  const rows = FLORA.garden.tree;
   const ctx = figure(
     planted,
     `game tree species on every other tile of a ${cols}-tile row, ${SPECIES_SEEDS} seeds per species`,
@@ -257,21 +255,11 @@ function showRecipes(art: Art) {
   ctx.fillStyle = RAMPS.grass[3];
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   const coord = { layer: OVERWORLD, sx: 3, sy: 4 };
-  rows.forEach((variant, r) => {
+  rows.forEach((species, r) => {
     for (let tx = 0; tx < cols; tx += 2) {
-      const { image, src, anchor } = variantImage(variant, art, tileHash(coord, tx, r, 0) >>> 8);
+      const { canvas, sprite } = speciesSprite(species, tileHash(coord, tx, r, 0) >>> 8);
       const bottom = (r + 1) * 2 * TILE + TILE / 2;
-      ctx.drawImage(
-        image,
-        src.x,
-        src.y,
-        src.w,
-        src.h,
-        tx * TILE + TILE / 2 - anchor.x,
-        bottom - anchor.y,
-        src.w,
-        src.h,
-      );
+      ctx.drawImage(canvas, tx * TILE + TILE / 2 - sprite.anchor.x, bottom - sprite.anchor.y);
     }
   });
 }
@@ -348,7 +336,7 @@ function drawRamps(ctx: CanvasRenderingContext2D, names: readonly RampName[], y 
   );
 }
 
-function showStyle(art: Art) {
+function showStyle() {
   const ramps = section(
     `Master palette: ${PALETTE.length} colours, outline plus ramps dark to light`,
   );
@@ -393,11 +381,11 @@ function showStyle(art: Art) {
   }
 
   const picks = [
-    FEATURE_ART.tree[0]!,
-    FEATURE_ART.tree[2]!,
-    FEATURE_ART.bush[0]!,
-    FEATURE_ART.rock[0]!,
-    FEATURE_ART.flowers[0]!,
+    FLORA.meadow.tree[0]!,
+    FLORA.forest.tree[2]!,
+    FLORA.meadow.bush[0]!,
+    FLORA.meadow.rock[0]!,
+    FLORA.meadow.flowers[0]!,
   ];
   const anchoring = section(
     'Scale and anchoring: a 16px grid, each object bottom-centre on its tile (outlined); light from the top left',
@@ -411,21 +399,11 @@ function showStyle(art: Art) {
   );
   ctx.fillStyle = RAMPS.grass[3];
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  picks.forEach((variant, i) => {
-    const { image, src, anchor } = variantImage(variant, art, 0);
+  picks.forEach((species, i) => {
+    const { canvas, sprite } = speciesSprite(species, 0);
     const tx = i * 3 + 1;
     const bottom = 3 * TILE - 4;
-    ctx.drawImage(
-      image,
-      src.x,
-      src.y,
-      src.w,
-      src.h,
-      tx * TILE + TILE / 2 - anchor.x,
-      bottom - anchor.y,
-      src.w,
-      src.h,
-    );
+    ctx.drawImage(canvas, tx * TILE + TILE / 2 - sprite.anchor.x, bottom - sprite.anchor.y);
     ctx.strokeStyle = RAMPS.rose[1];
     ctx.strokeRect(tx * TILE + 0.5, bottom - TILE + 0.5, TILE - 1, TILE - 1);
   });
@@ -439,7 +417,7 @@ const SECTIONS = {
   masks: showMasks,
   edges: showEdges,
   world: showWorld,
-  features: showFeatures,
+  flora: showFlora,
   recipes: showRecipes,
   avatars: showAvatars,
   motion: showMotion,
@@ -461,10 +439,11 @@ function showMotion(art: Art) {
   const picks = [
     { label: 'garden', screen: secretGarden() },
     ...find('lake', (s) => fishes(s).length > 0 && twinkles(s).length > 20),
-    ...find('forest with cherry trees', (s) => {
-      const f = featureSprites(s, art);
+    ...find('forest', (s) => {
+      const f = featureSprites(s);
       return (
-        f.filter((x) => x.variant.sheds).length >= 2 && f.some((x) => x.feature === 'tallgrass')
+        f.filter((x) => x.feature === 'tree').length >= 20 &&
+        f.some((x) => x.feature === 'tallgrass')
       );
     }),
     ...find('meadow', (s) => butterflies(s).length >= 2),

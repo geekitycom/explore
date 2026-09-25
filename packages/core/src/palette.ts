@@ -52,15 +52,27 @@ export const BIOME_RAMPS: Record<
   PaletteBiome,
   { readonly ground: readonly RampName[]; readonly flora: readonly RampName[] }
 > = {
-  meadow: { ground: ['grass', 'soil'], flora: ['grass', 'bark', 'poppy', 'water', 'gold'] },
-  forest: { ground: ['pine', 'soil'], flora: ['grass', 'pine', 'bark', 'stone', 'peach'] },
-  lakeland: { ground: ['grass', 'sand', 'water'], flora: ['grass', 'straw', 'bark', 'rose'] },
-  scrubland: { ground: ['straw', 'soil'], flora: ['sage', 'pine', 'straw', 'bark', 'stone'] },
+  meadow: {
+    ground: ['grass', 'soil'],
+    flora: ['grass', 'bark', 'poppy', 'water', 'gold', 'snow', 'stone'],
+  },
+  forest: {
+    ground: ['pine', 'soil'],
+    flora: ['grass', 'pine', 'bark', 'stone', 'peach', 'poppy', 'snow'],
+  },
+  lakeland: {
+    ground: ['grass', 'sand', 'water'],
+    flora: ['grass', 'straw', 'bark', 'rose', 'gold', 'water', 'stone'],
+  },
+  scrubland: {
+    ground: ['straw', 'soil'],
+    flora: ['sage', 'pine', 'straw', 'bark', 'stone', 'heather', 'rose'],
+  },
   desert: { ground: ['dune', 'sand', 'soil'], flora: ['cactus', 'sage', 'straw', 'sand'] },
   highlands: {
     ground: ['grass', 'soil', 'granite'],
     flora: ['pine', 'bark', 'heather', 'gold', 'granite'],
   },
-  taiga: { ground: ['snow', 'pine'], flora: ['pine', 'bark', 'gold', 'poppy'] },
+  taiga: { ground: ['snow', 'pine'], flora: ['pine', 'bark', 'gold', 'poppy', 'snow', 'stone'] },
   tundra: { ground: ['snow', 'stone', 'straw'], flora: ['sage', 'snow', 'stone'] },
 };
