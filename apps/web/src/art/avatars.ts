@@ -49,9 +49,9 @@ export const AVATAR_BASES: Record<HairStyle, AvatarBase> = {
       '#965340': 'hairShade',
       '#ef914f': 'skin',
       '#d3a2c0': 'skinShade',
-      '#e3f1f5': { head: 'keep', body: 'shirt' },
+      '#f2eaf1': { head: 'keep', body: 'shirt' },
       '#548789': 'pants',
-      '#2e3939': 'pantsShade',
+      '#23403c': 'pantsShade',
     },
   },
   long: {

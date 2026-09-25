@@ -1,4 +1,4 @@
-import { DEFAULT_AVATAR, HAIR_STYLES, TILE, type Avatar } from '@explore/core';
+import { DEFAULT_AVATAR, HAIR_STYLES, PALETTE, TILE, type Avatar } from '@explore/core';
 import { describe, expect, it } from 'vitest';
 import {
   AVATAR_BASES,
@@ -123,5 +123,13 @@ describe('walkFrameRect', () => {
     expect(walkFrameRect('n', 1)).toEqual({ x: TILE, y: TILE, w: TILE, h: TILE });
     expect(walkFrameRect('w', 2)).toEqual({ x: 2 * TILE, y: 2 * TILE, w: TILE, h: TILE });
     expect(walkFrameRect('e', 7)).toEqual({ x: 3 * TILE, y: 3 * TILE, w: TILE, h: TILE });
+  });
+});
+
+describe('AVATAR_BASES', () => {
+  it('keys roles by palette colours, the only colours the walk sheets use', () => {
+    for (const base of Object.values(AVATAR_BASES)) {
+      for (const hex of Object.keys(base.colors)) expect(PALETTE).toContain(hex.toUpperCase());
+    }
   });
 });

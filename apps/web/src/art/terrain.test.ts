@@ -2,6 +2,7 @@ import {
   LATTICE_H,
   LATTICE_W,
   OVERWORLD,
+  PALETTE,
   SCREEN_PX_W,
   SCREEN_H,
   SCREEN_W,
@@ -129,5 +130,12 @@ describe('composeTerrain', () => {
   it('is deterministic for a screen', () => {
     const screen = screenOf((cx, cy) => TERRAINS[(cx * 3 + cy * 5) % TERRAINS.length]!);
     expect(composeTerrain(screen, textures)).toEqual(composeTerrain(screen, textures));
+  });
+});
+
+describe('TERRAIN_ART', () => {
+  it('draws every edge band in a palette colour', () => {
+    const bands = Object.values(TERRAIN_ART).flatMap((art) => [...art.inner, ...art.outer]);
+    for (const { color } of bands) expect(PALETTE).toContain(toHex(color).toUpperCase());
   });
 });
