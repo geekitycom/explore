@@ -2,7 +2,8 @@ import { biomeField, type BiomeField, type BiomeParams, type BiomeSample } from 
 import { secretGarden } from './garden.ts';
 import { fbm, hash4, hashString, unit, type Noise2 } from './noise.ts';
 import type { Land } from './poi.ts';
-import { roadNetwork, type Network, type Plan } from './roads.ts';
+import { RIVER_CELL_H, RIVER_CELL_W, riverDepth, riverField, type River } from './rivers.ts';
+import { roadNetwork, type Box, type Network, type Plan } from './roads.ts';
 import { isTileWalkable } from './walk.ts';
 import {
   BLOCKING_FEATURES,
@@ -34,7 +35,7 @@ export const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
  * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
  * points, and opens onto that neighbour's walkable edge (decision D23).
  */
-export const GENERATOR_VERSION = 4;
+export const GENERATOR_VERSION = 5;
 
 /**
  * Looks up a stored screen that an older generator made; undefined for a screen the current
@@ -68,6 +69,7 @@ const PURPOSE = {
   stitch: 16,
   shrub: 17,
   lakes: 18,
+  river: 19,
   patch: 20,
 } as const;
 
@@ -106,6 +108,7 @@ type LandFields = {
   readonly biome: BiomeField;
   readonly stamps: readonly Stamp[];
   readonly lakes: Map<string, Lake | undefined>;
+  readonly rivers: (cellX: number, cellY: number) => readonly River[];
   readonly dryness: Noise2;
   readonly sand: Noise2;
   readonly snow: Noise2;
@@ -145,11 +148,13 @@ function makeFields(world: World, layer: LayerId): Fields {
     y: (screen.coord.sy + 0.5) * SCREEN_H,
     biome: 'meadow' as const,
   }));
+  const biome = biomeField(field(PURPOSE.biome), pins);
   const fields: LandFields = {
     seed,
-    biome: biomeField(field(PURPOSE.biome), pins),
+    biome,
     stamps,
     lakes: new Map(),
+    rivers: riverField(field(PURPOSE.river), biome, (box) => !inClearing(stamps, box)),
     dryness: fbm(field(PURPOSE.dryness), { wavelength: 22, octaves: 3 }),
     sand: fbm(field(PURPOSE.sand), { wavelength: 14, octaves: 3 }),
     snow: fbm(field(PURPOSE.snow), { wavelength: 16, octaves: 3 }),
@@ -171,6 +176,7 @@ function landOf(f: LandFields): Land {
     seed: f.seed,
     biome: f.biome,
     waterDepth: (x, y) => waterDepth(f, x, y),
+    riverDepth: (x, y) => riverDepthAt(f, x, y),
     woods: (x, y) => woodsAt(f, x, y, f.biome(x, y).params, 1 - clearing(f, x, y)),
     stamps: f.stamps.map((s) => s.screen),
   };
@@ -215,6 +221,13 @@ function clearingBox(screen: Screen) {
   const rx = CLEARING_SCREENS * SCREEN_W;
   const ry = CLEARING_SCREENS * SCREEN_H;
   return { x0: x0 - rx, x1: x0 + SCREEN_W + rx, y0: y0 - ry, y1: y0 + SCREEN_H + ry };
+}
+
+function inClearing(stamps: readonly Stamp[], { x0, y0, x1, y1 }: Box): boolean {
+  return stamps.some(({ screen }) => {
+    const box = clearingBox(screen);
+    return x1 > box.x0 && x0 < box.x1 && y1 > box.y0 && y0 < box.y1;
+  });
 }
 
 function clearing(f: LandFields, x: number, y: number): number {
@@ -273,11 +286,10 @@ function makeLake(f: LandFields, cellX: number, cellY: number): Lake | undefined
   const bound = extent * fit + LAKE_MARGIN;
   const cx = cellX * LAKE_CELL_W + lerp(bound, LAKE_CELL_W - bound, roll(4));
   const cy = cellY * LAKE_CELL_H + lerp(bound, LAKE_CELL_H - bound, roll(5));
-  const inClearing = f.stamps.some(({ screen }) => {
-    const box = clearingBox(screen);
-    return cx + bound > box.x0 && cx - bound < box.x1 && cy + bound > box.y0 && cy - bound < box.y1;
-  });
-  if (inClearing) return undefined;
+  const box = { x0: cx - bound, y0: cy - bound, x1: cx + bound, y1: cy + bound };
+  if (inClearing(f.stamps, box) || riverDepthAt(f, cx, cy) > -(bound + LAKE_MARGIN)) {
+    return undefined;
+  }
   const phase = (k: number) => roll(6 + k) * 2 * Math.PI;
   return {
     basins: basins.map((b) => ({
@@ -313,11 +325,25 @@ function lakeDepth({ basins, phase }: Lake, x: number, y: number): number {
   return depth;
 }
 
+function riverDepthAt(f: LandFields, x: number, y: number): number {
+  const cellX = Math.floor(x / RIVER_CELL_W);
+  const cellY = Math.floor(y / RIVER_CELL_H);
+  let depth = -Infinity;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      for (const river of f.rivers(cellX + i, cellY + j)) {
+        depth = Math.max(depth, riverDepth(river, x, y));
+      }
+    }
+  }
+  return depth;
+}
+
 /** Shores can spill into the next cell, so check all nine. */
 function waterDepth(f: LandFields, x: number, y: number): number {
   const cellX = Math.floor(x / LAKE_CELL_W);
   const cellY = Math.floor(y / LAKE_CELL_H);
-  let depth = -Infinity;
+  let depth = riverDepthAt(f, x, y);
   for (let j = -1; j <= 1; j++) {
     for (let i = -1; i <= 1; i++) {
       const lake = lakeIn(f, cellX + i, cellY + j);

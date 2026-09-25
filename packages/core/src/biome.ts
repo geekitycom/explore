@@ -10,6 +10,8 @@ export type BiomeParams = {
   readonly lakeChance: number;
   /** How large lakes grow; 1 is a temperate baseline and more favours big lakes. */
   readonly lakeSize: number;
+  /** Chance a river cell holds a river, 0..1. */
+  readonly riverChance: number;
   /** Width of the sand shore around a lake, in lattice units. */
   readonly shore: number;
   /** Shares of the ground, 0..1, claimed in this order. What is left is grass. */
@@ -38,6 +40,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   meadow: {
     lakeChance: 0.2,
     lakeSize: 1,
+    riverChance: 0.45,
     shore: 2.5,
     sand: 0,
     dirt: 0.12,
@@ -58,6 +61,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   forest: {
     lakeChance: 0.16,
     lakeSize: 0.8,
+    riverChance: 0.45,
     shore: 2,
     sand: 0,
     dirt: 0.05,
@@ -78,6 +82,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   lakeland: {
     lakeChance: 0.8,
     lakeSize: 2.5,
+    riverChance: 0.7,
     shore: 3.5,
     sand: 0,
     dirt: 0.05,
@@ -98,6 +103,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   scrubland: {
     lakeChance: 0.07,
     lakeSize: 0.6,
+    riverChance: 0.2,
     shore: 2,
     sand: 0.12,
     dirt: 0.5,
@@ -118,6 +124,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   desert: {
     lakeChance: 0.09,
     lakeSize: 0.35,
+    riverChance: 0.06,
     shore: 1.5,
     sand: 1,
     dirt: 0.1,
@@ -138,6 +145,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   highlands: {
     lakeChance: 0.13,
     lakeSize: 0.7,
+    riverChance: 0.5,
     shore: 1.5,
     sand: 0,
     dirt: 0.45,
@@ -158,6 +166,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   taiga: {
     lakeChance: 0.2,
     lakeSize: 0.8,
+    riverChance: 0.45,
     shore: 1.5,
     sand: 0,
     dirt: 0,
@@ -178,6 +187,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   tundra: {
     lakeChance: 0.16,
     lakeSize: 0.8,
+    riverChance: 0.2,
     shore: 1.5,
     sand: 0,
     dirt: 0.05,

@@ -1,5 +1,5 @@
-import { LATTICE_W, type Terrain } from '@explore/core';
-import { uniformScreen, withCorners, withFeatures } from '@explore/core/testing';
+import { LATTICE_W, OVERWORLD, generateScreen, type Terrain } from '@explore/core';
+import { uniformScreen, withCorners, withFeatures, worldOf } from '@explore/core/testing';
 import { describe, expect, test } from 'vitest';
 import { ambientMix, type AmbientMix } from './ambience.ts';
 
@@ -16,6 +16,14 @@ const inRange = (mix: AmbientMix) =>
 describe('ambientMix', () => {
   test('an open meadow is all wind', () => {
     expect(ambientMix(uniformScreen('grass'))).toEqual({ wind: 1, river: 0, waves: 0 });
+  });
+
+  test('a generated river, ford and all, sounds like a river', () => {
+    const ford = generateScreen(worldOf(2), { layer: OVERWORLD, sx: -7, sy: -7 });
+    expect(ford.corners.filter((t) => t === 'water').length).toBeGreaterThan(20);
+    const mix = ambientMix(ford);
+    expect(mix.river).toBeGreaterThan(0.5);
+    expect(mix.waves).toBe(0);
   });
 
   test('a little water is a river and a lake is waves', () => {

@@ -152,7 +152,8 @@ describe.each(SEEDS)('the road network of seed %i', (seed) => {
     }
     expect(points.length).toBeGreaterThan(1000);
     expect(water / area).toBeGreaterThan(0.01);
-    expect(points.filter(([x, y]) => land.waterDepth(x, y) > 0)).toEqual([]);
+    const lake = (x: number, y: number) => land.waterDepth(x, y) > 0 && land.riverDepth(x, y) <= 0;
+    expect(points.filter(([x, y]) => lake(x, y))).toEqual([]);
   });
 });
 
@@ -171,13 +172,17 @@ test.each([1, 2, 3, 4, 5, 6, 7, 8])('roads leave all four garden exits in seed %
 
 describe('across a river', () => {
   /** Meadow everywhere, with water from x = 60 to 68 except where `gap` says. */
-  const riverLand = (gap: (y: number) => boolean): Land => ({
-    seed: 5,
-    biome: () => ({ biome: 'meadow', cell: { x: 0, y: 0 }, params: BIOME_PARAMS.meadow }),
-    waterDepth: (x, y) => (gap(y) ? -10 : Math.min(x - 60, 68 - x)),
-    woods: () => 0,
-    stamps: [],
-  });
+  const riverLand = (gap: (y: number) => boolean): Land => {
+    const depth = (x: number, y: number) => (gap(y) ? -10 : Math.min(x - 60, 68 - x));
+    return {
+      seed: 5,
+      biome: () => ({ biome: 'meadow', cell: { x: 0, y: 0 }, params: BIOME_PARAMS.meadow }),
+      waterDepth: depth,
+      riverDepth: depth,
+      woods: () => 0,
+      stamps: [],
+    };
+  };
   const crossing = (network: Network) => {
     const roads = network
       .roadsIn({ x0: 60, y0: -REGION_H, x1: 68, y1: 2 * REGION_H })

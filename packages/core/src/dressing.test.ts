@@ -183,10 +183,11 @@ describe('biome dressing', () => {
 describe('lakes', () => {
   test('never span more than about a screen and a third', () => {
     const land = landFor(worldOf(1), OVERWORLD);
+    const lake = (x: number, y: number) => land.waterDepth(x, y) > 0 && land.riverDepth(x, y) <= 0;
     const [x0, y0, w, h] = [-24 * SCREEN_W, -24 * SCREEN_H, 48 * SCREEN_W, 48 * SCREEN_H];
     const wet = new Uint8Array(w * h);
     for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) wet[y * w + x] = land.waterDepth(x0 + x, y0 + y) > 0 ? 1 : 0;
+      for (let x = 0; x < w; x++) wet[y * w + x] = lake(x0 + x, y0 + y) ? 1 : 0;
     }
     let lakes = 0;
     const spans: number[] = [];

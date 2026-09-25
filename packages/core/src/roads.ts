@@ -50,7 +50,7 @@ const DETOUR = 6;
 const STUB = 8;
 /** Lattice points this close to a road's centre line are road: three or four points wide. */
 export const ROAD_RADIUS = 1.5;
-const COST = { water: 30, shore: 2, woods: 3, meander: 3 } as const;
+const COST = { water: 30, ford: 10, shore: 2, woods: 3, meander: 3 } as const;
 /** Roads join points at most this many regions apart. */
 const LINK = 1;
 /** Enough regions to hold every point that could stand between two linked points. */
@@ -304,16 +304,24 @@ export function roadNetwork(land: Land): Network {
       return x >= x0 - 1 && x <= x0 + SCREEN_W + 1 && y >= y0 - 1 && y <= y0 + SCREEN_H + 1;
     });
     if (inStamp) return Infinity;
-    let depth = land.waterDepth(x, y);
+    let depth = -Infinity;
+    let lake = false;
+    let river = false;
     for (const [dx, dy] of [
+      [0, 0],
       [-2, -2],
       [2, -2],
       [-2, 2],
       [2, 2],
     ] as const) {
-      depth = Math.max(depth, land.waterDepth(x + dx, y + dy));
+      const wet = land.waterDepth(x + dx, y + dy);
+      const ford = land.riverDepth(x + dx, y + dy) > 0;
+      depth = Math.max(depth, wet);
+      lake ||= wet > 0 && !ford;
+      river ||= ford;
     }
-    if (depth > 0) return COST.water;
+    if (lake) return COST.water;
+    if (river) return COST.ford;
     const ground = depth > -3 ? COST.shore : 1;
     const hills = Math.min(1, Math.max(0, (meander(i, j) - 0.3) / 0.4));
     return ground + COST.woods * land.woods(x, y) + COST.meander * hills;
