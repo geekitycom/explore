@@ -545,9 +545,12 @@ describe('world socket', () => {
 describe('game', () => {
   it('ignores messages from a connection that has been replaced', () => {
     const db = openDatabase(':memory:');
-    cleanups.push(() => db.close());
     let clock = 0;
     const game = createGame(db, { now: () => (clock += 100) });
+    cleanups.push(() => {
+      game.stop();
+      db.close();
+    });
     const user = (username: string) =>
       insertUser(db, { username, passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
     const [alice, bob] = [user('alice'), user('bob')];
