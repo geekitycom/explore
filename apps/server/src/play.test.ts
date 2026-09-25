@@ -11,6 +11,7 @@ import {
   decodeScreen,
   encodeScreen,
   secretGarden,
+  type LayerId,
   type Pose,
   type ScreenRecord,
   type ServerMessage,
@@ -23,6 +24,7 @@ import { openDatabase } from './db.ts';
 import { createGame } from './play.ts';
 import type { Conn } from './presence.ts';
 import { insertUser } from './users.ts';
+import { savePlayerState } from './world.ts';
 
 type Running = { db: DatabaseSync; base: string; stop: () => Promise<void> };
 
@@ -245,7 +247,7 @@ describe('world socket', () => {
     await nextOf(alice, 'join');
 
     const first = await travelEast(alice);
-    expect(first.screen).toMatchObject({ v: 1, sx: 1, sy: 0 });
+    expect(first.screen).toMatchObject({ v: 2, layer: 'overworld', sx: 1, sy: 0 });
     const row = db.prepare('SELECT data, created_by FROM screens WHERE sx = 1 AND sy = 0').get();
     expect(row).toEqual({ data: JSON.stringify(first.screen), created_by: 1 });
 
@@ -346,6 +348,43 @@ describe('world socket', () => {
     const resumed = await nextOf(again, 'screen');
     expect(resumed.screen).toEqual<ScreenRecord>(arrival.screen);
     expect(resumed.you).toEqual(arrival.you);
+  });
+
+  it('keeps players on different layers apart, even at the same sx, sy', async () => {
+    const { base, db } = await start();
+    const cellar = 'cellar' as LayerId;
+    const cellarGarden = { ...secretGarden(), coord: { layer: cellar, sx: 0, sy: 0 } };
+    db.prepare(
+      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at) VALUES (?, 0, 0, ?, NULL, 0)',
+    ).run(cellar, JSON.stringify(encodeScreen(cellarGarden)));
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    savePlayerState(db, 2, { coord: cellarGarden.coord, pose: SPAWN });
+
+    const alice = await connect(base, aliceCookie);
+    expect((await nextOf(alice, 'screen')).screen).toMatchObject({ layer: 'overworld', sx: 0 });
+    const bob = await connect(base, bobCookie);
+    const bobScreen = await nextOf(bob, 'screen');
+    expect(bobScreen.screen).toEqual(encodeScreen(cellarGarden));
+    expect(bobScreen.others).toEqual([]);
+
+    alice.send({ t: 'move', x: 160, y: 196, dir: 'n', moving: true });
+    const bobEast = await travelEast(bob);
+    expect(bobEast.screen).toMatchObject({ layer: 'cellar', sx: 1, sy: 0 });
+    const aliceEast = await travelEast(alice);
+    expect(aliceEast.screen).toMatchObject({ layer: 'overworld', sx: 1, sy: 0 });
+    expect(aliceEast.others).toEqual([]);
+    expect(aliceEast.screen).not.toEqual({ ...bobEast.screen, layer: 'overworld' });
+
+    await bob.close();
+    await expectNothingPending(alice);
+
+    const bobAgain = await connect(base, bobCookie);
+    const resumed = await nextOf(bobAgain, 'screen');
+    expect(resumed.screen).toEqual(bobEast.screen);
+    expect(resumed.you).toEqual(bobEast.you);
+    expect(resumed.others).toEqual([]);
+    await expectNothingPending(alice);
   });
 
   it('rejects an upgrade without a valid session', async () => {

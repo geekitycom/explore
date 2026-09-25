@@ -243,7 +243,7 @@ describe('storage', () => {
       const path = join(dir, 'test.db');
       openDatabase(path).close();
       const reopened = openDatabase(path);
-      expect(reopened.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2 });
+      expect(reopened.prepare('PRAGMA user_version').get()).toEqual({ user_version: 3 });
       expect(reopened.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
       expect(reopened.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
       reopened.close();

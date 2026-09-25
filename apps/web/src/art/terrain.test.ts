@@ -1,6 +1,7 @@
 import {
   LATTICE_H,
   LATTICE_W,
+  OVERWORLD,
   SCREEN_PX_W,
   SCREEN_H,
   SCREEN_W,
@@ -37,7 +38,7 @@ function screenOf(terrainAt: (cx: number, cy: number) => Terrain): Screen {
   for (let cy = 0; cy < LATTICE_H; cy++)
     for (let cx = 0; cx < LATTICE_W; cx++) corners.push(terrainAt(cx, cy));
   return {
-    coord: { sx: 3, sy: -2 },
+    coord: { layer: OVERWORLD, sx: 3, sy: -2 },
     seed: 0,
     corners,
     features: Array<Feature>(SCREEN_W * SCREEN_H).fill('none'),

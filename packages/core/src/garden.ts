@@ -1,7 +1,7 @@
 import { decodeScreen } from './codec.ts';
-import type { Screen } from './world.ts';
+import { OVERWORLD, type Screen, type ScreenCoord } from './world.ts';
 
-export const GARDEN_COORD = { sx: 0, sy: 0 } as const;
+export const GARDEN_COORD: ScreenCoord = { layer: OVERWORLD, sx: 0, sy: 0 };
 
 /** Where new players appear: on the south path, facing the pond. */
 export const GARDEN_SPAWN = { x: 10 * 16, y: 12 * 16 + 10, dir: 'n' } as const;
@@ -47,7 +47,7 @@ const FEATURES = [
 
 export function secretGarden(): Screen {
   return decodeScreen({
-    v: 1,
+    v: 2,
     ...GARDEN_COORD,
     seed: 0,
     corners: CORNERS.join(''),

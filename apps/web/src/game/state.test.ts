@@ -23,7 +23,7 @@ describe('applyMessage', () => {
     const state = playing();
     expect(state.phase).toBe('playing');
     if (state.phase === 'connecting') throw new Error('unreachable');
-    expect(state.screen.coord).toEqual({ sx: 0, sy: 0 });
+    expect(state.screen.coord).toEqual({ layer: 'overworld', sx: 0, sy: 0 });
     expect(state.you).toEqual(you);
     expect([...state.others.keys()]).toEqual([2]);
   });

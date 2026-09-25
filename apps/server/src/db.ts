@@ -31,6 +31,35 @@ const migrations: readonly string[] = [
     dir TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );`,
+  `CREATE TABLE layered_screens (
+    layer TEXT NOT NULL,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (layer, sx, sy)
+  );
+  INSERT INTO layered_screens (layer, sx, sy, data, created_by, created_at)
+    SELECT 'overworld', sx, sy, json_set(data, '$.v', 2, '$.layer', 'overworld'),
+      created_by, created_at
+    FROM screens;
+  DROP TABLE screens;
+  ALTER TABLE layered_screens RENAME TO screens;
+  CREATE TABLE layered_player_state (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    layer TEXT NOT NULL,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    dir TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  INSERT INTO layered_player_state (user_id, layer, sx, sy, x, y, dir, updated_at)
+    SELECT user_id, 'overworld', sx, sy, x, y, dir, updated_at FROM player_state;
+  DROP TABLE player_state;
+  ALTER TABLE layered_player_state RENAME TO player_state;`,
 ];
 
 export function openDatabase(path: string): DatabaseSync {

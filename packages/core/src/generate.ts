@@ -4,6 +4,7 @@ import {
   BLOCKING_FEATURES,
   LATTICE_H,
   LATTICE_W,
+  OVERWORLD,
   SCREEN_H,
   SCREEN_W,
   cornerAt,
@@ -241,7 +242,12 @@ function fillFeatures(draft: Draft, rng: Rng): void {
 }
 
 function draftScreen(draft: Draft): Screen {
-  return { coord: { sx: 0, sy: 0 }, seed: 0, corners: draft.corners, features: draft.features };
+  return {
+    coord: { layer: OVERWORLD, sx: 0, sy: 0 },
+    seed: 0,
+    corners: draft.corners,
+    features: draft.features,
+  };
 }
 
 function walkable(draft: Draft, tx: number, ty: number): boolean {
@@ -424,13 +430,13 @@ function connectEdges(draft: Draft): void {
 }
 
 export function neighborsOf(
-  { sx, sy }: ScreenCoord,
+  { layer, sx, sy }: ScreenCoord,
   lookup: (coord: ScreenCoord) => Screen | undefined,
 ): Neighbors {
   const neighbors: Neighbors = {};
   for (const dir of NEIGHBOR_DIRS) {
     const { dx, dy } = NEIGHBOR_OFFSETS[dir];
-    const screen = lookup({ sx: sx + dx, sy: sy + dy });
+    const screen = lookup({ layer, sx: sx + dx, sy: sy + dy });
     if (screen) neighbors[dir] = screen;
   }
   return neighbors;

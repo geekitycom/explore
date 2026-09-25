@@ -1,4 +1,4 @@
-import { GARDEN_COORD, type Screen } from '@explore/core';
+import { GARDEN_COORD, screenKey, type Screen } from '@explore/core';
 import type { Mood } from './compose.ts';
 
 /** Screens are grouped into blocks this many screens wide for choosing a tune. */
@@ -10,7 +10,7 @@ const share = <T>(items: readonly T[], match: (item: T) => boolean) =>
   items.filter(match).length / items.length;
 
 export function screenMood(screen: Screen): Mood {
-  if (screen.coord.sx === GARDEN_COORD.sx && screen.coord.sy === GARDEN_COORD.sy) return 'garden';
+  if (screenKey(screen.coord) === screenKey(GARDEN_COORD)) return 'garden';
   if (share(screen.corners, (t) => t === 'water') > 0.25) return 'lake';
   if (share(screen.features, (f) => f === 'tree' || f === 'bush') > 0.18) return 'forest';
   return 'meadow';

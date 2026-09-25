@@ -4,6 +4,7 @@ import { createRng } from './rng.ts';
 import {
   DIRS,
   LATTICE_H,
+  OVERWORLD,
   LATTICE_W,
   SCREEN_H,
   SCREEN_W,
@@ -17,7 +18,7 @@ import {
 
 export function uniformScreen(terrain: Terrain = 'grass', feature: Feature = 'none'): Screen {
   return {
-    coord: { sx: 0, sy: 0 },
+    coord: { layer: OVERWORLD, sx: 0, sy: 0 },
     seed: 0,
     corners: Array<Terrain>(LATTICE_W * LATTICE_H).fill(terrain),
     features: Array<Feature>(SCREEN_W * SCREEN_H).fill(feature),

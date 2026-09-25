@@ -1,13 +1,18 @@
-import { secretGarden } from '@explore/core';
+import { GARDEN_COORD, OVERWORLD, secretGarden, type LayerId } from '@explore/core';
 import { uniformScreen, withCorners, withFeatures } from '@explore/core/testing';
 import { describe, expect, test } from 'vitest';
 import { screenMood, tuneFor } from './mood.ts';
 
-const at = (sx: number, sy: number) => ({ ...uniformScreen(), coord: { sx, sy } });
+const at = (sx: number, sy: number) => ({
+  ...uniformScreen(),
+  coord: { layer: OVERWORLD, sx, sy },
+});
 
 describe('screenMood', () => {
   test('the garden has its own mood', () => {
     expect(screenMood(secretGarden())).toBe('garden');
+    const cellar = { ...GARDEN_COORD, layer: 'cellar' as LayerId };
+    expect(screenMood({ ...secretGarden(), coord: cellar })).not.toBe('garden');
   });
 
   test('water-heavy screens are lakes and tree-heavy screens are forests', () => {

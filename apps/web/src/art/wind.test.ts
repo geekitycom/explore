@@ -1,18 +1,20 @@
-import { SCREEN_PX_W } from '@explore/core';
+import { OVERWORLD, SCREEN_PX_W } from '@explore/core';
 import { describe, expect, test } from 'vitest';
 import { bandOffset, gust, swaySlices } from './wind.ts';
 
 describe('gust', () => {
   test('is continuous across a seam', () => {
     for (const clock of [0, 1.3, 7.9]) {
-      const leftEdge = gust({ sx: 0, sy: 0 }, SCREEN_PX_W - 1, clock);
-      const rightStart = gust({ sx: 1, sy: 0 }, 0, clock);
+      const leftEdge = gust({ layer: OVERWORLD, sx: 0, sy: 0 }, SCREEN_PX_W - 1, clock);
+      const rightStart = gust({ layer: OVERWORLD, sx: 1, sy: 0 }, 0, clock);
       expect(Math.abs(leftEdge - rightStart)).toBeLessThan(0.1);
     }
   });
 
   test('comes and goes over time', () => {
-    const samples = Array.from({ length: 200 }, (_, i) => gust({ sx: 0, sy: 0 }, 100, i / 20));
+    const samples = Array.from({ length: 200 }, (_, i) =>
+      gust({ layer: OVERWORLD, sx: 0, sy: 0 }, 100, i / 20),
+    );
     expect(Math.max(...samples)).toBeGreaterThan(0.8);
     expect(samples.filter((g) => Math.abs(g) < 0.5).length).toBeGreaterThan(40);
   });

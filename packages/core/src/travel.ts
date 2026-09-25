@@ -1,6 +1,6 @@
 import type { Pose } from './protocol.ts';
 import { FEET, canOccupy } from './walk.ts';
-import { SCREEN_PX_H, SCREEN_PX_W, TILE, type Dir, type Screen } from './world.ts';
+import { SCREEN_PX_H, SCREEN_PX_W, TILE, screenKey, type Dir, type Screen } from './world.ts';
 
 type Point = { x: number; y: number };
 
@@ -60,5 +60,5 @@ export function arrivalPose(target: Screen, dir: Dir, from: Point): Pose {
       }
     }
   }
-  throw new Error(`screen ${target.coord.sx},${target.coord.sy} has no walkable position`);
+  throw new Error(`screen ${screenKey(target.coord)} has no walkable position`);
 }

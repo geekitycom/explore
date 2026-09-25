@@ -15,7 +15,12 @@ export type Feature = (typeof FEATURES)[number];
 
 export const BLOCKING_FEATURES: ReadonlySet<Feature> = new Set(['tree', 'bush', 'rock']);
 
-export type ScreenCoord = { readonly sx: number; readonly sy: number };
+/** A separate space of screens: the overworld now, interiors such as houses and caves later. */
+export type LayerId = string & { readonly __brand: 'LayerId' };
+
+export const OVERWORLD = 'overworld' as LayerId;
+
+export type ScreenCoord = { readonly layer: LayerId; readonly sx: number; readonly sy: number };
 
 /**
  * Terrain lives on the corner lattice (LATTICE_W x LATTICE_H, row-major) so neighbors share
@@ -40,13 +45,13 @@ export const DIR_DELTA: Record<Dir, { readonly dx: number; readonly dy: number }
 
 export const OPPOSITE: Record<Dir, Dir> = { n: 's', e: 'w', s: 'n', w: 'e' };
 
-export function screenKey({ sx, sy }: ScreenCoord): string {
-  return `${sx},${sy}`;
+export function screenKey({ layer, sx, sy }: ScreenCoord): string {
+  return `${layer}/${sx},${sy}`;
 }
 
-export function neighborCoord({ sx, sy }: ScreenCoord, dir: Dir): ScreenCoord {
+export function neighborCoord({ layer, sx, sy }: ScreenCoord, dir: Dir): ScreenCoord {
   const { dx, dy } = DIR_DELTA[dir];
-  return { sx: sx + dx, sy: sy + dy };
+  return { layer, sx: sx + dx, sy: sy + dy };
 }
 
 export function cornerIndex(cx: number, cy: number): number {

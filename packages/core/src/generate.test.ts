@@ -6,12 +6,15 @@ import { isTileWalkable } from './walk.ts';
 import {
   LATTICE_H,
   LATTICE_W,
+  OVERWORLD,
   SCREEN_H,
   SCREEN_W,
   cornerAt,
   featureAt,
   screenKey,
+  type LayerId,
   type Screen,
+  type ScreenCoord,
 } from './world.ts';
 
 const WORLD_SEEDS = Array.from({ length: 12 }, (_, i) => 1000 + i * 7919);
@@ -92,7 +95,9 @@ describe.each(WORLD_SEEDS)('a world grown from seed %i', (seed) => {
   const pairs = [...world.values()].flatMap((screen) =>
     (Object.keys(NEIGHBOR_OFFSETS) as NeighborDir[]).flatMap((dir) => {
       const { dx, dy } = NEIGHBOR_OFFSETS[dir];
-      const other = world.get(screenKey({ sx: screen.coord.sx + dx, sy: screen.coord.sy + dy }));
+      const other = world.get(
+        screenKey({ ...screen.coord, sx: screen.coord.sx + dx, sy: screen.coord.sy + dy }),
+      );
       return other ? [{ screen, other, dir }] : [];
     }),
   );
@@ -173,11 +178,11 @@ describe.each(WORLD_SEEDS)('a world grown from seed %i', (seed) => {
 
 describe('generateScreen', () => {
   const garden = secretGarden();
-  const lookup = (c: { sx: number; sy: number }) =>
-    c.sx === GARDEN_COORD.sx && c.sy === GARDEN_COORD.sy ? garden : undefined;
+  const lookup = (c: ScreenCoord) =>
+    screenKey(c) === screenKey(GARDEN_COORD) ? garden : undefined;
 
   test('is deterministic for a seed and neighborhood', () => {
-    const coord = { sx: 1, sy: 0 };
+    const coord = { layer: OVERWORLD, sx: 1, sy: 0 };
     const a = generateScreen(coord, 77, neighborsOf(coord, lookup));
     const b = generateScreen(coord, 77, neighborsOf(coord, lookup));
     const c = generateScreen(coord, 78, neighborsOf(coord, lookup));
@@ -185,9 +190,14 @@ describe('generateScreen', () => {
     expect(c.features).not.toEqual(a.features);
   });
 
+  test('finds neighbors only on the same layer', () => {
+    expect(neighborsOf({ layer: OVERWORLD, sx: 1, sy: 0 }, lookup)).toEqual({ w: garden });
+    expect(neighborsOf({ layer: 'cellar' as LayerId, sx: 1, sy: 0 }, lookup)).toEqual({});
+  });
+
   test('produces varied screens', () => {
     const screens = Array.from({ length: 40 }, (_, seed) =>
-      generateScreen({ sx: 5, sy: 5 }, seed, {}),
+      generateScreen({ layer: OVERWORLD, sx: 5, sy: 5 }, seed, {}),
     );
     const share = (pred: (s: Screen) => boolean) => screens.filter(pred).length / screens.length;
     expect(share((s) => s.corners.includes('water'))).toBeGreaterThan(0.15);

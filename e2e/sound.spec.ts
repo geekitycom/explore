@@ -14,7 +14,7 @@ const coord = (page: Page) =>
     () =>
       (
         window as unknown as {
-          exploreState: () => { screen?: { coord: { sx: number; sy: number } } };
+          exploreState: () => { screen?: { coord: { layer: string; sx: number; sy: number } } };
         }
       ).exploreState().screen?.coord,
   );
@@ -41,11 +41,15 @@ test('music waits for input, follows the world, and settings persist', async ({ 
   await expect.poll(async () => (await audio(page)).tune).toBe('garden:1');
 
   await page.keyboard.down('ArrowDown');
-  await expect.poll(async () => coord(page), { intervals: [20] }).toEqual({ sx: 0, sy: 1 });
+  await expect
+    .poll(async () => coord(page), { intervals: [20] })
+    .toEqual({ layer: 'overworld', sx: 0, sy: 1 });
   await page.keyboard.up('ArrowDown');
   await expect.poll(async () => (await audio(page)).tune).not.toBe('garden:1');
   await page.keyboard.down('ArrowUp');
-  await expect.poll(async () => coord(page), { intervals: [20] }).toEqual({ sx: 0, sy: 0 });
+  await expect
+    .poll(async () => coord(page), { intervals: [20] })
+    .toEqual({ layer: 'overworld', sx: 0, sy: 0 });
   await page.keyboard.up('ArrowUp');
   await expect.poll(async () => (await audio(page)).tune).toBe('garden:1');
 

@@ -1,44 +1,165 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_AVATAR,
   GARDEN_COORD,
   LATTICE_H,
+  OVERWORLD,
   SCREEN_W,
   cornerAt,
   encodeScreen,
   secretGarden,
+  type LayerId,
 } from '@explore/core';
-import { expect, it } from 'vitest';
+import { afterEach, expect, it } from 'vitest';
 import { openDatabase } from './db.ts';
 import { insertUser } from './users.ts';
-import { ensureGarden, getOrCreateScreen, getScreen } from './world.ts';
+import {
+  ensureGarden,
+  getOrCreateScreen,
+  getScreen,
+  loadPlayerState,
+  savePlayerState,
+} from './world.ts';
+
+const EAST = { layer: OVERWORLD, sx: 1, sy: 0 };
+const CELLAR = 'cellar' as LayerId;
+
+const dirs: string[] = [];
+afterEach(() => {
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+function tempDbPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'explore-world-'));
+  dirs.push(dir);
+  return join(dir, 'explore.db');
+}
 
 it('creates a screen once, seamless with its stored neighbor, and keeps it on disk', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'explore-world-'));
-  try {
-    const path = join(dir, 'explore.db');
-    const db = openDatabase(path);
-    ensureGarden(db);
-    ensureGarden(db);
-    const user = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const path = tempDbPath();
+  const db = openDatabase(path);
+  ensureGarden(db);
+  ensureGarden(db);
+  const user = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
 
-    const east = encodeScreen(getOrCreateScreen(db, { sx: 1, sy: 0 }, user.id));
-    expect(encodeScreen(getOrCreateScreen(db, { sx: 1, sy: 0 }, user.id))).toEqual(east);
-    const garden = secretGarden();
-    const eastScreen = getScreen(db, { sx: 1, sy: 0 })!;
-    for (let cy = 0; cy < LATTICE_H; cy++) {
-      expect(cornerAt(eastScreen, 0, cy)).toBe(cornerAt(garden, SCREEN_W, cy));
-    }
-    expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 2 });
-    db.close();
-
-    const reopened = openDatabase(path);
-    expect(encodeScreen(getScreen(reopened, { sx: 1, sy: 0 })!)).toEqual(east);
-    expect(encodeScreen(getScreen(reopened, GARDEN_COORD)!)).toEqual(encodeScreen(garden));
-    reopened.close();
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+  const east = encodeScreen(getOrCreateScreen(db, EAST, user.id));
+  expect(encodeScreen(getOrCreateScreen(db, EAST, user.id))).toEqual(east);
+  const garden = secretGarden();
+  const eastScreen = getScreen(db, EAST)!;
+  for (let cy = 0; cy < LATTICE_H; cy++) {
+    expect(cornerAt(eastScreen, 0, cy)).toBe(cornerAt(garden, SCREEN_W, cy));
   }
+  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 2 });
+  db.close();
+
+  const reopened = openDatabase(path);
+  expect(encodeScreen(getScreen(reopened, EAST)!)).toEqual(east);
+  expect(encodeScreen(getScreen(reopened, GARDEN_COORD)!)).toEqual(encodeScreen(garden));
+  reopened.close();
+});
+
+it('stores screens at the same sx, sy on different layers separately', () => {
+  const db = openDatabase(':memory:');
+  ensureGarden(db);
+  const user = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const cellarOrigin = { layer: CELLAR, sx: 0, sy: 0 };
+
+  const cellar = getOrCreateScreen(db, cellarOrigin, user.id);
+  expect(cellar.coord).toEqual(cellarOrigin);
+  expect(cellar.features).not.toEqual(secretGarden().features);
+  expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
+  expect(getScreen(db, { layer: CELLAR, sx: 1, sy: 0 })).toBeUndefined();
+  expect(db.prepare('SELECT layer, sx, sy FROM screens ORDER BY layer').all()).toEqual([
+    { layer: 'cellar', sx: 0, sy: 0 },
+    { layer: 'overworld', sx: 0, sy: 0 },
+  ]);
+  db.close();
+});
+
+it('saves and resumes the layer a player is on', () => {
+  const db = openDatabase(':memory:');
+  const user = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const pose = { x: 40, y: 50, dir: 'w' as const, moving: false };
+  savePlayerState(db, user.id, { coord: { layer: CELLAR, sx: 2, sy: -1 }, pose });
+  expect(loadPlayerState(db, user.id)).toEqual({ coord: { layer: CELLAR, sx: 2, sy: -1 }, pose });
+  savePlayerState(db, user.id, { coord: EAST, pose });
+  expect(loadPlayerState(db, user.id)).toEqual({ coord: EAST, pose });
+  db.close();
+});
+
+/** The schema as the first two migrations left it, before screens carried a layer. */
+const LAYERLESS_SCHEMA = `
+  CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    avatar TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX sessions_user_id ON sessions(user_id);
+  CREATE TABLE screens (
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (sx, sy)
+  );
+  CREATE TABLE player_state (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    dir TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  PRAGMA user_version = 2;`;
+
+it('upgrades a database whose screens and players predate layers', () => {
+  const path = tempDbPath();
+  const garden = secretGarden();
+  const east = { ...garden, coord: EAST, seed: 7 };
+  const layerless = (screen: typeof garden) =>
+    JSON.stringify({ ...encodeScreen(screen), v: 1, layer: undefined });
+  const old = new DatabaseSync(path);
+  old.exec(LAYERLESS_SCHEMA);
+  old
+    .prepare(
+      `INSERT INTO users (id, username, password_hash, avatar, created_at) VALUES (1, 'alice', 'x', ?, 0)`,
+    )
+    .run(JSON.stringify(DEFAULT_AVATAR));
+  const insertScreen = old.prepare(
+    'INSERT INTO screens (sx, sy, data, created_by, created_at) VALUES (?, ?, ?, ?, 0)',
+  );
+  insertScreen.run(0, 0, layerless(garden), null);
+  insertScreen.run(1, 0, layerless(east), 1);
+  old
+    .prepare(
+      `INSERT INTO player_state (user_id, sx, sy, x, y, dir, updated_at) VALUES (1, 1, 0, 40, 50, 'w', 0)`,
+    )
+    .run();
+  old.close();
+
+  const db = openDatabase(path);
+  expect(getScreen(db, GARDEN_COORD)).toEqual(garden);
+  expect(getScreen(db, EAST)).toEqual(east);
+  expect(db.prepare('SELECT created_by FROM screens WHERE sx = 1').get()).toEqual({
+    created_by: 1,
+  });
+  expect(loadPlayerState(db, 1)).toEqual({
+    coord: EAST,
+    pose: { x: 40, y: 50, dir: 'w', moving: false },
+  });
+  getOrCreateScreen(db, { layer: CELLAR, sx: 0, sy: 0 }, 1);
+  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 3 });
+  db.close();
 });

@@ -1,4 +1,11 @@
-import { SCREEN_PX_H, SCREEN_PX_W, TILE, generateScreen, secretGarden } from '@explore/core';
+import {
+  OVERWORLD,
+  SCREEN_PX_H,
+  SCREEN_PX_W,
+  TILE,
+  generateScreen,
+  secretGarden,
+} from '@explore/core';
 import { uniformScreen, withFeatures } from '@explore/core/testing';
 import { describe, expect, test } from 'vitest';
 import {
@@ -13,7 +20,7 @@ import {
 } from './life.ts';
 
 const screens = Array.from({ length: 30 }, (_, seed) =>
-  generateScreen({ sx: 3, sy: seed }, seed, {}),
+  generateScreen({ layer: OVERWORLD, sx: 3, sy: seed }, seed, {}),
 );
 const times = Array.from({ length: 600 }, (_, i) => i * 0.37);
 

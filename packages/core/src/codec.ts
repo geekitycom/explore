@@ -7,6 +7,7 @@ import {
   SCREEN_W,
   TERRAINS,
   type Feature,
+  type LayerId,
   type Screen,
   type Terrain,
 } from './world.ts';
@@ -34,9 +35,15 @@ const codeString = <K>(length: number, byCode: Map<string, K>) =>
     .refine((s) => [...s].every((ch) => byCode.has(ch)), 'unknown cell code')
     .transform((s) => [...s].map((ch) => byCode.get(ch)!));
 
+export const layerIdSchema = z
+  .string()
+  .min(1)
+  .transform((s) => s as LayerId);
+
 /** The persisted, versioned form of a screen. One character per lattice point or tile. */
 export const screenRecordSchema = z.object({
-  v: z.literal(1),
+  v: z.literal(2),
+  layer: layerIdSchema,
   sx: z.number().int(),
   sy: z.number().int(),
   seed: z.number().int(),
@@ -48,7 +55,8 @@ export type ScreenRecord = z.input<typeof screenRecordSchema>;
 
 export function encodeScreen(screen: Screen): ScreenRecord {
   return {
-    v: 1,
+    v: 2,
+    layer: screen.coord.layer,
     sx: screen.coord.sx,
     sy: screen.coord.sy,
     seed: screen.seed,
@@ -59,7 +67,12 @@ export function encodeScreen(screen: Screen): ScreenRecord {
 
 export function decodeScreen(raw: unknown): Screen {
   const r = screenRecordSchema.parse(raw);
-  return { coord: { sx: r.sx, sy: r.sy }, seed: r.seed, corners: r.corners, features: r.features };
+  return {
+    coord: { layer: r.layer, sx: r.sx, sy: r.sy },
+    seed: r.seed,
+    corners: r.corners,
+    features: r.features,
+  };
 }
 
 export function terrainFromCode(ch: string): Terrain | undefined {

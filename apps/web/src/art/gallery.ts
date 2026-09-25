@@ -4,6 +4,7 @@ import {
   HAIR_STYLES,
   LATTICE_H,
   LATTICE_W,
+  OVERWORLD,
   SCREEN_H,
   SCREEN_PX_H,
   SCREEN_PX_W,
@@ -86,7 +87,7 @@ function maskScreen(upper: Terrain, lower: Terrain): Screen {
       if (mask & (1 << bit)) corners[cornerIndex(tx + dx, ty + dy)] = upper;
     });
   }
-  return { coord: { sx: 99, sy: 99 }, seed: 0, corners, features };
+  return { coord: { layer: OVERWORLD, sx: 99, sy: 99 }, seed: 0, corners, features };
 }
 
 const CORNER_OFFSETS = [
@@ -137,9 +138,9 @@ function showWorld(art: Art) {
     world.set(screenKey(coord), screen);
     return screen;
   };
-  const east = grow({ sx: 1, sy: 0 }, 7);
-  const south = grow({ sx: 0, sy: 1 }, 8);
-  const southEast = grow({ sx: 1, sy: 1 }, 9);
+  const east = grow({ layer: OVERWORLD, sx: 1, sy: 0 }, 7);
+  const south = grow({ layer: OVERWORLD, sx: 0, sy: 1 }, 8);
+  const southEast = grow({ layer: OVERWORLD, sx: 1, sy: 1 }, 9);
   const seams = section('Garden with grown neighbours (seams at the middle lines)');
   const ctx = figure(seams, 'garden, (1,0), (0,1), (1,1)', SCREEN_PX_W * 2, SCREEN_PX_H * 2);
   drawScreen(ctx, garden, art);
@@ -149,7 +150,7 @@ function showWorld(art: Art) {
 
   const seeds = section('Generated screens');
   for (const seed of [11, 42, 1234, 98765]) {
-    const coord = { sx: seed, sy: -seed };
+    const coord = { layer: OVERWORLD, sx: seed, sy: -seed };
     drawScreen(
       figure(seeds, `seed ${seed}`, SCREEN_PX_W, SCREEN_PX_H),
       generateScreen(coord, seed, {}),
@@ -253,7 +254,7 @@ function showMotion(art: Art) {
   const base = Number(params.get('t') ?? 0);
   const times = [0, 0.4, 0.8, 1.2, 1.6, 2.0].map((dt) => base + dt);
   const candidates = Array.from({ length: 400 }, (_, seed) =>
-    generateScreen({ sx: 9, sy: seed }, seed, {}),
+    generateScreen({ layer: OVERWORLD, sx: 9, sy: seed }, seed, {}),
   );
   const find = (label: string, test: (s: Screen) => boolean) => {
     const screen = candidates.find(test);

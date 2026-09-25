@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 01:18'
+updated_date: '2026-09-25 01:47'
 ---
 # Architecture
 
@@ -22,11 +22,11 @@ pnpm workspace, TypeScript everywhere, Node 24.
 ## World model
 
 - A screen is `SCREEN_W = 20` by `SCREEN_H = 15` tiles of `TILE = 16` px (320x240 logical pixels, drawn at an integer scale).
-- Screens are addressed by integer `ScreenCoord { sx, sy }`. The world is unbounded. `(0, 0)` is the secret garden. `sy` grows southward.
+- Screens are addressed by `ScreenCoord { layer, sx, sy }`. `overworld` is the only layer today; houses, caves, and towns will be layers of their own (decision-20). The world is unbounded. `(0, 0)` is the secret garden. `sy` grows southward.
 - Terrain is stored on the corner lattice, not on tiles. Each screen stores `(SCREEN_W + 1) * (SCREEN_H + 1)` corners, each one of `water | sand | grass | dirt`. A tile's look comes from its four corners. Two adjacent screens share their boundary lattice line, and diagonal screens share one corner point. Seams therefore match by construction: the generator copies every shared lattice point from any existing neighbor (including diagonals) before generating the rest.
 - Features sit on tiles: `none | tree | bush | rock | flowers | tallgrass`. `tree`, `bush`, and `rock` block movement. When a neighbor exists, the generator copies the neighbor's facing edge column or row of features onto its own edge, so a tree line or open meadow continues across the seam.
 - A tile is walkable when it has no blocking feature and fewer than 3 of its corners are water.
-- Persisted screen record: `{ v: 1, sx, sy, seed, corners: string, features: string }` where `corners` and `features` are compact one-character-per-cell strings. The codec lives in core and is versioned by `v`.
+- Persisted screen record: `{ v: 2, layer, sx, sy, seed, corners: string, features: string }` where `corners` and `features` are compact one-character-per-cell strings. The codec lives in core and is versioned by `v`.
 
 ## Generation
 

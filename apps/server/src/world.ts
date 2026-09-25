@@ -4,6 +4,7 @@ import {
   decodeScreen,
   encodeScreen,
   generateScreen,
+  layerIdSchema,
   neighborsOf,
   randomSeed,
   secretGarden,
@@ -16,6 +17,7 @@ import { z } from 'zod';
 export type PlayerState = { coord: ScreenCoord; pose: Pose };
 
 const playerStateRow = z.object({
+  layer: layerIdSchema,
   sx: z.number().int(),
   sy: z.number().int(),
   x: z.number(),
@@ -25,18 +27,26 @@ const playerStateRow = z.object({
 
 function insertScreen(db: DatabaseSync, screen: Screen, userId: number | null): void {
   db.prepare(
-    `INSERT INTO screens (sx, sy, data, created_by, created_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (sx, sy) DO NOTHING`,
-  ).run(screen.coord.sx, screen.coord.sy, JSON.stringify(encodeScreen(screen)), userId, Date.now());
+    `INSERT INTO screens (layer, sx, sy, data, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (layer, sx, sy) DO NOTHING`,
+  ).run(
+    screen.coord.layer,
+    screen.coord.sx,
+    screen.coord.sy,
+    JSON.stringify(encodeScreen(screen)),
+    userId,
+    Date.now(),
+  );
 }
 
 export function ensureGarden(db: DatabaseSync): void {
   insertScreen(db, secretGarden(), null);
 }
 
-export function getScreen(db: DatabaseSync, { sx, sy }: ScreenCoord): Screen | undefined {
-  const row = db.prepare('SELECT data FROM screens WHERE sx = ? AND sy = ?').get(sx, sy) as
-    { data: string } | undefined;
+export function getScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Screen | undefined {
+  const row = db
+    .prepare('SELECT data FROM screens WHERE layer = ? AND sx = ? AND sy = ?')
+    .get(layer, sx, sy) as { data: string } | undefined;
   return row && decodeScreen(JSON.parse(row.data));
 }
 
@@ -51,21 +61,23 @@ export function getOrCreateScreen(db: DatabaseSync, coord: ScreenCoord, userId: 
 
 export function loadPlayerState(db: DatabaseSync, userId: number): PlayerState | undefined {
   const row: unknown = db
-    .prepare('SELECT sx, sy, x, y, dir FROM player_state WHERE user_id = ?')
+    .prepare('SELECT layer, sx, sy, x, y, dir FROM player_state WHERE user_id = ?')
     .get(userId);
   if (row === undefined) return undefined;
-  const { sx, sy, x, y, dir } = playerStateRow.parse(row);
-  return { coord: { sx, sy }, pose: { x, y, dir, moving: false } };
+  const { layer, sx, sy, x, y, dir } = playerStateRow.parse(row);
+  return { coord: { layer, sx, sy }, pose: { x, y, dir, moving: false } };
 }
 
 export function savePlayerState(db: DatabaseSync, userId: number, state: PlayerState): void {
   db.prepare(
-    `INSERT INTO player_state (user_id, sx, sy, x, y, dir, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO player_state (user_id, layer, sx, sy, x, y, dir, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (user_id) DO UPDATE SET
-       sx = excluded.sx, sy = excluded.sy, x = excluded.x, y = excluded.y,
+       layer = excluded.layer, sx = excluded.sx, sy = excluded.sy, x = excluded.x, y = excluded.y,
        dir = excluded.dir, updated_at = excluded.updated_at`,
   ).run(
     userId,
+    state.coord.layer,
     state.coord.sx,
     state.coord.sy,
     state.pose.x,

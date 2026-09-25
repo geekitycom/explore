@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 type Snapshot = {
   phase: string;
-  screen?: { coord: { sx: number; sy: number } };
+  screen?: { coord: { layer: string; sx: number; sy: number } };
   you?: { x: number; y: number };
   others?: Map<number, { name: string; x: number; y: number }>;
 };
@@ -64,12 +64,12 @@ test('two players in the garden see each other walk', async ({ browser }) => {
 
 test('walking off an edge opens a new screen that matches on return', async ({ page }) => {
   await signUp(page, unique('cat'));
-  expect((await snapshot(page)).coord).toEqual({ sx: 0, sy: 0 });
+  expect((await snapshot(page)).coord).toEqual({ layer: 'overworld', sx: 0, sy: 0 });
 
   await page.keyboard.down('ArrowDown');
   await expect
     .poll(async () => (await snapshot(page)).coord, { intervals: [20] })
-    .toEqual({ sx: 0, sy: 1 });
+    .toEqual({ layer: 'overworld', sx: 0, sy: 1 });
   await page.keyboard.up('ArrowDown');
   const arrived = await snapshot(page);
   expect(arrived.you!.y).toBeLessThan(24);
@@ -79,7 +79,7 @@ test('walking off an edge opens a new screen that matches on return', async ({ p
   await page.keyboard.down('ArrowUp');
   await expect
     .poll(async () => (await snapshot(page)).coord, { intervals: [20] })
-    .toEqual({ sx: 0, sy: 0 });
+    .toEqual({ layer: 'overworld', sx: 0, sy: 0 });
   await page.keyboard.up('ArrowUp');
   expect((await snapshot(page)).you!.y).toBeGreaterThan(200);
 });
