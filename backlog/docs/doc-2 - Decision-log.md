@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-24 21:41'
+updated_date: '2026-09-25 01:02'
 ---
 # Decision log
 
@@ -56,3 +56,6 @@ Ninja Adventure characters are not split into layers. The avatar's hair style pi
 
 ## D17. Terrain transitions are built at runtime from fills and corner masks (technical, refines D9)
 The pack's blob autotiles cover only some terrain pairs (no grass and sand) and bake both terrains into one opaque tile, so they cannot stack three terrains in one tile. The client builds 16 corner-mask overlays per terrain from the pack's fill tiles and draws terrains in layer order, with a shore layer for water edges.
+
+## D18. Music is generated chiptune (product, 2026-09-24)
+Andrew listened to the prototype (task-17) and chose generated music over the Ninja Adventure tracks. A seeded composer picks scale, tempo, progression, motif, and an A A' B A'' form from a mood, and plays through NES-style voices (two pulse, stepped triangle, LFSR noise) on Web Audio. The pack's tracks stay available as a fallback. No audio files ship for music.

@@ -1,11 +1,11 @@
 ---
 id: TASK-17
 title: Prototype generated chiptune for listening
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-24 23:28'
-updated_date: '2026-09-24 23:31'
+updated_date: '2026-09-25 01:02'
 labels: []
 milestone: m-2
 dependencies: []
@@ -26,7 +26,7 @@ Before building music into the game, settle by ear whether browser-generated chi
 - [x] #2 The same seed always produces the same tune
 - [x] #3 Generated tunes have recognizable structure (repeating motif, phrases, cadence), shown in a piano-roll view
 - [x] #4 Output does not clip
-- [ ] #5 Andrew has listened and the decision (generated, pack, or hybrid) is recorded in the decision log
+- [x] #5 Andrew has listened and the decision (generated, pack, or hybrid) is recorded in the decision log
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -41,4 +41,12 @@ Throwaway page in the scratchpad (not the repo): vanilla JS + Web Audio. Seeded 
 Prototype at scratchpad/music-proto (throwaway, not in repo), served at http://localhost:8765. Composer: mood -> scale (garden lydian, meadow major, lake minor, forest dorian), tempo range, 4-chord progressions, seeded motif (rhythm template + stepwise contour, chord tones on strong beats), form A A' B A'' of 32 bars, final V-I cadence onto the tonic. Voices: pulse lead with duty per mood and delayed vibrato, 12.5% pulse arpeggio, 4-bit stepped triangle bass, 15-bit LFSR noise drums and a triangle-sweep kick; echo on garden, lake, forest.
 Checks in headless Chrome over 4 moods x 5 seeds: all deterministic, every pitched note in scale, motif rhythm repeats between A sections, loop ends on the tonic, offline-render peak 0.22-0.33 (no clipping). First pass found loops ending on the 3rd or 5th; fixed with an authentic cadence in the last two bars.
 Waiting on Andrew to listen (AC 5).
+
+Andrew listened on 2026-09-24 and chose generated music (decision log D18).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built a throwaway listening page with a seeded mood-driven chiptune composer and NES-style Web Audio voices, verified determinism, scale conformance, structure, cadence, and levels in headless Chrome, and compared against the pack's tracks. Andrew chose generated music (D18).
+<!-- SECTION:FINAL_SUMMARY:END -->
