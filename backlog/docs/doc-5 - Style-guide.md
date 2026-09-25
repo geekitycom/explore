@@ -3,7 +3,7 @@ id: doc-5
 title: Style guide
 type: guide
 created_date: '2026-09-25 13:42'
-updated_date: '2026-09-25 13:42'
+updated_date: '2026-09-25 13:56'
 ---
 # Style guide
 
@@ -57,10 +57,32 @@ Each biome draws its ground and its flora (plants and rocks) from a named set of
 | forest | pine, soil | grass, pine, bark, stone, peach |
 | lakeland | grass, sand, water | grass, straw, bark, rose |
 | scrubland | straw, soil | sage, pine, straw, bark, stone |
-| desert | dune, sand | cactus, sage, straw, sand |
+| desert | dune, sand, soil | cactus, sage, straw, sand |
 | highlands | grass, soil, granite | pine, bark, heather, gold, granite |
 | taiga | snow, pine | pine, bark, gold, poppy |
-| tundra | snow, stone | sage, snow, stone |
+| tundra | snow, stone, straw | sage, snow, stone |
+
+## Photo palettes
+
+Each biome's ramps are checked against public-domain and CC0 reference photos of the real place.
+
+- `pnpm palettes` runs the tool. It reads `packages/core/scripts/biome-photos/sources.json` and writes `packages/core/src/biome-photo-palettes.ts`. The gallery shows the result under "Photo palettes".
+- `sources.json` records each photo's Wikimedia Commons page, author, and licence. The tool refuses any licence other than public domain or CC0.
+- The 250px thumbnails are committed next to `sources.json`, so reruns work offline. To add a photo, add an entry with its `thumbnail` URL. The next run downloads it. `skipTop` crops the sky.
+- The tool finds 12 dominant colours per biome (k-means in OKLab, each photo weighted equally). It maps photo lightness into the ramps' range, scales chroma by 1.8, and snaps each colour to the nearest ramp colour. Photos are darker and greyer than pixel art. Without this step, every biome snaps to granite and stone.
+- It proposes ramps by greedy cover. The ramp that covers the most unclaimed pixel share goes first. A colour shared by several ramps counts once. On a tie, the shorter ramp wins.
+- A proposal is evidence, not a rule. Sky, water reflections, and shade snap to greys (granite, stone, sage, snow) in most biomes. A ramp joins a biome only when it names a material the biome lacks and covers at least 10% of the photos.
+
+| Biome | Photos propose (pixel share %) | Decision |
+| --- | --- | --- |
+| meadow | grass 54, sage 17, granite 15, snow 15 | Keep. Grass dominates. The greys are sky, mountains, and lupine. |
+| forest | stone 40, granite 26, cactus 17, sand 11 | Keep. The trail photos are in deep shade, so trunks and shadowed ground snap to greys. The darkest canopy greens land on `cactus`, a hint that `pine` could use a deeper blue-green step. |
+| lakeland | sage 39, granite 26, grass 14, snow 14, water 7 | Keep. Sage and snow are the grey lake surface and sky. Granite is the shoreline rock ledge. |
+| scrubland | soil 50, straw 33, sage 13 | Keep. The photos confirm the chosen set. |
+| desert | sand 26, soil 22, rose 18, granite 12, snow 12 | Add `soil` to ground for gravel desert floors (Joshua Tree). Rose is pink dune light. The orange `dune` ramp stays for the pack's look. |
+| highlands | sand 55, granite 29, heather 7 | Keep. The russet moor grass snaps to `sand`, but `bark` and `gold` already hold those browns, and `sand` means shore sand. |
+| taiga | snow 74, granite 20, sage 6 | Keep. |
+| tundra | soil 45, straw 26, gold 8, heather 7 | Add `straw` to ground for summer tussocks. Soil is dark peat and wet rock, which `stone` covers. |
 
 ## Light
 
