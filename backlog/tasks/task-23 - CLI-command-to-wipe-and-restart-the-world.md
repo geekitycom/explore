@@ -1,9 +1,11 @@
 ---
 id: TASK-23
 title: CLI command to wipe and restart the world
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-25 01:27'
+updated_date: '2026-09-25 01:39'
 labels: []
 milestone: m-3
 dependencies: []

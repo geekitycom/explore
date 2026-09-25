@@ -1,9 +1,11 @@
 ---
 id: TASK-24
 title: World preview tool for tuning generation
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-25 01:32'
+updated_date: '2026-09-25 01:39'
 labels: []
 milestone: m-3
 dependencies: []

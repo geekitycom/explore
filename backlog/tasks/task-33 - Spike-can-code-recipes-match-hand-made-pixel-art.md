@@ -1,9 +1,11 @@
 ---
 id: TASK-33
 title: 'Spike: can code recipes match hand-made pixel art?'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-25 01:37'
+updated_date: '2026-09-25 01:39'
 labels: []
 milestone: m-4
 dependencies: []
