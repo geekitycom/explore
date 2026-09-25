@@ -63,6 +63,7 @@ export const FEATURE_RGB: Record<Feature, Rgb | undefined> = {
   'railing-broken': [59, 54, 67],
   drystone: [141, 151, 127],
   'drystone-broken': [141, 151, 127],
+  bones: [238, 207, 155],
 };
 
 export const BIOME_RGB: Readonly<Record<string, Rgb>> = {

@@ -27,6 +27,8 @@ export type BiomeParams = {
   readonly rocks: number;
   readonly flowers: number;
   readonly tallgrass: number;
+  /** Bones and skulls on bare ground. Read unblended from the screen's biome, so 0 means never. */
+  readonly bones: number;
   /** Chance, 0..1, of a bush on a tile in the band just outside the woods. */
   readonly undergrowth: number;
   /** Shares of the land, 0..1, given over to patches that fill with one feature. */
@@ -52,6 +54,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 0.6,
     flowers: 1.4,
     tallgrass: 1.4,
+    bones: 0,
     undergrowth: 0.35,
     flowerFields: 0.12,
     stands: 0.06,
@@ -73,6 +76,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 0.5,
     flowers: 0.3,
     tallgrass: 0.5,
+    bones: 0,
     undergrowth: 0.55,
     flowerFields: 0.04,
     stands: 0,
@@ -94,6 +98,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 0.4,
     flowers: 0.6,
     tallgrass: 2.2,
+    bones: 0,
     undergrowth: 0.35,
     flowerFields: 0.06,
     stands: 0.05,
@@ -115,6 +120,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 2,
     flowers: 0.2,
     tallgrass: 0.6,
+    bones: 0.2,
     undergrowth: 0.3,
     flowerFields: 0.02,
     stands: 0.02,
@@ -136,6 +142,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 1.8,
     flowers: 0,
     tallgrass: 0,
+    bones: 1,
     undergrowth: 0,
     flowerFields: 0,
     stands: 0,
@@ -157,6 +164,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 3,
     flowers: 0.3,
     tallgrass: 0.8,
+    bones: 0,
     undergrowth: 0.3,
     flowerFields: 0.05,
     stands: 0.03,
@@ -178,6 +186,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 0.8,
     flowers: 0,
     tallgrass: 0,
+    bones: 0,
     undergrowth: 0.4,
     flowerFields: 0,
     stands: 0,
@@ -199,6 +208,7 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 1.5,
     flowers: 0,
     tallgrass: 0,
+    bones: 0.1,
     undergrowth: 0.15,
     flowerFields: 0,
     stands: 0.02,

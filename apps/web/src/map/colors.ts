@@ -37,6 +37,7 @@ export const FEATURE_COLOR: Record<Feature, Rgb | undefined> = {
   'railing-broken': [59, 54, 67],
   drystone: [141, 151, 127],
   'drystone-broken': [141, 151, 127],
+  bones: [238, 207, 155],
 };
 
 /** The terrain most of a tile's corners share, with ties going to the one drawn on top. */

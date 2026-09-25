@@ -10,11 +10,13 @@ describe('isTileWalkable', () => {
       [3, 1, 'rock'],
       [4, 1, 'flowers'],
       [5, 1, 'tallgrass'],
+      [6, 1, 'bones'],
     ]);
-    expect([1, 2, 3, 4, 5].map((tx) => isTileWalkable(s, tx, 1))).toEqual([
+    expect([1, 2, 3, 4, 5, 6].map((tx) => isTileWalkable(s, tx, 1))).toEqual([
       false,
       false,
       false,
+      true,
       true,
       true,
     ]);

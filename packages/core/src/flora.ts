@@ -1,4 +1,5 @@
-import type { Recipe, TreeParams } from './recipes/index.ts';
+import type { RampName } from './palette.ts';
+import type { BonesParams, Recipe, TreeParams } from './recipes/index.ts';
 import type { Biome, Feature, FenceFeature } from './world.ts';
 
 export type PlacedFeature = Exclude<Feature, 'none'>;
@@ -88,6 +89,21 @@ const flyAgaric: Species = {
   recipe: { family: 'mushroom', params: { cap: 'poppy', stem: 'snow', spots: 'snow', cluster: 3 } },
 };
 
+/** Bleached bones. Every biome lists them, but only biomes with BIOME_PARAMS.bones ever show them. */
+function remains(bone: RampName): Species[] {
+  const of = (name: string, form: BonesParams['form'], weight: number): Species => ({
+    name,
+    recipe: { family: 'bones', params: { form, bone } },
+    weight,
+  });
+  return [
+    of('Cattle skull', 'cattle', 2),
+    of('Ram skull', 'ram', 1),
+    of('Scattered bones', 'scatter', 3),
+    of('Rib cage', 'ribs', 2),
+  ];
+}
+
 function bigtree(name: string, params: Omit<TreeParams, 'tiles'>): Species {
   return { name, recipe: { family: 'tree', params: { ...params, tiles: 3 } } };
 }
@@ -131,6 +147,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 9,
       }),
     ],
+    bones: remains('stone'),
   },
   meadow: {
     tree: [
@@ -183,6 +200,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 9,
       }),
     ],
+    bones: remains('stone'),
   },
   forest: {
     tree: [{ ...beech, weight: 3 }, oak, { ...spruce, weight: 2 }],
@@ -224,6 +242,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 10,
       }),
     ],
+    bones: remains('stone'),
   },
   lakeland: {
     tree: [
@@ -310,6 +329,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 8,
       }),
     ],
+    bones: remains('stone'),
   },
   scrubland: {
     tree: [
@@ -378,6 +398,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 8,
       }),
     ],
+    bones: remains('stone'),
   },
   desert: {
     tree: [
@@ -436,6 +457,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         },
       },
     ],
+    bones: remains('sand'),
   },
   highlands: {
     tree: [
@@ -516,6 +538,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 8,
       }),
     ],
+    bones: remains('granite'),
   },
   taiga: {
     tree: [
@@ -586,6 +609,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 6,
       }),
     ],
+    bones: remains('snow'),
   },
   tundra: {
     tree: [
@@ -655,6 +679,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         trunk: 6,
       }),
     ],
+    bones: remains('snow'),
   },
 };
 

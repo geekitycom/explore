@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { decodeScreen, encodeScreen } from './codec.ts';
-import type { LayerId } from './world.ts';
+import { FEATURES, type LayerId } from './world.ts';
 import { uniformScreen, withCorners, withFeatures } from './testing.ts';
 
 describe('screen codec', () => {
@@ -27,6 +27,14 @@ describe('screen codec', () => {
       coord,
       biome: 'taiga',
     });
+  });
+
+  test('gives every feature its own code', () => {
+    const all = withFeatures(
+      uniformScreen('grass'),
+      FEATURES.map((f, i) => [i, 0, f]),
+    );
+    expect(decodeScreen(encodeScreen(all))).toEqual(all);
   });
 
   test('rejects wrong length, unknown codes, unknown versions, and a missing layer or biome', () => {

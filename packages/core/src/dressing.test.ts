@@ -178,6 +178,25 @@ describe('biome dressing', () => {
       });
     expect(thick.length).toBeGreaterThan(3);
   });
+
+  test('scatters bones across the desert, a few in scrubland and tundra, none in lush lands', () => {
+    const bones = (biome: string) => {
+      const of = screens.filter((s) => s.biome === biome);
+      const counts = of.map((s) => s.features.filter((f) => f === 'bones').length);
+      return {
+        perScreen: counts.reduce((a, b) => a + b, 0) / of.length,
+        showing: counts.filter((n) => n > 0).length / of.length,
+      };
+    };
+    expect(bones('desert').showing).toBeGreaterThan(0.6);
+    for (const dry of ['scrubland', 'tundra']) {
+      expect(bones(dry).perScreen).toBeGreaterThan(0);
+      expect(bones(dry).perScreen).toBeLessThan(bones('desert').perScreen / 3);
+    }
+    for (const lush of ['meadow', 'forest', 'lakeland', 'highlands', 'taiga']) {
+      expect(bones(lush).perScreen, lush).toBe(0);
+    }
+  });
 });
 
 describe('lakes', () => {

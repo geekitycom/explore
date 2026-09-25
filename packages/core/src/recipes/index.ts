@@ -1,5 +1,6 @@
 import { createRng, type Rng } from '../rng.ts';
 import type { Sprite } from '../sprite.ts';
+import { bones, type BonesParams } from './bones.ts';
 import { cactus, type CactusParams } from './cactus.ts';
 import { fence, type FenceParams } from './fence.ts';
 import {
@@ -22,6 +23,7 @@ export { clamp } from './draw.ts';
 export { LINK } from './fence.ts';
 
 export type {
+  BonesParams,
   BushParams,
   CactusParams,
   FenceParams,
@@ -45,6 +47,7 @@ type FamilyParams = {
   mushroom: MushroomParams;
   rosette: RosetteParams;
   fence: FenceParams;
+  bones: BonesParams;
 };
 
 export type Family = keyof FamilyParams;
@@ -65,6 +68,7 @@ const FAMILIES: { [F in Family]: (params: FamilyParams[F], rng: Rng) => Sprite }
   mushroom,
   rosette,
   fence,
+  bones,
 };
 
 export const RECIPE_FAMILIES = Object.keys(FAMILIES) as Family[];
@@ -96,4 +100,5 @@ export const SAMPLE_RECIPES: { [F in Family]: Recipe & { family: F } } = {
   },
   rosette: { family: 'rosette', params: { leaves: 'sage' } },
   fence: { family: 'fence', params: { style: 'picket', material: 'snow', links: 0 } },
+  bones: { family: 'bones', params: { form: 'scatter', bone: 'sand' } },
 };

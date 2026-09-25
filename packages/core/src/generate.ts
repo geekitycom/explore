@@ -1,4 +1,5 @@
 import {
+  BIOME_PARAMS,
   biomeField,
   cellMemo,
   type BiomeField,
@@ -43,7 +44,7 @@ const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
  * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
  * points, and opens onto that neighbour's walkable edge (decision D23).
  */
-export const GENERATOR_VERSION = 6;
+export const GENERATOR_VERSION = 7;
 
 /**
  * Looks up a stored screen that an older generator made; undefined for a screen the current
@@ -66,6 +67,7 @@ const PURPOSE = {
   place: 4,
   crossingV: 5,
   crossingH: 6,
+  bones: 7,
   lake: 8,
   shore: 9,
   clump: 10,
@@ -584,6 +586,7 @@ const GROWS: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass', 'snow']);
 const GREEN: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass']);
 const SHRUBS: ReadonlySet<Terrain> = new Set([...GROWS, 'sand']);
 const DRY: ReadonlySet<Terrain> = new Set(['sand', 'dirt', ...GROWS]);
+const BARE: ReadonlySet<Terrain> = new Set(['sand', 'dirt', 'snow']);
 
 type Patch = {
   /** The biome param naming the share of land in this kind of patch. */
@@ -628,9 +631,10 @@ const EDGE_WIDTH = 0.14;
 
 /**
  * Trees are tested against a clumped value so woods come in stands; everything else rolls on its
- * own, so a small chance still shows. Every density comes from the blended biome params.
+ * own, so a small chance still shows. Every density but `bones` comes from the blended biome
+ * params; `bones` is the screen biome's own, so a lush screen never shows any.
  */
-function featureFor(f: Fields, gtx: number, gty: number, corners: Corners): Feature {
+function featureFor(f: Fields, gtx: number, gty: number, corners: Corners, bones: number): Feature {
   const stamped = stampFeature(f, gtx, gty);
   if (stamped) return stamped;
   const x = gtx + 0.5;
@@ -655,6 +659,8 @@ function featureFor(f: Fields, gtx: number, gty: number, corners: Corners): Feat
   if (all(SHRUBS) && shrub > 1 - bushChance) return 'bush';
   const rockChance = (corners.includes('dirt') ? 0.05 : 0.008) * p.rocks * open;
   if (!corners.includes('water') && r > 1 - rockChance) return 'rock';
+  const bone = unit(hash4(f.seed, PURPOSE.bones, gtx, gty));
+  if (all(BARE) && bone > 1 - 0.012 * bones * open) return 'bones';
   if (green && f.bloom(x, y) > 0.66 && r > 1 - 0.3 * p.flowers) return 'flowers';
   if (green && r > 1 - 0.08 * p.tallgrass) return 'tallgrass';
   return 'none';
@@ -717,7 +723,9 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
       const gty = y0 + ty;
       const corners = tileCorners(draft, tx, ty);
       const mark = site.plan.landmark(gtx, gty);
-      const feature = mark ? landmarkFor(mark, corners) : featureFor(f, gtx, gty, corners);
+      const feature = mark
+        ? landmarkFor(mark, corners)
+        : featureFor(f, gtx, gty, corners, BIOME_PARAMS[biome].bones);
       const clear = mark ? onRoad : reserved;
       const cleared =
         (BLOCKING_FEATURES.has(feature) &&

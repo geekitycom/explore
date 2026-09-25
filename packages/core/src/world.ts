@@ -27,6 +27,7 @@ export const FEATURES = [
   'bigtree',
   ...FENCES,
   ...FENCES.map((f) => `${f}-broken` as const),
+  'bones',
 ] as const;
 export type Feature = (typeof FEATURES)[number];
 
