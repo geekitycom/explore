@@ -9,3 +9,4 @@ coverage/
 .DS_Store
 .claude/worktrees/
 e2e/.results/
+world-preview.png

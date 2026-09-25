@@ -1,92 +1,137 @@
 import { writeFileSync } from 'node:fs';
-import { crc32, deflateSync } from 'node:zlib';
-import { growWorld } from '../src/testing.ts';
+import { resolve } from 'node:path';
 import {
-  SCREEN_H,
-  SCREEN_W,
-  cornerAt,
-  featureAt,
-  type Feature,
-  type Terrain,
-} from '../src/world.ts';
+  BIOME_RGB,
+  FEATURE_RGB,
+  MODES,
+  OVERLAYS,
+  POI_RGB,
+  ROAD_RGB,
+  TERRAIN_RGB,
+  hex,
+  labelRgb,
+  renderPreview,
+  type Area,
+  type Mode,
+  type Overlay,
+  type PreviewOptions,
+  type Rgb,
+} from './render-preview.ts';
+import { neighbourSource } from './world-source.ts';
 
-const [seedArg = '1', countArg = '80', out = 'world-preview.png'] = process.argv.slice(2);
-const PX = 8;
+const USAGE = `usage: pnpm --filter @explore/core preview -- [options]
+  --seed <n>             world seed (default 1)
+  --area <x0,y0,w,h>     area in screens (default -16,-16,32,32, centred on the garden)
+  --mode terrain|biome   colour tiles by terrain or biome (default terrain)
+  --overlay roads,pois   overlays to draw (default none)
+  --scale <px>           pixels per tile (default 1)
+  --grid                 faint screen-grid lines
+  --out <file.png>       output path (default world-preview.png)`;
 
-const TERRAIN_RGB: Record<Terrain, [number, number, number]> = {
-  water: [52, 101, 164],
-  sand: [222, 201, 140],
-  dirt: [150, 108, 70],
-  grass: [106, 170, 72],
-};
-const FEATURE_RGB: Record<Feature, [number, number, number] | undefined> = {
-  none: undefined,
-  tree: [28, 84, 40],
-  bush: [60, 120, 50],
-  rock: [128, 128, 128],
-  flowers: [230, 120, 170],
-  tallgrass: [140, 196, 90],
-};
-
-const { world } = growWorld(Number(seedArg), Number(countArg));
-const coords = [...world.values()].map((s) => s.coord);
-const minX = Math.min(...coords.map((c) => c.sx));
-const minY = Math.min(...coords.map((c) => c.sy));
-const width = (Math.max(...coords.map((c) => c.sx)) - minX + 1) * SCREEN_W * PX;
-const height = (Math.max(...coords.map((c) => c.sy)) - minY + 1) * SCREEN_H * PX;
-const rgb = Buffer.alloc(width * height * 3, 16);
-
-const paint = (x: number, y: number, [r, g, b]: [number, number, number]) => {
-  const i = (y * width + x) * 3;
-  rgb[i] = r;
-  rgb[i + 1] = g;
-  rgb[i + 2] = b;
-};
-
-for (const screen of world.values()) {
-  const ox = (screen.coord.sx - minX) * SCREEN_W * PX;
-  const oy = (screen.coord.sy - minY) * SCREEN_H * PX;
-  for (let ty = 0; ty < SCREEN_H; ty++) {
-    for (let tx = 0; tx < SCREEN_W; tx++) {
-      for (let py = 0; py < PX; py++) {
-        for (let px = 0; px < PX; px++) {
-          const corner = cornerAt(screen, tx + (px < PX / 2 ? 0 : 1), ty + (py < PX / 2 ? 0 : 1));
-          paint(ox + tx * PX + px, oy + ty * PX + py, TERRAIN_RGB[corner]);
-        }
-      }
-      const mark = FEATURE_RGB[featureAt(screen, tx, ty)];
-      if (!mark) continue;
-      for (let py = 2; py < PX - 2; py++) {
-        for (let px = 2; px < PX - 2; px++) paint(ox + tx * PX + px, oy + ty * PX + py, mark);
-      }
-    }
-  }
+function fail(message: string): never {
+  console.error(`${message}\n\n${USAGE}`);
+  process.exit(1);
 }
 
-const chunk = (type: string, data: Buffer) => {
-  const body = Buffer.concat([Buffer.from(type), data]);
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([len, body, crc]);
-};
-const header = Buffer.alloc(13);
-header.writeUInt32BE(width, 0);
-header.writeUInt32BE(height, 4);
-header.set([8, 2, 0, 0, 0], 8);
-const rows = Buffer.concat(
-  Array.from({ length: height }, (_, y) =>
-    Buffer.concat([Buffer.from([0]), rgb.subarray(y * width * 3, (y + 1) * width * 3)]),
-  ),
+function int(name: string, value: string): number {
+  if (!/^-?\d+$/.test(value)) fail(`--${name} must be an integer, got "${value}"`);
+  return Number(value);
+}
+
+function parseOptions(argv: string[]): { seed: number; out: string; options: PreviewOptions } {
+  const values = {
+    seed: '1',
+    area: '-16,-16,32,32',
+    mode: 'terrain',
+    overlay: '',
+    scale: '1',
+    out: 'world-preview.png',
+  };
+  let grid = false;
+  const args = argv[0] === '--' ? argv.slice(1) : argv;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === '--help') {
+      console.log(USAGE);
+      process.exit(0);
+    }
+    if (arg === '--grid') {
+      grid = true;
+      continue;
+    }
+    const name = arg.slice(2);
+    if (!arg.startsWith('--') || !Object.hasOwn(values, name)) fail(`unknown option "${arg}"`);
+    const value = args[++i];
+    if (value === undefined) fail(`${arg} needs a value`);
+    values[name as keyof typeof values] = value;
+  }
+
+  const parts = values.area.split(',');
+  if (parts.length !== 4) fail(`--area takes x0,y0,w,h, got "${values.area}"`);
+  const [x0, y0, w, h] = parts.map((p) => int('area', p.trim())) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  if (w < 1 || h < 1) fail('--area width and height must be at least 1');
+  const area: Area = { x0, y0, w, h };
+
+  if (!(MODES as readonly string[]).includes(values.mode)) fail(`unknown --mode "${values.mode}"`);
+  const overlays = values.overlay
+    .split(',')
+    .filter(Boolean)
+    .map((o) => {
+      if (!(OVERLAYS as readonly string[]).includes(o)) fail(`unknown --overlay "${o}"`);
+      return o as Overlay;
+    });
+  const scale = int('scale', values.scale);
+  if (scale < 1 || scale > 64) fail('--scale must be between 1 and 64');
+
+  return {
+    seed: int('seed', values.seed),
+    out: resolve(process.env.INIT_CWD ?? process.cwd(), values.out),
+    options: { area, mode: values.mode as Mode, overlays: new Set(overlays), scale, grid },
+  };
+}
+
+const swatches = (palette: Readonly<Record<string, Rgb | undefined>>) =>
+  Object.entries(palette)
+    .flatMap(([name, rgb]) => (rgb ? [`${name} ${hex(rgb)}`] : []))
+    .join(', ');
+
+const { seed, out, options } = parseOptions(process.argv.slice(2));
+const { area, mode, overlays, scale } = options;
+const source = neighbourSource(seed);
+const started = performance.now();
+const { png, stats } = renderPreview(source, options);
+const elapsed = Math.round(performance.now() - started);
+writeFileSync(out, png);
+
+const screens = area.w * area.h;
+console.log(`seed ${seed}, source ${source.name}`);
+console.log(
+  `area screens x ${area.x0}..${area.x0 + area.w - 1}, y ${area.y0}..${area.y0 + area.h - 1} (${area.w}x${area.h}), garden at 0,0`,
 );
-writeFileSync(
-  out,
-  Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', header),
-    chunk('IDAT', deflateSync(rows)),
-    chunk('IEND', Buffer.alloc(0)),
-  ]),
-);
-console.log(`${world.size} screens -> ${out} (${width}x${height})`);
+console.log(`image ${stats.width}x${stats.height} px, ${scale} px per tile`);
+if (mode === 'terrain') {
+  console.log(`terrain: ${swatches(TERRAIN_RGB)}`);
+  console.log(
+    `features${scale >= 4 ? ' (marks)' : ' (tinted into the tile)'}: ${swatches(FEATURE_RGB)}`,
+  );
+} else {
+  console.log(`biome: ${swatches(BIOME_RGB)}, other labels get a hashed colour`);
+  if (stats.screensWithoutBiome > 0) {
+    console.log(
+      `note: ${stats.screensWithoutBiome} of ${screens} screens have no biome data; drawn as greyed terrain`,
+    );
+  }
+}
+if (overlays.has('roads')) console.log(`roads ${hex(ROAD_RGB)}: ${stats.roadTiles} tiles`);
+if (overlays.has('pois')) {
+  const counts = [...stats.pois].map(
+    ([kind, n]) => `${kind} ${hex(labelRgb(POI_RGB, kind))} x${n}`,
+  );
+  console.log(`pois: ${counts.join(', ') || 'none'}`);
+}
+console.log(`wrote ${out} in ${elapsed} ms`);

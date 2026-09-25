@@ -48,6 +48,26 @@ pnpm start
 
 The art is the CC0 [Ninja Adventure](https://pixel-boy.itch.io/ninja-adventure-asset-pack) pack by pixel-boy. See `apps/web/public/assets/ninja-adventure/SOURCES.md`. With the dev server running, `/art.html` shows every terrain transition, feature, and avatar combination.
 
+## Tuning world generation
+
+The preview renders a large area of the world straight from a seed as a PNG, without a server or database. Use it to check generation changes by eye before you play them.
+
+```sh
+pnpm --filter @explore/core preview -- --seed 1 --area -16,-16,32,32 --out world.png
+```
+
+| Option                  | Default             | What it sets                                                    |
+| ----------------------- | ------------------- | --------------------------------------------------------------- |
+| `--seed <n>`            | `1`                 | World seed                                                      |
+| `--area <x0,y0,w,h>`    | `-16,-16,32,32`     | North-west screen and size in screens; the garden is at `0,0`   |
+| `--mode terrain\|biome` | `terrain`           | Colour tiles by terrain or by biome                             |
+| `--overlay roads,pois`  | none                | Draw roads and points of interest on top                        |
+| `--scale <px>`          | `1`                 | Pixels per tile; features show as marks from 4                  |
+| `--grid`                | off                 | Faint lines on screen borders                                   |
+| `--out <file.png>`      | `world-preview.png` | Output path, relative to the directory you ran the command from |
+
+The same arguments always produce the same file, so you can compare two renders before and after a change. The command prints the colour legend and the area it drew. Biome mode draws greyed terrain until the generator produces biomes. The tool renders from a `WorldSource` in `packages/core/scripts/world-source.ts`. The current source grows the neighbour-constrained world ring by ring outward from the garden.
+
 Design notes and decisions live in `backlog/docs`. Tasks live in `backlog/tasks`.
 
 ## Releases
