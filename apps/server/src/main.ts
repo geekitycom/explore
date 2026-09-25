@@ -6,6 +6,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
 import { createGame } from './play.ts';
+import type { TextGenSettings } from './text-gen.ts';
 
 const SAVE_INTERVAL_MS = 5000;
 
@@ -13,6 +14,20 @@ const dbPath = process.env.DB_PATH ?? './data/explore.db';
 mkdirSync(dirname(dbPath), { recursive: true });
 const db = openDatabase(dbPath);
 const game = createGame(db);
+
+const { LLM_BASE_URL, LLM_MODEL, LLM_API_KEY, LLM_TIMEOUT_MS } = process.env;
+const textGen: TextGenSettings | undefined =
+  LLM_BASE_URL && LLM_MODEL
+    ? {
+        baseUrl: LLM_BASE_URL,
+        model: LLM_MODEL,
+        apiKey: LLM_API_KEY || undefined,
+        timeoutMs: Number(LLM_TIMEOUT_MS ?? 15000),
+      }
+    : undefined;
+console.log(
+  textGen ? `text generation: ${textGen.model} at ${textGen.baseUrl}` : 'text generation off',
+);
 
 const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
 const { app, injectWebSocket } = createApp({

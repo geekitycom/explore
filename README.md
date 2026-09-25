@@ -27,6 +27,30 @@ pnpm start
 
 Behind a reverse proxy, set `TRUST_PROXY=true` so login and signup rate limits key on the client address the proxy reports in `X-Forwarded-For` (the rightmost entry, the one the proxy itself appended) instead of the proxy's own address. Leave it unset when the server is reachable directly.
 
+## Text generation
+
+The server can write short game text, such as epitaphs, with a language model through any OpenAI-compatible chat completions API. It is optional. With no provider set, the game uses its built-in text. The server prints which model it uses at startup and never logs or sends the API key to clients.
+
+| Variable         | What it sets                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| `LLM_BASE_URL`   | API base URL, without `/chat/completions`                                                                      |
+| `LLM_MODEL`      | Model id                                                                                                       |
+| `LLM_API_KEY`    | Bearer token. Leave unset for Ollama                                                                           |
+| `LLM_TIMEOUT_MS` | Time before a request gives up, default `15000`. A local model that is not loaded yet can take several seconds |
+
+For local development with [Ollama](https://ollama.com):
+
+```sh
+ollama pull gemma3:12b
+LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=gemma3:12b pnpm dev
+```
+
+In production with [OpenRouter](https://openrouter.ai), use a fast, low-cost model such as `google/gemini-3.8-flash` or `qwen/qwen3.8-flash`:
+
+```sh
+LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=google/gemini-3.8-flash LLM_API_KEY=sk-or-... pnpm start
+```
+
 ## Scripts
 
 | Script                                | What it does                                                                                                                                                                                |
