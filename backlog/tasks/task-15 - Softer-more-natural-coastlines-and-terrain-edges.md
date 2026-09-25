@@ -1,11 +1,11 @@
 ---
 id: TASK-15
 title: 'Softer, more natural coastlines and terrain edges'
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-24 23:22'
-updated_date: '2026-09-25 14:35'
+updated_date: '2026-09-25 14:37'
 labels: []
 milestone: m-1
 dependencies: []
@@ -22,10 +22,10 @@ Large coastlines stair-step because terrain lives on a 16px corner grid, and lan
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Diagonal coastlines read as smooth curves rather than stairs in the art gallery and in game
-- [ ] #2 Grass edges show a tufted fringe consistent with the Ninja Adventure style
-- [ ] #3 Mask border-agreement tests still pass, and screens still match across seams
-- [ ] #4 No change to the persisted screen record
+- [x] #1 Diagonal coastlines read as smooth curves rather than stairs in the art gallery and in game
+- [x] #2 Grass edges show a tufted fringe consistent with the Ninja Adventure style
+- [x] #3 Mask border-agreement tests still pass, and screens still match across seams
+- [x] #4 No change to the persisted screen record
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -47,4 +47,12 @@ AC3: the old per-mask border tests assumed every tile side is crossed square-on,
 Mutation checks: dropping the border pass fails both seam tests; 2D distance on the border fails both; removing neighbour smoothing fails the diagonal test; nearest-corner sampling fails 4 tests; flat tufts fail the tuft test; removing the despeckle pass fails the speckle test.
 No change to Screen, codec, or server. composeTerrain cost measured at about +5% (edge distance still dominates).
 Screenshots (before/after, same lattices): scratchpad t15/before-edges-0.png vs after-edges-0.png (coastline), before-edges-1.png vs after-edges-1.png (inland), before-world-1.png vs after-world-1.png (garden with neighbours).
+
+After rebasing onto the palette remap (17212b6), kept its band colours and moved the grass and darkgrass outlines to the outer ring. Re-verified: lint, typecheck, 321 tests, format all pass. Final before/after screenshots on the same base are final-before-edges-{0,1}.png, final-after-edges-{0,1}.png, final-before-world-1.png, final-after-world-1.png in the session scratchpad t15 folder.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Terrain edges now use a marching-squares field: corner values firmed by their neighbours, blended bilinearly per tile, plus a per-terrain fringe. Diagonal coastlines run straight and curves round instead of stair-stepping; grass and darkgrass edges get pointed tufts with an outer olive rim; shores and other terrains keep a gentle wave. Seams stay exact: the screen's outer pixel ring samples the border line and bands it along the border only. Screen records, codec, and server are untouched. Verified with new mask and composed seam tests (all six terrains), mutation checks, a 12-world seam probe (0 differences), lint/typecheck/test/format, and before/after gallery screenshots of the same coastline and inland edges.
+<!-- SECTION:FINAL_SUMMARY:END -->
