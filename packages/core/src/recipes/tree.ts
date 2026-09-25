@@ -5,8 +5,11 @@ import type { Sprite } from '../sprite.ts';
 import { Canvas, Mask, clamp, ramp, spread, step, type Ramp } from './draw.ts';
 
 export type TreeParams = {
-  /** Broadleaf: a flat-topped canopy in slanted light bands. Conifer: tiered skirts. */
-  readonly shape: 'broadleaf' | 'conifer';
+  /**
+   * Broadleaf: a flat-topped canopy in slanted light bands. Conifer: tiered skirts. Weeping: a
+   * dome whose strands hang in a curtain, open in the middle over the trunk.
+   */
+  readonly shape: 'broadleaf' | 'conifer' | 'weeping';
   readonly leaves: RampName;
   readonly bark: RampName;
   /** Sprite height in tiles. */
@@ -176,9 +179,63 @@ function conifer(p: TreeParams, rng: Rng, height: number): Canvas {
   return c;
 }
 
+function weeping(p: TreeParams, rng: Rng, height: number): Canvas {
+  const c = new Canvas(WIDTH, height);
+  const leaves = ramp(p.leaves).slice(-4);
+  const ground = groundY(height);
+  const rx = clamp(p.spread + (rng() - 0.5) * 2, 6, 14.5);
+  const cx = CX + (rng() - 0.5);
+  const top = 1 + Math.floor(rng() * 2);
+  const ry = clamp(rx * 0.55 + rng() * 2, 4, (ground - top) * 0.4);
+  const cy = top + ry;
+  drawTrunk(c, rng, ramp(p.bark), { top: Math.floor(cy), bottom: ground, width: 3 });
+
+  const hem: number[] = [];
+  for (let x = 0, long = rng() < 0.5; x < WIDTH; long = !long) {
+    const w = 1 + Math.floor(rng() * 2);
+    const dx = Math.min(1, Math.abs(x + w / 2 - cx) / rx);
+    const lift = p.trunk * (1 - dx * dx) + (long ? 0 : 2 + rng() * 3) + rng() * 1.5;
+    for (let i = 0; i < w; i++) hem[x++] = Math.round(ground - 1 - lift);
+  }
+  const inside = (x: number, y: number) => {
+    if (y < top || y > Math.min(ground - 1, hem[x] ?? 0)) return false;
+    const flare = y < cy ? 0.88 : 0.88 + 0.12 * ((y - cy) / (ground - cy));
+    const dx = (x + 0.5 - cx) / (rx * flare);
+    const dy = Math.min(0, (y + 0.5 - cy) / ry);
+    return dx * dx + dy * dy <= 1;
+  };
+  // Strands hang from the crown or beside a longer strand, never floating on their own.
+  const mask = new Mask(WIDTH, height);
+  for (let y = top; y < ground; y++) {
+    for (const side of [-1, 1]) {
+      for (let x = Math.floor(cx) + (side < 0 ? 0 : 1); x > 0 && x < WIDTH - 1; x += side) {
+        const hangs = y <= cy || mask.has(x, y - 1) || mask.has(x - side, y);
+        if (inside(x, y) && hangs) mask.add(x, y);
+      }
+    }
+  }
+  for (let y = top; y < ground; y++) {
+    for (let x = 1; x < WIDTH - 1; x++) {
+      if (!mask.has(x, y)) continue;
+      const dx = (x + 0.5 - cx) / rx;
+      const fy = (y - top) / (ground - top);
+      let v = 0.66 - dx * 0.35 - fy * 0.45;
+      if (hem[x]! < hem[x - 1]! || hem[x]! < hem[x + 1]!) v -= 0.12;
+      if (y > cy && (x + Math.floor(cx)) % 3 === 0) v -= 0.2;
+      if (!mask.has(x, y + 2)) v -= 0.2;
+      c.set(x, y, step(leaves, clamp(v, 0, 0.999)));
+    }
+  }
+  c.despeckle();
+  c.shadow(CX, ground + 1.5, Math.min(rx * 0.85, 12), 2.5);
+  return c;
+}
+
+const SHAPES = { broadleaf, conifer, weeping } as const;
+
 export function tree(p: TreeParams, rng: Rng): Sprite {
   const height = p.tiles * TILE;
-  const c = p.shape === 'broadleaf' ? broadleaf(p, rng, height) : conifer(p, rng, height);
+  const c = SHAPES[p.shape](p, rng, height);
   c.outline();
   return c.toSprite();
 }

@@ -27,14 +27,15 @@ function species(): Recipe[] {
     }
   }
   const tree = SAMPLE_RECIPES.tree.params;
-  for (const shape of ['broadleaf', 'conifer'] as const) {
+  for (const shape of ['broadleaf', 'conifer', 'weeping'] as const) {
     for (const tiles of [2, 3] as const) {
       for (const spread of [6, 15]) {
         out.push({ family: 'tree', params: { ...tree, shape, tiles, spread, trunk: tiles * 4 } });
       }
     }
   }
-  out.push({ family: 'cactus', params: { skin: 'sage', tiles: 1, arms: 3 } });
+  out.push({ family: 'cactus', params: { shape: 'column', skin: 'sage', tiles: 1, arms: 3 } });
+  out.push({ family: 'cactus', params: { shape: 'barrel', skin: 'sage' } });
   out.push({ family: 'reeds', params: { stems: 'grass', tiles: 1 } });
   out.push({ family: 'rock', params: { stone: 'granite', moss: 'sage', size: 0 } });
   out.push({ family: 'grass', params: { blades: 'straw', tips: 'snow', height: 12 } });
@@ -54,9 +55,9 @@ function opaqueColours(s: Sprite): Set<Hex> {
 }
 
 describe('recipes', () => {
-  test('cover the eight families', () => {
+  test('cover the nine families', () => {
     expect(RECIPE_FAMILIES.sort()).toEqual(
-      ['bush', 'cactus', 'flower', 'grass', 'mushroom', 'reeds', 'rock', 'tree'].sort(),
+      ['bush', 'cactus', 'flower', 'grass', 'mushroom', 'reeds', 'rock', 'rosette', 'tree'].sort(),
     );
   });
 
@@ -125,8 +126,57 @@ describe('recipes', () => {
     }
   });
 
+  test('each shape keeps the silhouette of its plant at every seed', () => {
+    const box = (s: Sprite, keep: (hex: Hex) => boolean = (hex) => hex !== OUTLINE) => {
+      let [top, bottom, left, right] = [s.height, -1, s.width, -1];
+      for (let y = 0; y < s.height; y++) {
+        for (let x = 0; x < s.width; x++) {
+          if (s.rgba[(y * s.width + x) * 4 + 3] !== 255 || !keep(hexAt(s, x, y))) continue;
+          [top, bottom] = [Math.min(top, y), Math.max(bottom, y)];
+          [left, right] = [Math.min(left, x), Math.max(right, x)];
+        }
+      }
+      return { width: right - left + 1, height: bottom - top + 1, bottom };
+    };
+    /** How much wider the widest row is than the row it stands on. */
+    const fan = (s: Sprite) => {
+      const rows = Array.from({ length: s.height }, (_, y) => {
+        const xs = Array.from({ length: s.width }, (_, x) => x).filter(
+          (x) => s.rgba[(y * s.width + x) * 4 + 3] === 255 && hexAt(s, x, y) !== OUTLINE,
+        );
+        return xs.length ? xs.at(-1)! - xs[0]! + 1 : 0;
+      }).filter((w) => w > 0);
+      return Math.max(...rows) - rows.at(-1)!;
+    };
+    const tuft = { family: 'grass', params: { blades: 'sage', height: 7 } } as const;
+    const leafy = (hex: Hex) => (RAMPS.grass as readonly Hex[]).includes(hex);
+    const willow = {
+      family: 'tree',
+      params: { shape: 'weeping', leaves: 'grass', bark: 'bark', tiles: 2, spread: 14, trunk: 7 },
+    } as const;
+    const lime = { ...willow, params: { ...willow.params, shape: 'broadleaf' } } as const;
+    for (const seed of SEEDS) {
+      const barrel = box(
+        drawRecipe({ family: 'cactus', params: { shape: 'barrel', skin: 'cactus' } }, seed),
+      );
+      expect(barrel.width).toBeGreaterThanOrEqual(barrel.height - 1);
+      const column = box(
+        drawRecipe(
+          { family: 'cactus', params: { shape: 'column', skin: 'cactus', tiles: 1, arms: 0 } },
+          seed,
+        ),
+      );
+      expect(column.width).toBeLessThan(column.height - 3);
+      expect(fan(drawRecipe(SAMPLE_RECIPES.rosette, seed))).toBeGreaterThanOrEqual(5);
+      expect(fan(drawRecipe(tuft, seed))).toBeLessThan(5);
+      const ground = 2 * TILE - 3;
+      expect(box(drawRecipe(willow, seed), leafy).bottom).toBeGreaterThanOrEqual(ground - 5);
+      expect(box(drawRecipe(lime, seed), leafy).bottom).toBeLessThan(ground - 5);
+    }
+  });
+
   test('props and rocks fit one tile, trees two or three tiles tall', () => {
-    for (const family of ['bush', 'rock', 'flower', 'grass', 'mushroom'] as const) {
+    for (const family of ['bush', 'rock', 'flower', 'grass', 'mushroom', 'rosette'] as const) {
       const s = drawRecipe(SAMPLE_RECIPES[family], 1);
       expect([s.width, s.height]).toEqual([TILE, TILE]);
     }

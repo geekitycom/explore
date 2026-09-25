@@ -74,7 +74,7 @@ const mossyBoulder: Species = {
 };
 const saguaro: Species = {
   name: 'Saguaro',
-  recipe: { family: 'cactus', params: { skin: 'cactus', tiles: 2, arms: 2 } },
+  recipe: { family: 'cactus', params: { shape: 'column', skin: 'cactus', tiles: 2, arms: 2 } },
 };
 const juniper: Species = {
   name: 'Common juniper',
@@ -229,7 +229,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
         recipe: {
           family: 'tree',
           params: {
-            shape: 'broadleaf',
+            shape: 'weeping',
             leaves: 'grass',
             bark: 'bark',
             tiles: 2,
@@ -300,7 +300,7 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
     ],
     bigtree: [
       bigtree('Old white willow', {
-        shape: 'broadleaf',
+        shape: 'weeping',
         leaves: 'grass',
         bark: 'bark',
         spread: 15,
@@ -398,11 +398,11 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
       { ...saguaro, weight: 2 },
       {
         name: 'Barrel cactus',
-        recipe: { family: 'cactus', params: { skin: 'cactus', tiles: 1, arms: 0 } },
+        recipe: { family: 'cactus', params: { shape: 'barrel', skin: 'cactus', crown: 'straw' } },
         weight: 2,
       },
       { name: 'Creosote bush', recipe: { family: 'bush', params: { leaves: 'sage' } }, weight: 2 },
-      { name: 'Agave', recipe: { family: 'grass', params: { blades: 'sage', height: 7 } } },
+      { name: 'Agave', recipe: { family: 'rosette', params: { leaves: 'sage' } } },
     ],
     rock: [
       {
@@ -427,7 +427,10 @@ export const FLORA: Readonly<Record<Biome, Flora>> = {
     bigtree: [
       {
         name: 'Giant saguaro',
-        recipe: { family: 'cactus', params: { skin: 'cactus', tiles: 2, arms: 3 } },
+        recipe: {
+          family: 'cactus',
+          params: { shape: 'column', skin: 'cactus', tiles: 2, arms: 3 },
+        },
       },
     ],
   },

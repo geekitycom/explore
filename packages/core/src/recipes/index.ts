@@ -14,6 +14,7 @@ import {
   type ReedsParams,
 } from './props.ts';
 import { rock, type RockParams } from './rock.ts';
+import { rosette, type RosetteParams } from './rosette.ts';
 import { tree, type TreeParams } from './tree.ts';
 
 export type {
@@ -24,6 +25,7 @@ export type {
   MushroomParams,
   ReedsParams,
   RockParams,
+  RosetteParams,
   TreeParams,
 };
 
@@ -36,6 +38,7 @@ type FamilyParams = {
   cactus: CactusParams;
   reeds: ReedsParams;
   mushroom: MushroomParams;
+  rosette: RosetteParams;
 };
 
 export type Family = keyof FamilyParams;
@@ -54,6 +57,7 @@ const FAMILIES: { [F in Family]: (params: FamilyParams[F], rng: Rng) => Sprite }
   cactus,
   reeds,
   mushroom,
+  rosette,
 };
 
 export const RECIPE_FAMILIES = Object.keys(FAMILIES) as Family[];
@@ -77,10 +81,11 @@ export const SAMPLE_RECIPES: { [F in Family]: Recipe & { family: F } } = {
     params: { petals: 'poppy', leaves: 'grass', centre: 'gold', blossoms: 3 },
   },
   grass: { family: 'grass', params: { blades: 'grass', height: 10 } },
-  cactus: { family: 'cactus', params: { skin: 'cactus', tiles: 2, arms: 2 } },
+  cactus: { family: 'cactus', params: { shape: 'column', skin: 'cactus', tiles: 2, arms: 2 } },
   reeds: { family: 'reeds', params: { stems: 'straw', heads: 'bark', tiles: 2 } },
   mushroom: {
     family: 'mushroom',
     params: { cap: 'poppy', stem: 'sand', spots: 'snow', cluster: 3 },
   },
+  rosette: { family: 'rosette', params: { leaves: 'sage' } },
 };
