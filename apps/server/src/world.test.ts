@@ -23,8 +23,10 @@ import {
   getScreen,
   loadPlayerState,
   loadWorld,
+  outdatedScreens,
   savePlayerState,
 } from './world.ts';
+import { wipeWorld } from './wipe.ts';
 
 const EAST = { layer: OVERWORLD, sx: 1, sy: 0 };
 const CELLAR = 'cellar' as LayerId;
@@ -127,7 +129,7 @@ const LAYERLESS_SCHEMA = `
   );
   PRAGMA user_version = 2;`;
 
-it('upgrades an old database: keeps accounts, drops its screens and positions, adds a world seed', () => {
+it('upgrades an old database without deleting its world, which then waits for an admin wipe', () => {
   const path = tempDbPath();
   const garden = secretGarden();
   const layerless = (screen: typeof garden) =>
@@ -153,10 +155,14 @@ it('upgrades an old database: keeps accounts, drops its screens and positions, a
 
   const db = openDatabase(path);
   expect(db.prepare('SELECT username FROM users').all()).toEqual([{ username: 'alice' }]);
-  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 0 });
-  expect(loadPlayerState(db, 1)).toBeUndefined();
+  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 2 });
+  expect(db.prepare('SELECT COUNT(*) AS n FROM player_state').get()).toEqual({ n: 1 });
+  expect(outdatedScreens(db)).toBe(2);
   expect(Number.isInteger(loadWorld(db).seed)).toBe(true);
-  ensureGarden(db);
+
+  wipeWorld(db);
+  expect(outdatedScreens(db)).toBe(0);
+  expect(loadPlayerState(db, 1)).toBeUndefined();
   expect(getScreen(db, GARDEN_COORD)).toEqual(garden);
   getOrCreateScreen(db, { layer: CELLAR, sx: 0, sy: 0 }, 1);
   expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 2 });

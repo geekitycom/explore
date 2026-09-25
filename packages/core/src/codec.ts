@@ -46,9 +46,12 @@ export const worldSeedSchema = z
   .int()
   .transform((n) => n as WorldSeed);
 
+/** Bumped whenever stored screens can no longer be read or no longer match the generator. */
+export const SCREEN_RECORD_VERSION = 3;
+
 /** The persisted, versioned form of a screen. One character per lattice point or tile. */
 export const screenRecordSchema = z.object({
-  v: z.literal(3),
+  v: z.literal(SCREEN_RECORD_VERSION),
   layer: layerIdSchema,
   sx: z.number().int(),
   sy: z.number().int(),
@@ -60,7 +63,7 @@ export type ScreenRecord = z.input<typeof screenRecordSchema>;
 
 export function encodeScreen(screen: Screen): ScreenRecord {
   return {
-    v: 3,
+    v: SCREEN_RECORD_VERSION,
     layer: screen.coord.layer,
     sx: screen.coord.sx,
     sy: screen.coord.sy,

@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import {
+  SCREEN_RECORD_VERSION,
   DIRS,
   decodeScreen,
   encodeScreen,
@@ -38,6 +39,17 @@ function insertScreen(db: DatabaseSync, screen: Screen, userId: number | null): 
     userId,
     Date.now(),
   );
+}
+
+/**
+ * How many stored screens an older generator made. They cannot be read or mixed with new
+ * screens, and only an admin decides to throw a world away, so the server refuses to start.
+ */
+export function outdatedScreens(db: DatabaseSync): number {
+  const row = db
+    .prepare("SELECT count(*) AS n FROM screens WHERE json_extract(data, '$.v') IS NOT ?")
+    .get(SCREEN_RECORD_VERSION) as { n: number };
+  return row.n;
 }
 
 export function ensureGarden(db: DatabaseSync): void {

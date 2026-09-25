@@ -64,9 +64,7 @@ const migrations: readonly string[] = [
     id INTEGER PRIMARY KEY CHECK (id = 1),
     seed INTEGER NOT NULL
   );
-  INSERT INTO world (id, seed) VALUES (1, abs(random()) % 2147483648);
-  DELETE FROM screens;
-  DELETE FROM player_state;`,
+  INSERT INTO world (id, seed) VALUES (1, abs(random()) % 2147483648);`,
 ];
 
 export function openDatabase(path: string): DatabaseSync {

@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 01:32'
-updated_date: '2026-09-25 02:38'
+updated_date: '2026-09-25 13:22'
 labels: []
 milestone: m-3
 dependencies:
@@ -47,6 +47,8 @@ Design: noise.ts (hash, fBm, warp); fieldsOf(world, layer) seeds per purpose; st
 Rejected during tuning: joining all walkable edge tiles (sand causeways through lakes) and closing edge pockets with bushes (visible grid along forest seams).
 Verified: 1.7 ms per screen; property tests over six seeds on 12x12 regions (seam equality in shuffled orders, crossings on every land seam, garden-BFS reaches every screen), determinism, seeds differ, layer matters, garden intact; mutations (no crossings: 13 failures; crossings keep blockers: 12 failures). Renders scratchpad/fields/after-seed1-48.png versus preview-tool/default-32.png: no screen grid, forests and meadows span many screens. In-game screenshot of the trail south of the garden. After merge: 179 unit tests, build, and 8 e2e tests pass.
 Known weaknesses: lakes read as evenly spaced blobs; dense forests show thin cleared corridors; garden trails a bit heavy; crossingTiles recomputed per travel (about 0.1 ms).
+
+Follow-up on 2026-09-25 (Andrew): the migration no longer deletes stored screens and positions. The server counts screens whose record version is not SCREEN_RECORD_VERSION and refuses to start with instructions to run pnpm world:wipe --yes (decision D22). Verified on a copy of an old database: startup exits 1 with the message and leaves 2 screens and 2 positions intact; after the wipe the server starts.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
