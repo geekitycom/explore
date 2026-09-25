@@ -174,9 +174,14 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
       for (const player of online.values()) if (player.dirty) save(player);
     },
 
-    /** Drops any chunk still being prefetched; the next approach builds it again. */
+    /**
+     * Saves everyone and drops any chunk still being prefetched. Afterwards the game touches the
+     * database no more, so a socket that closes late finds its player already gone.
+     */
     stop(): void {
       chunks.stop();
+      for (const player of online.values()) save(player);
+      online.clear();
     },
   };
 }
