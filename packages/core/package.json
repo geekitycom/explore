@@ -10,7 +10,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json",
     "preview": "node scripts/preview.ts",
-    "palettes": "node scripts/biome-palettes.ts"
+    "palettes": "node scripts/biome-palettes.ts",
+    "lint:art": "node scripts/lint-art.ts"
   },
   "dependencies": {
     "zod": "^4.6.5"
