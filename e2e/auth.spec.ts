@@ -62,3 +62,22 @@ test('server validation errors appear next to the field', async ({ page }) => {
   await page.getByRole('button', { name: 'Log in' }).click();
   await expect(page.locator('.form-error')).toHaveText('Wrong username or password');
 });
+
+test('a throttled login shows the wait inline', async ({ page }) => {
+  const name = unique();
+  for (let i = 0; i < 10; i++) {
+    const res = await page.request.post('/api/login', {
+      data: { username: name, password: 'wrong password' },
+    });
+    expect(res.status()).toBe(401);
+  }
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await page.getByLabel('Username').fill(name);
+  await page.getByLabel('Password').fill('wrong password');
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page.locator('.form-error')).toHaveText(
+    'Too many attempts. Try again in 15 minutes.',
+  );
+  await page.screenshot({ path: 'e2e/.results/login-throttled.png', fullPage: true });
+});

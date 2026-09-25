@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { avatarSchema } from '@explore/core';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
@@ -9,6 +10,7 @@ import { z } from 'zod';
 import { hashPassword, rejectUnknownUser, verifyPassword } from './password.ts';
 import type { Game } from './play.ts';
 import type { Player } from './presence.ts';
+import { AUTH_LIMITS, createRateLimiter, type RateLimiter } from './rate-limit.ts';
 import {
   createSession,
   deleteSession,
@@ -82,6 +84,29 @@ export function createApp({
     });
   };
 
+  const signupsByAddress = createRateLimiter(AUTH_LIMITS.signupsPerAddress);
+  const loginsByAddress = createRateLimiter(AUTH_LIMITS.loginsPerAddress);
+  const failedLoginsByUsername = createRateLimiter(AUTH_LIMITS.failedLoginsPerUsername);
+
+  const throttle = (c: Context, limiter: RateLimiter, key: string) => {
+    const ms = limiter.retryAfterMs(key);
+    if (ms === 0) return;
+    const seconds = Math.ceil(ms / 1000);
+    const minutes = Math.ceil(seconds / 60);
+    c.header('Retry-After', String(seconds));
+    throw new ApiError(
+      429,
+      'rate_limited',
+      `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+    );
+  };
+
+  const countAttempt = (c: Context, limiter: RateLimiter) => {
+    const address = getConnInfo(c).remote.address ?? 'unknown';
+    throttle(c, limiter, address);
+    limiter.hit(address);
+  };
+
   const app = new Hono<Env>();
   const nodeWs = createNodeWebSocket({ app });
 
@@ -98,6 +123,7 @@ export function createApp({
   });
 
   app.post('/api/signup', async (c) => {
+    countAttempt(c, signupsByAddress);
     const body = await parseBody(c, signupBody);
     const user = insertUser(db, {
       username: body.username,
@@ -110,7 +136,11 @@ export function createApp({
   });
 
   app.post('/api/login', async (c) => {
+    countAttempt(c, loginsByAddress);
     const body = await parseBody(c, loginBody);
+    const usernameKey = body.username.toLowerCase();
+    throttle(c, failedLoginsByUsername, usernameKey);
+    failedLoginsByUsername.hit(usernameKey);
     const found = findUserCredentials(db, body.username);
     const ok = found
       ? await verifyPassword(body.password, found.passwordHash)
@@ -118,6 +148,7 @@ export function createApp({
     if (!found || !ok) {
       throw new ApiError(401, 'invalid_credentials', 'Wrong username or password');
     }
+    failedLoginsByUsername.reset(usernameKey);
     startSession(c, found.user);
     return c.json({ user: found.user });
   });

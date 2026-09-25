@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { DEFAULT_AVATAR, type Avatar } from '@explore/core';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
 import { verifyPassword } from './password.ts';
+import { AUTH_LIMITS } from './rate-limit.ts';
 import { createGame } from './play.ts';
 import { SESSION_TTL_MS, sessionUser } from './sessions.ts';
 
@@ -25,15 +26,19 @@ afterEach(() => db.close());
 
 const PASSWORD = 'correct horse battery';
 
-function send(method: string, path: string, body?: unknown, cookie?: string) {
+const connectionFrom = (address = '203.0.113.1') => ({
+  incoming: { socket: { remoteAddress: address } },
+});
+
+function send(method: string, path: string, body?: unknown, cookie?: string, address?: string) {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (cookie) headers.cookie = cookie;
-  return app.request(path, {
-    method,
-    headers,
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
+  return app.request(
+    path,
+    { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) },
+    connectionFrom(address),
+  );
 }
 
 function sessionCookie(res: Response): string {
@@ -111,7 +116,11 @@ describe('signup', () => {
   });
 
   it('rejects a body that is not JSON', async () => {
-    const res = await app.request('/api/signup', { method: 'POST', body: 'nope' });
+    const res = await app.request(
+      '/api/signup',
+      { method: 'POST', body: 'nope' },
+      connectionFrom(),
+    );
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: { code: 'invalid_json' } });
   });
@@ -169,6 +178,93 @@ describe('logout', () => {
     await send('POST', '/api/logout', undefined, first);
     const me = await send('GET', '/api/me', undefined, sessionCookie(login));
     expect(me.status).toBe(200);
+  });
+});
+
+describe('rate limits', () => {
+  const { failedLoginsPerUsername, loginsPerAddress, signupsPerAddress } = AUTH_LIMITS;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  async function expectThrottled(res: Response, windowMs: number) {
+    const minutes = windowMs / 60_000;
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe(String(windowMs / 1000));
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'rate_limited',
+        message: `Too many attempts. Try again in ${minutes} minutes.`,
+      },
+    });
+  }
+
+  const login = (username: string, password: string, address?: string) =>
+    send('POST', '/api/login', { username, password }, undefined, address);
+
+  it('throttles failed logins for one username from any address until the window passes', async () => {
+    await signup('Alice');
+    await signup('Bob');
+    for (let i = 0; i < failedLoginsPerUsername.max; i++) {
+      expect((await login('alice', 'wrong password', `198.51.100.${i}`)).status).toBe(401);
+    }
+
+    await expectThrottled(
+      await login('ALICE', PASSWORD, '192.0.2.99'),
+      failedLoginsPerUsername.windowMs,
+    );
+    expect((await login('Bob', PASSWORD, '198.51.100.0')).status).toBe(200);
+
+    vi.setSystemTime(Date.now() + failedLoginsPerUsername.windowMs);
+    expect((await login('Alice', PASSWORD)).status).toBe(200);
+  });
+
+  it('forgets earlier failures after a successful login', async () => {
+    await signup('Alice');
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < failedLoginsPerUsername.max - 1; i++) {
+        expect((await login('Alice', 'wrong password', `198.51.100.${i}`)).status).toBe(401);
+      }
+      expect((await login('Alice', PASSWORD, '192.0.2.99')).status).toBe(200);
+    }
+  });
+
+  it('throttles logins from one address until the window passes', async () => {
+    for (let i = 0; i < loginsPerAddress.max; i++) {
+      expect((await login(`nobody${i}`, 'wrong password')).status).toBe(401);
+    }
+
+    await expectThrottled(await login('nobody', 'wrong password'), loginsPerAddress.windowMs);
+    expect((await login('nobody', 'wrong password', '192.0.2.99')).status).toBe(401);
+
+    vi.setSystemTime(Date.now() + loginsPerAddress.windowMs);
+    expect((await login('nobody', 'wrong password')).status).toBe(401);
+  });
+
+  it('throttles signups from one address until the window passes', async () => {
+    const attempt = (username: string, address?: string) =>
+      send(
+        'POST',
+        '/api/signup',
+        { username, password: PASSWORD, avatar: DEFAULT_AVATAR },
+        undefined,
+        address,
+      );
+    for (let i = 0; i < signupsPerAddress.max; i++) {
+      expect((await attempt(`player${i}`)).status).toBe(201);
+    }
+
+    await expectThrottled(await attempt('spammer'), signupsPerAddress.windowMs);
+    expect(db.prepare('SELECT count(*) AS n FROM users').get()).toEqual({
+      n: signupsPerAddress.max,
+    });
+    expect((await attempt('neighbor', '192.0.2.99')).status).toBe(201);
+
+    vi.setSystemTime(Date.now() + signupsPerAddress.windowMs);
+    expect((await attempt('spammer')).status).toBe(201);
   });
 });
 
