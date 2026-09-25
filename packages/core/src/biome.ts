@@ -25,11 +25,18 @@ export type BiomeParams = {
   readonly rocks: number;
   readonly flowers: number;
   readonly tallgrass: number;
+  /** Chance, 0..1, of a bush on a tile in the band just outside the woods. */
+  readonly undergrowth: number;
+  /** Shares of the land, 0..1, given over to patches that fill with one feature. */
+  readonly flowerFields: number;
+  readonly stands: number;
+  readonly thickets: number;
+  readonly rockFields: number;
 };
 
 export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
   meadow: {
-    lakeChance: 0.3,
+    lakeChance: 0.2,
     lakeSize: 1,
     shore: 2.5,
     sand: 0,
@@ -42,9 +49,14 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 0.6,
     flowers: 1.4,
     tallgrass: 1.4,
+    undergrowth: 0.35,
+    flowerFields: 0.12,
+    stands: 0.06,
+    thickets: 0.03,
+    rockFields: 0,
   },
   forest: {
-    lakeChance: 0.25,
+    lakeChance: 0.16,
     lakeSize: 0.8,
     shore: 2,
     sand: 0,
@@ -52,14 +64,19 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     snow: 0,
     darkgrass: 0.95,
     woods: 0.8,
-    trees: 0.6,
+    trees: 1.6,
     bushes: 1.6,
     rocks: 0.5,
     flowers: 0.3,
     tallgrass: 0.5,
+    undergrowth: 0.55,
+    flowerFields: 0.04,
+    stands: 0,
+    thickets: 0.05,
+    rockFields: 0,
   },
   lakeland: {
-    lakeChance: 1,
+    lakeChance: 0.8,
     lakeSize: 2.5,
     shore: 3.5,
     sand: 0,
@@ -72,9 +89,14 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 0.4,
     flowers: 0.6,
     tallgrass: 2.2,
+    undergrowth: 0.35,
+    flowerFields: 0.06,
+    stands: 0.05,
+    thickets: 0.02,
+    rockFields: 0,
   },
   scrubland: {
-    lakeChance: 0.1,
+    lakeChance: 0.07,
     lakeSize: 0.6,
     shore: 2,
     sand: 0.12,
@@ -87,9 +109,14 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 2,
     flowers: 0.2,
     tallgrass: 0.6,
+    undergrowth: 0.3,
+    flowerFields: 0.02,
+    stands: 0.02,
+    thickets: 0.12,
+    rockFields: 0.06,
   },
   desert: {
-    lakeChance: 0.15,
+    lakeChance: 0.09,
     lakeSize: 0.35,
     shore: 1.5,
     sand: 1,
@@ -102,9 +129,14 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 1.8,
     flowers: 0,
     tallgrass: 0,
+    undergrowth: 0,
+    flowerFields: 0,
+    stands: 0,
+    thickets: 0.03,
+    rockFields: 0.1,
   },
   highlands: {
-    lakeChance: 0.2,
+    lakeChance: 0.13,
     lakeSize: 0.7,
     shore: 1.5,
     sand: 0,
@@ -117,9 +149,14 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 3,
     flowers: 0.3,
     tallgrass: 0.8,
+    undergrowth: 0.3,
+    flowerFields: 0.05,
+    stands: 0.03,
+    thickets: 0.03,
+    rockFields: 0.12,
   },
   taiga: {
-    lakeChance: 0.3,
+    lakeChance: 0.2,
     lakeSize: 0.8,
     shore: 1.5,
     sand: 0,
@@ -127,14 +164,19 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     snow: 0.55,
     darkgrass: 0.6,
     woods: 0.75,
-    trees: 0.55,
+    trees: 1.1,
     bushes: 0.6,
     rocks: 0.8,
     flowers: 0,
     tallgrass: 0,
+    undergrowth: 0.4,
+    flowerFields: 0,
+    stands: 0,
+    thickets: 0.04,
+    rockFields: 0.03,
   },
   tundra: {
-    lakeChance: 0.25,
+    lakeChance: 0.16,
     lakeSize: 0.8,
     shore: 1.5,
     sand: 0,
@@ -147,6 +189,11 @@ export const BIOME_PARAMS: Readonly<Record<WildBiome, BiomeParams>> = {
     rocks: 1.5,
     flowers: 0,
     tallgrass: 0,
+    undergrowth: 0.15,
+    flowerFields: 0,
+    stands: 0.02,
+    thickets: 0.05,
+    rockFields: 0.1,
   },
 };
 

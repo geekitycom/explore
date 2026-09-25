@@ -10,10 +10,18 @@ export const SCREEN_PX_H = SCREEN_H * TILE;
 export const TERRAINS = ['water', 'sand', 'dirt', 'grass', 'darkgrass', 'snow'] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
-export const FEATURES = ['none', 'tree', 'bush', 'rock', 'flowers', 'tallgrass'] as const;
+export const FEATURES = [
+  'none',
+  'tree',
+  'bush',
+  'rock',
+  'flowers',
+  'tallgrass',
+  'bigtree',
+] as const;
 export type Feature = (typeof FEATURES)[number];
 
-export const BLOCKING_FEATURES: ReadonlySet<Feature> = new Set(['tree', 'bush', 'rock']);
+export const BLOCKING_FEATURES: ReadonlySet<Feature> = new Set(['tree', 'bush', 'rock', 'bigtree']);
 
 export const BIOMES = [
   'garden',

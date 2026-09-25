@@ -4,13 +4,15 @@ import {
   REGION_H,
   REGION_W,
   inFootprint,
+  holdsLandmark,
+  landmarkAt,
   poiIn,
   regionOf,
   type Land,
   type Poi,
   type PoiRegion,
 } from './poi.ts';
-import { SCREEN_H, SCREEN_W, type Terrain } from './world.ts';
+import { SCREEN_H, SCREEN_W, type Feature, type Terrain } from './world.ts';
 
 export type Point = { readonly x: number; readonly y: number };
 
@@ -30,6 +32,8 @@ export type Plan = {
   readonly road: (gx: number, gy: number) => boolean;
   /** The ground a point of interest flattens this point to, if it lies in a footprint. */
   readonly ground: (gx: number, gy: number) => Terrain | undefined;
+  /** The landmark feature standing on a global tile, if any. */
+  readonly landmark: (gtx: number, gty: number) => Feature | undefined;
 };
 
 export type Network = {
@@ -408,8 +412,17 @@ export function roadNetwork(land: Land): Network {
     const pois = poisIn(box);
     const r2 = ROAD_RADIUS * ROAD_RADIUS;
     return {
-      road: (gx, gy) => segments.some(([a, b]) => distanceSqToSegment(gx, gy, a, b) <= r2),
+      road: (gx, gy) =>
+        segments.some(([a, b]) => distanceSqToSegment(gx, gy, a, b) <= r2) &&
+        !pois.some((p) => holdsLandmark(p, gx, gy)),
       ground: (gx, gy) => pois.find((p) => inFootprint(p, gx, gy))?.ground,
+      landmark: (gtx, gty) => {
+        for (const p of pois) {
+          const feature = landmarkAt(p, gtx, gty);
+          if (feature) return feature;
+        }
+        return undefined;
+      },
     };
   };
 

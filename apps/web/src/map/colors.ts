@@ -27,6 +27,7 @@ export const FEATURE_COLOR: Record<Feature, Rgb | undefined> = {
   rock: [138, 138, 128],
   flowers: [217, 133, 159],
   tallgrass: [164, 194, 74],
+  bigtree: [36, 70, 60],
 };
 
 /** The terrain most of a tile's corners share, with ties going to the one drawn on top. */

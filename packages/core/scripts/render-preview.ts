@@ -32,6 +32,8 @@ export type PreviewStats = {
   readonly screensWithoutBiome: number;
   readonly roadTiles: number;
   readonly pois: ReadonlyMap<string, number>;
+  /** Per biome, its tile count and how many of those tiles hold each feature. */
+  readonly dressing: ReadonlyMap<string, { tiles: number; features: Map<Feature, number> }>;
 };
 
 export const TERRAIN_RGB: Record<Terrain, Rgb> = {
@@ -50,6 +52,7 @@ export const FEATURE_RGB: Record<Feature, Rgb | undefined> = {
   rock: [128, 128, 128],
   flowers: [230, 120, 170],
   tallgrass: [140, 196, 90],
+  bigtree: [10, 60, 25],
 };
 
 export const BIOME_RGB: Readonly<Record<string, Rgb>> = {
@@ -221,6 +224,7 @@ export function renderPreview(
   const pois: { x: number; y: number; poi: PreviewPoi }[] = [];
   let screensWithoutBiome = 0;
   let roadTiles = 0;
+  const dressing = new Map<string, { tiles: number; features: Map<Feature, number> }>();
 
   for (let sy = area.y0; sy < area.y0 + area.h; sy++) {
     for (let sx = area.x0; sx < area.x0 + area.w; sx++) {
@@ -229,6 +233,13 @@ export function renderPreview(
       const oy = (sy - area.y0) * screenH;
       if (!screen.biomes) screensWithoutBiome++;
       roadTiles += screen.roads?.filter(Boolean).length ?? 0;
+      screen.biomes?.forEach((biome, t) => {
+        let entry = dressing.get(biome);
+        if (!entry) dressing.set(biome, (entry = { tiles: 0, features: new Map() }));
+        entry.tiles++;
+        const feature = screen.features[t]!;
+        entry.features.set(feature, (entry.features.get(feature) ?? 0) + 1);
+      });
       for (let ty = 0; ty < SCREEN_H; ty++) {
         for (let tx = 0; tx < SCREEN_W; tx++) {
           drawTile(canvas, screen, options, tx, ty, ox + tx * scale, oy + ty * scale);
@@ -264,6 +275,7 @@ export function renderPreview(
       screensWithoutBiome,
       roadTiles,
       pois: poiCounts,
+      dressing,
     },
   };
 }

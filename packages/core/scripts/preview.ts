@@ -134,4 +134,11 @@ if (overlays.has('pois')) {
   );
   console.log(`pois: ${counts.join(', ') || 'none'}`);
 }
+for (const [biome, { tiles, features }] of [...stats.dressing].sort()) {
+  const shares = [...features]
+    .filter(([feature]) => feature !== 'none')
+    .sort()
+    .map(([feature, n]) => `${feature} ${((100 * n) / tiles).toFixed(1)}%`);
+  console.log(`${biome} (${tiles} tiles): ${shares.join(', ') || 'bare'}`);
+}
 console.log(`wrote ${out} in ${elapsed} ms`);

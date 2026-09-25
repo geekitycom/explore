@@ -133,7 +133,7 @@ describe.each(SEEDS)('the road network of seed %i', (seed) => {
       }
     }
     expect(points.length).toBeGreaterThan(1000);
-    expect(water / area).toBeGreaterThan(0.02);
+    expect(water / area).toBeGreaterThan(0.01);
     expect(points.filter(([x, y]) => land.waterDepth(x, y) > 0)).toEqual([]);
   });
 });
@@ -200,7 +200,7 @@ describe('points of interest', () => {
     for (const kind of kinds) expect(Object.keys(POI_KINDS)).toContain(kind);
   });
 
-  test('reserve a flat, open footprint that a road reaches', () => {
+  test('reserve a flat, open footprint, blocked only by its landmark, that a road reaches', () => {
     const problems: string[] = [];
     const screens = new Map<string, Screen>();
     const screenOf = (gx: number, gy: number) => {
@@ -234,6 +234,9 @@ describe('points of interest', () => {
             problems.push(`${where}: ground ${ground.join()}`);
           }
           const { screen, x, y } = screenOf(gtx, gty);
+          if (network.plan({ x0: gtx, y0: gty, x1: gtx + 1, y1: gty + 1 }).landmark(gtx, gty)) {
+            continue;
+          }
           if (BLOCKING_FEATURES.has(featureAt(screen, x, y))) problems.push(`${where}: blocked`);
           if (!isTileWalkable(screen, x, y)) problems.push(`${where}: not walkable`);
         }

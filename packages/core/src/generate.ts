@@ -34,7 +34,7 @@ export const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
  * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
  * points, and opens onto that neighbour's walkable edge (decision D23).
  */
-export const GENERATOR_VERSION = 2;
+export const GENERATOR_VERSION = 3;
 
 /**
  * Looks up a stored screen that an older generator made; undefined for a screen the current
@@ -66,25 +66,37 @@ const PURPOSE = {
   snow: 14,
   darkgrass: 15,
   stitch: 16,
+  shrub: 17,
+  lakes: 18,
+  patch: 20,
 } as const;
 
 /**
  * One lake at most per cell of this grid, kept inside the cell with a margin so no two lakes touch,
- * and never big enough to hold a whole screen so no screen is all water. Land therefore stays
- * connected everywhere, which is what lets the repair below leave water alone.
+ * and never reaching past LAKE_EXTENT from its centre. A disc that small cannot hold a screen's
+ * lattice rectangle, so no screen is all water, and a road never detours far round a lake. Land
+ * therefore stays connected everywhere, which is what lets the repair below leave water alone.
  */
-const LAKE_CELL_W = 60;
-const LAKE_CELL_H = 48;
+const LAKE_CELL_W = 40;
+const LAKE_CELL_H = 32;
 const LAKE_MARGIN = 1;
+const LAKE_EXTENT = 13;
 const LAKE_WOBBLE = 0.25;
-const LAKE_MIN_RADIUS = 3;
+const LAKE_MIN_RADIUS = 2.5;
+/** Only a lake this wide grows lobes, which keeps each lobe broad enough for roads to see. */
+const LAKE_LOBED = 6;
 
-type Lake = {
+/** An ellipse of water; a lake is a main basin and a few smaller lobes that overlap it. */
+type Basin = {
   readonly cx: number;
   readonly cy: number;
   readonly rx: number;
   readonly ry: number;
   readonly angle: number;
+};
+
+type Lake = {
+  readonly basins: readonly Basin[];
   readonly phase: readonly [number, number, number];
 };
 
@@ -102,6 +114,10 @@ type LandFields = {
   readonly clump: Noise2;
   readonly bloom: Noise2;
   readonly shore: Noise2;
+  /** Where lakes gather: a low-frequency field that scales every cell's lake chance. */
+  readonly lakeDistrict: Noise2;
+  /** One detail field per entry of PATCHES. */
+  readonly patches: readonly Noise2[];
 };
 
 type Fields = LandFields & { readonly network: Network };
@@ -142,6 +158,10 @@ function makeFields(world: World, layer: LayerId): Fields {
     clump: fbm(field(PURPOSE.clump), { wavelength: 5, octaves: 2 }),
     bloom: fbm(field(PURPOSE.bloom), { wavelength: 18, octaves: 2 }),
     shore: fbm(field(PURPOSE.shore), { wavelength: 12, octaves: 2 }),
+    lakeDistrict: fbm(field(PURPOSE.lakes), { wavelength: 90, octaves: 2 }),
+    patches: PATCHES.map((_, i) =>
+      fbm(field(PURPOSE.patch + i), { wavelength: PATCH_WAVELENGTH, octaves: 3 }),
+    ),
   };
   return { ...fields, network: roadNetwork(landOf(fields)) };
 }
@@ -217,23 +237,40 @@ function lakeIn(f: LandFields, cellX: number, cellY: number): Lake | undefined {
   return lake;
 }
 
+/**
+ * Lakes gather where a slow field says so, rather than one to a cell everywhere, and come in a
+ * spread of sizes. A wide one is a main basin with up to three lobes budding off it, so its shore
+ * has bays and points.
+ */
 function makeLake(f: LandFields, cellX: number, cellY: number): Lake | undefined {
-  const roll = (k: number) => unit(hash4(f.seed, PURPOSE.lake + k, cellX, cellY));
-  const { params } = f.biome((cellX + 0.5) * LAKE_CELL_W, (cellY + 0.5) * LAKE_CELL_H);
-  if (roll(0) >= params.lakeChance) return undefined;
+  const cell = hash4(f.seed, PURPOSE.lake, cellX, cellY);
+  const roll = (k: number) => unit(hash4(cell, k, 0, 0));
+  const mx = (cellX + 0.5) * LAKE_CELL_W;
+  const my = (cellY + 0.5) * LAKE_CELL_H;
+  const { params } = f.biome(mx, my);
+  const gathering = 0.15 + 1.1 * smoothstep(clamp01((f.lakeDistrict(mx, my) - 0.32) / 0.36));
+  if (roll(0) >= params.lakeChance * gathering) return undefined;
   const grow = 1 + LAKE_WOBBLE;
-  const reach = Math.min(LAKE_CELL_W, LAKE_CELL_H) / 2 - LAKE_MARGIN;
   const size = roll(1) ** (1.1 / params.lakeSize);
-  const stretch = 0.45 + 0.55 * roll(2);
-  const angle = roll(3) * Math.PI;
-  let rx = lerp(LAKE_MIN_RADIUS, reach / grow, size);
-  let ry = rx * stretch;
-  const shrink = screenFit(rx * grow, ry * grow, angle);
-  rx *= shrink;
-  ry *= shrink;
-  const reachX = rx * grow + LAKE_MARGIN;
-  const reachY = ry * grow + LAKE_MARGIN;
-  const bound = Math.max(reachX, reachY);
+  const rx = lerp(LAKE_MIN_RADIUS, LAKE_EXTENT / grow, size);
+  const main: Basin = {
+    cx: 0,
+    cy: 0,
+    rx,
+    ry: rx * (0.45 + 0.55 * roll(2)),
+    angle: roll(3) * Math.PI,
+  };
+  const basins = [main];
+  const lobes = rx < LAKE_LOBED ? 0 : Math.floor(roll(9) * 4);
+  for (let k = 0; k < lobes; k++) {
+    const at = roll(10 + 2 * k) * 2 * Math.PI;
+    const r = rx * (0.4 + 0.35 * roll(11 + 2 * k));
+    const off = rx * (0.7 + 0.4 * roll(16 + k));
+    basins.push({ cx: Math.cos(at) * off, cy: Math.sin(at) * off, rx: r, ry: r, angle: 0 });
+  }
+  const extent = Math.max(...basins.map((b) => Math.hypot(b.cx, b.cy) + b.rx * grow));
+  const fit = Math.min(1, LAKE_EXTENT / extent);
+  const bound = extent * fit + LAKE_MARGIN;
   const cx = cellX * LAKE_CELL_W + lerp(bound, LAKE_CELL_W - bound, roll(4));
   const cy = cellY * LAKE_CELL_H + lerp(bound, LAKE_CELL_H - bound, roll(5));
   const inClearing = f.stamps.some(({ screen }) => {
@@ -242,46 +279,38 @@ function makeLake(f: LandFields, cellX: number, cellY: number): Lake | undefined
   });
   if (inClearing) return undefined;
   const phase = (k: number) => roll(6 + k) * 2 * Math.PI;
-  return { cx, cy, rx, ry, angle, phase: [phase(0), phase(1), phase(2)] };
-}
-
-/**
- * The factor that keeps an ellipse from containing a screen's lattice rectangle. A convex shape
- * holds an axis-aligned rectangle iff it holds the centred one, so two corners decide it.
- */
-function screenFit(rx: number, ry: number, angle: number): number {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const w = SCREEN_W / 2 + 0.5;
-  const h = SCREEN_H / 2 + 0.5;
-  let inside = Infinity;
-  for (const [x, y] of [
-    [w, h],
-    [w, -h],
-  ] as const) {
-    const u = x * cos + y * sin;
-    const v = -x * sin + y * cos;
-    inside = Math.min(inside, (u / rx) ** 2 + (v / ry) ** 2);
-  }
-  return inside >= 1 ? 1 : Math.sqrt(inside);
+  return {
+    basins: basins.map((b) => ({
+      cx: cx + b.cx * fit,
+      cy: cy + b.cy * fit,
+      rx: b.rx * fit,
+      ry: b.ry * fit,
+      angle: b.angle,
+    })),
+    phase: [phase(0), phase(1), phase(2)],
+  };
 }
 
 /** How far inside a lake's water a point is, in lattice units; negative outside. */
-function lakeDepth(lake: Lake, x: number, y: number): number {
-  const ox = x - lake.cx;
-  const oy = y - lake.cy;
-  const dx = ox * Math.cos(lake.angle) + oy * Math.sin(lake.angle);
-  const dy = -ox * Math.sin(lake.angle) + oy * Math.cos(lake.angle);
-  const angle = Math.atan2(dy, dx);
-  const [p0, p1, p2] = lake.phase;
-  const lobes =
-    0.5 * Math.sin(2 * angle + p0) +
-    0.3 * Math.sin(3 * angle + p1) +
-    0.2 * Math.sin(5 * angle + p2);
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const radius = (lake.rx * lake.ry) / Math.hypot(lake.ry * cos, lake.rx * sin);
-  return radius * (1 + LAKE_WOBBLE * lobes) - Math.hypot(dx, dy);
+function lakeDepth({ basins, phase }: Lake, x: number, y: number): number {
+  let depth = -Infinity;
+  for (const basin of basins) {
+    const ox = x - basin.cx;
+    const oy = y - basin.cy;
+    const dx = ox * Math.cos(basin.angle) + oy * Math.sin(basin.angle);
+    const dy = -ox * Math.sin(basin.angle) + oy * Math.cos(basin.angle);
+    const angle = Math.atan2(dy, dx);
+    const [p0, p1, p2] = phase;
+    const lobes =
+      0.5 * Math.sin(2 * angle + p0) +
+      0.3 * Math.sin(3 * angle + p1) +
+      0.2 * Math.sin(5 * angle + p2);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const radius = (basin.rx * basin.ry) / Math.hypot(basin.ry * cos, basin.rx * sin);
+    depth = Math.max(depth, radius * (1 + LAKE_WOBBLE * lobes) - Math.hypot(dx, dy));
+  }
+  return depth;
 }
 
 /** Shores can spill into the next cell, so check all nine. */
@@ -368,7 +397,7 @@ function terrainAt(f: Fields, plan: Plan, gx: number, gy: number): Terrain {
   if (ground) return ground;
   if (depth > 0) return 'water';
   const p = f.biome(gx, gy).params;
-  if (depth > -p.shore * (0.6 + 0.8 * f.shore(gx, gy))) return 'sand';
+  if (depth > -p.shore * 1.6 * smoothstep(clamp01((f.shore(gx, gy) - 0.3) / 0.4))) return 'sand';
   const open = 1 - clearing(f, gx, gy);
   if (f.sand(gx, gy) < threshold(p.sand * open)) return 'sand';
   if (f.dryness(gx, gy) < threshold(p.dirt * open)) return 'dirt';
@@ -511,40 +540,83 @@ function onCrossing(x: Crossings, tx: number, ty: number): boolean {
   );
 }
 
+type Corners = readonly [Terrain, Terrain, Terrain, Terrain];
+
 const GROWS: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass', 'snow']);
 const GREEN: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass']);
+const SHRUBS: ReadonlySet<Terrain> = new Set([...GROWS, 'sand']);
+const DRY: ReadonlySet<Terrain> = new Set(['sand', 'dirt', ...GROWS]);
+
+type Patch = {
+  /** The biome param naming the share of land in this kind of patch. */
+  readonly share: 'flowerFields' | 'stands' | 'thickets' | 'rockFields';
+  readonly feature: Feature;
+  /** Chance, 0..1, that a tile inside the patch holds the feature. */
+  readonly fill: number;
+  /** Every corner of the tile must be one of these. */
+  readonly on: ReadonlySet<Terrain>;
+};
+
+/** Sub-patches within a biome; how much land each claims is a biome param. */
+const PATCHES: readonly Patch[] = [
+  { share: 'stands', feature: 'tree', fill: 0.5, on: GROWS },
+  { share: 'thickets', feature: 'bush', fill: 0.45, on: SHRUBS },
+  { share: 'rockFields', feature: 'rock', fill: 0.22, on: DRY },
+  { share: 'flowerFields', feature: 'flowers', fill: 0.55, on: GREEN },
+];
+
+const PATCH_WAVELENGTH = 9;
+
+/** The highest tree chance, which leaves deep woods with gaps to walk through. */
+const DEEP_WOODS = 0.62;
 
 /** The chance, 0..1, that a tile here grows a tree. */
 function woodsAt(f: LandFields, x: number, y: number, p: BiomeParams, open: number): number {
-  return clamp01((threshold(p.woods) - f.forest(x, y)) * 3.5) * p.trees * open;
+  return (
+    Math.min(DEEP_WOODS, clamp01((threshold(p.woods) - f.forest(x, y)) * 3.5) * p.trees) * open
+  );
 }
 
-function featureFor(
-  f: Fields,
-  gtx: number,
-  gty: number,
-  corners: readonly [Terrain, Terrain, Terrain, Terrain],
-): Feature {
+/**
+ * How much a tile lies in the band where woods thin out to open land, 0..1: it peaks where the
+ * tree chance is EDGE_WOODS and fades out EDGE_WIDTH either side.
+ */
+function woodsEdge(woods: number): number {
+  return clamp01(1 - Math.abs(woods - EDGE_WOODS) / EDGE_WIDTH);
+}
+
+const EDGE_WOODS = 0.3;
+const EDGE_WIDTH = 0.14;
+
+/**
+ * Trees are tested against a clumped value so woods come in stands; everything else rolls on its
+ * own, so a small chance still shows. Every density comes from the blended biome params.
+ */
+function featureFor(f: Fields, gtx: number, gty: number, corners: Corners): Feature {
   const stamped = stampFeature(f, gtx, gty);
   if (stamped) return stamped;
   const x = gtx + 0.5;
   const y = gty + 0.5;
   const p = f.biome(x, y).params;
   const open = 1 - clearing(f, x, y);
-  const grows = corners.every((t) => GROWS.has(t));
-  const green = corners.every((t) => GREEN.has(t));
-  const hasWater = corners.includes('water');
-  const hasDirt = corners.includes('dirt');
-  const shrubs = grows || corners.every((t) => t === 'sand');
-  const treeChance = woodsAt(f, x, y, p, open);
-  const bushChance = (0.015 + 0.1 * treeChance) * p.bushes * open;
-  const rockChance = (hasDirt ? 0.05 : 0.008) * p.rocks * open;
+  const all = (on: ReadonlySet<Terrain>) => corners.every((t) => on.has(t));
+  const green = all(GREEN);
   const r = unit(hash4(f.seed, PURPOSE.place, gtx, gty));
+  const shrub = unit(hash4(f.seed, PURPOSE.shrub, gtx, gty));
   const stand = 0.35 * r + 0.65 * f.clump(x, y);
 
-  if (grows && stand < treeChance) return 'tree';
-  if (shrubs && stand < treeChance + bushChance) return 'bush';
-  if (!hasWater && r > 1 - rockChance) return 'rock';
+  const woods = woodsAt(f, x, y, p, open);
+  if (all(GROWS) && stand < woods) return 'tree';
+  for (let i = 0; i < PATCHES.length; i++) {
+    const patch = PATCHES[i]!;
+    if (f.patches[i]!(x, y) >= threshold(p[patch.share] * open)) continue;
+    if (all(patch.on) && shrub < patch.fill) return patch.feature;
+    break;
+  }
+  const bushChance = 0.015 * p.bushes * open + p.undergrowth * woodsEdge(woods);
+  if (all(SHRUBS) && shrub > 1 - bushChance) return 'bush';
+  const rockChance = (corners.includes('dirt') ? 0.05 : 0.008) * p.rocks * open;
+  if (!corners.includes('water') && r > 1 - rockChance) return 'rock';
   if (green && f.bloom(x, y) > 0.66 && r > 1 - 0.3 * p.flowers) return 'flowers';
   if (green && r > 1 - 0.08 * p.tallgrass) return 'tallgrass';
   return 'none';
@@ -604,10 +676,15 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
   const crossings = crossingsOf(site, coord.sx, coord.sy);
   for (let ty = 0; ty < SCREEN_H; ty++) {
     for (let tx = 0; tx < SCREEN_W; tx++) {
-      const feature = featureFor(f, x0 + tx, y0 + ty, tileCornersOf(draft, tx, ty));
+      const gtx = x0 + tx;
+      const gty = y0 + ty;
+      const corners = tileCornersOf(draft, tx, ty);
+      const mark = site.plan.landmark(gtx, gty);
+      const feature = mark ? landmarkFor(mark, corners) : featureFor(f, gtx, gty, corners);
+      const clear = mark ? onRoad : reserved;
       const cleared =
         BLOCKING_FEATURES.has(feature) &&
-        (onCrossing(crossings, tx, ty) || reserved(site.plan, x0 + tx, y0 + ty));
+        (onCrossing(crossings, tx, ty) || clear(site.plan, gtx, gty));
       draft.features.push(cleared ? 'none' : feature);
     }
   }
@@ -617,13 +694,22 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
   return draft;
 }
 
-/** A tile touching a road or a footprint grows nothing that blocks. */
+const touches = (gtx: number, gty: number, test: (gx: number, gy: number) => boolean) =>
+  CORNER_OFFSETS.some(([dx, dy]) => test(gtx + dx, gty + dy));
+
+/** A tile touching a road or a footprint grows nothing that blocks; a landmark may stand in one. */
 function reserved(plan: Plan, gtx: number, gty: number): boolean {
-  return CORNER_OFFSETS.some(([dx, dy]) => {
-    const gx = gtx + dx;
-    const gy = gty + dy;
-    return plan.road(gx, gy) || plan.ground(gx, gy) !== undefined;
-  });
+  return touches(gtx, gty, (gx, gy) => plan.road(gx, gy) || plan.ground(gx, gy) !== undefined);
+}
+
+/** A landmark gives way to a road, so none blocks one. */
+function onRoad(plan: Plan, gtx: number, gty: number): boolean {
+  return touches(gtx, gty, plan.road);
+}
+
+/** Flowers and grass of a landmark need green ground; what blocks stands anywhere. */
+function landmarkFor(mark: Feature, corners: Corners): Feature {
+  return BLOCKING_FEATURES.has(mark) || corners.every((t) => GREEN.has(t)) ? mark : 'none';
 }
 
 function tileCornersOf(draft: Draft, tx: number, ty: number): [Terrain, Terrain, Terrain, Terrain] {
@@ -750,7 +836,8 @@ function crossingComponents(comp: readonly number[], crossings: readonly [number
  * construction, so each crossing already leads somewhere. Crossings are joined to each other
  * first, then every walkable pocket is joined to a crossing, so no walkable tile is out of reach.
  * Other walkable edge tiles stay as they are; a player can only step onto one straight from a
- * walkable tile, and can step straight back.
+ * walkable tile, and can step straight back. A sliver of shore that water shuts off from every
+ * crossing, as between two lobes of a lake, gets rocks instead.
  */
 function repair(draft: Draft, crossings: readonly [number, number][], treeCost: Cost): void {
   for (;;) {
@@ -766,6 +853,13 @@ function repair(draft: Draft, crossings: readonly [number, number][], treeCost: 
       joined = true;
       break;
     }
-    if (!joined) return;
+    if (!joined) {
+      if (ids.size > 0) {
+        for (let i = 0; i < comp.length; i++) {
+          if (pockets.includes(comp[i]!)) draft.features[i] = 'rock';
+        }
+      }
+      return;
+    }
   }
 }

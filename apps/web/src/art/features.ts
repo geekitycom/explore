@@ -98,6 +98,22 @@ export const FEATURE_ART: Record<PlacedFeature, readonly FeatureVariant[]> = {
   tallgrass: [
     { recipe: { family: 'grass', params: { blades: 'grass', height: 10 } }, sway: GRASS },
   ],
+  bigtree: [
+    {
+      recipe: {
+        family: 'tree',
+        params: {
+          shape: 'broadleaf',
+          leaves: 'grass',
+          bark: 'bark',
+          tiles: 3,
+          spread: 15,
+          trunk: 9,
+        },
+      },
+      sway: ROUND_TREE,
+    },
+  ],
 };
 
 /**
