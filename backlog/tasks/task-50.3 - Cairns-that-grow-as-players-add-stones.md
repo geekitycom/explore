@@ -4,7 +4,7 @@ title: Cairns that grow as players add stones
 status: To Do
 assignee: []
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-25 22:57'
+updated_date: '2026-09-25 22:59'
 labels: []
 milestone: m-5
 dependencies:
@@ -27,6 +27,8 @@ Players pick up a stone from rocks in the world and carry it in the inventory ba
 - [ ] #3 A cairn shows at least four visible size stages based on its stone count, late stages have a wide base rather than a column, and the count is visible up close
 - [ ] #4 Stone and cairn sprites are recipes that pass pnpm lint:art
 - [ ] #5 Cairns never block a road or trap a player
+- [ ] #6 A stone keeps the material of the rock it was picked from (for example grey fieldstone, desert sandstone, highland granite; moss stays behind), stones stack by material in the inventory bar, and a cairn draws each of its stones in that stone's own colour
+- [ ] #7 A cairn holds at most 12 stones, every one visible in the sprite; a full cairn is marked complete, refuses more stones with 'This cairn is complete', and shows its builders' count up close
 <!-- AC:END -->
 
 ## Implementation Notes
