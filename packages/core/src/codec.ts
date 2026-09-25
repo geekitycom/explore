@@ -18,6 +18,7 @@ const TERRAIN_CODE: Record<Terrain, string> = {
   water: 'w',
   sand: 's',
   dirt: 'd',
+  path: 'p',
   grass: 'g',
   darkgrass: 'k',
   snow: 'n',

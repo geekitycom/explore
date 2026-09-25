@@ -91,6 +91,24 @@ describe.each(SEEDS)('the road network of seed %i', (seed) => {
     expect([...a.values()].flat().filter(Boolean).length).toBeGreaterThan(16 * 16 * 10);
   });
 
+  test('lays its roads as path, sand where they ford water, and path nowhere else', () => {
+    const coords = [chunk(1, 1), chunk(-2, 0), chunk(0, -2)].flat();
+    const wrong: string[] = [];
+    let path = 0;
+    for (const coord of coords) {
+      const screen = generateScreen(world, coord);
+      const road = maskOf(network.plan(screenBox(coord)), coord);
+      screen.corners.forEach((t, i) => {
+        if (t === 'path') path++;
+        if (road[i] ? t !== 'path' && t !== 'sand' : t === 'path') {
+          wrong.push(`${screenKey(coord)} ${i} ${road[i] ? 'road' : 'off road'} ${t}`);
+        }
+      });
+    }
+    expect(wrong).toEqual([]);
+    expect(path).toBeGreaterThan(100);
+  });
+
   test('joins every point of interest to the garden with a sparse network', () => {
     const region = (r: number): Box => ({
       x0: -r * REGION_W,
@@ -230,7 +248,7 @@ describe('points of interest', () => {
           if (!corners.every(([x, y]) => inFootprint(poi, x, y))) continue;
           const where = `${poi.kind} at ${gtx},${gty}`;
           const ground = corners.map(([x, y]) => corner(x, y));
-          if (!ground.every((t) => t === poi.ground || t === 'dirt' || t === 'sand')) {
+          if (!ground.every((t) => t === poi.ground || t === 'path' || t === 'sand')) {
             problems.push(`${where}: ground ${ground.join()}`);
           }
           const { screen, x, y } = screenOf(gtx, gty);

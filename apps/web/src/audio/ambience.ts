@@ -30,6 +30,7 @@ const WIND: Readonly<Record<Terrain, number>> = {
   water: 0,
   sand: 0.8,
   dirt: 0.6,
+  path: 0.6,
   grass: 1,
   darkgrass: 0.8,
   snow: 1,

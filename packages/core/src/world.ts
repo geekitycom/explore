@@ -7,7 +7,7 @@ export const SCREEN_PX_W = SCREEN_W * TILE;
 export const SCREEN_PX_H = SCREEN_H * TILE;
 
 /** Draw order, bottom first. Transitions draw each higher terrain over the lower ones. */
-export const TERRAINS = ['water', 'sand', 'dirt', 'grass', 'darkgrass', 'snow'] as const;
+export const TERRAINS = ['water', 'sand', 'dirt', 'path', 'grass', 'darkgrass', 'snow'] as const;
 export type Terrain = (typeof TERRAINS)[number];
 
 export const FEATURES = [

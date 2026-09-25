@@ -21,6 +21,7 @@ const PLAIN: Record<Terrain, string> = {
   water: '#0000f0',
   sand: '#f0f000',
   dirt: '#804000',
+  path: '#606060',
   grass: '#00f000',
   darkgrass: '#006000',
   snow: '#f0f0f0',
@@ -110,10 +111,10 @@ describe('composeTerrain', () => {
     expect(decorated).toBeGreaterThan(0);
   });
 
-  it('joins darkgrass and snow to every other terrain with the higher edge band', () => {
+  it('joins path, darkgrass, and snow to every other terrain with the higher edge band', () => {
     const pairs = TERRAINS.flatMap((upper, i) =>
       TERRAINS.slice(0, i).map((lower) => [upper, lower] as const),
-    ).filter((pair) => pair.some((t) => t === 'darkgrass' || t === 'snow'));
+    ).filter((pair) => pair.some((t) => t === 'path' || t === 'darkgrass' || t === 'snow'));
     for (const [upper, lower] of pairs) {
       const pair = `${upper} over ${lower}`;
       const pixels = composeTerrain(
@@ -134,7 +135,9 @@ describe('composeTerrain', () => {
 
   it('draws the same pixels on both sides of every seam, for every terrain', () => {
     const mix = (salt: number) => (cx: number, cy: number) =>
-      TERRAINS[Math.floor(Math.abs(Math.sin(cx * 12.9898 + cy * 78.233 + salt)) * 97) % 6]!;
+      TERRAINS[
+        Math.floor(Math.abs(Math.sin(cx * 12.9898 + cy * 78.233 + salt)) * 97) % TERRAINS.length
+      ]!;
     for (const salt of [1, 2]) {
       const here = screenOf(mix(salt));
       const east = screenOf((cx, cy) =>

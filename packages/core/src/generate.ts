@@ -34,7 +34,7 @@ export const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
  * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
  * points, and opens onto that neighbour's walkable edge (decision D23).
  */
-export const GENERATOR_VERSION = 3;
+export const GENERATOR_VERSION = 4;
 
 /**
  * Looks up a stored screen that an older generator made; undefined for a screen the current
@@ -392,7 +392,7 @@ function terrainAt(f: Fields, plan: Plan, gx: number, gy: number): Terrain {
   const stamped = stampCorner(f, gx, gy);
   if (stamped) return stamped;
   const depth = waterDepth(f, gx, gy);
-  if (plan.road(gx, gy)) return depth > 0 ? 'sand' : 'dirt';
+  if (plan.road(gx, gy)) return depth > 0 ? 'sand' : 'path';
   const ground = plan.ground(gx, gy);
   if (ground) return ground;
   if (depth > 0) return 'water';

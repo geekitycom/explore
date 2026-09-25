@@ -15,6 +15,7 @@ export const TERRAIN_COLOR: Record<Terrain, Rgb> = {
   water: [95, 180, 217],
   sand: [232, 201, 143],
   dirt: [176, 122, 82],
+  path: [105, 89, 83],
   grass: [143, 174, 58],
   darkgrass: [106, 150, 50],
   snow: [240, 238, 244],

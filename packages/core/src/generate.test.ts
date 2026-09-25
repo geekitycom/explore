@@ -348,7 +348,7 @@ describe.each(SEEDS)('next to older screens, a world with seed %i', (seed) => {
           if (d < 1 || d >= STITCH_REACH || !plan.road(gx, gy)) continue;
           banded++;
           const t = cornerAt(screen, cx, cy);
-          if (t !== 'dirt' && t !== 'sand') faded.push(`${gx},${gy} ${t}`);
+          if (t !== 'path' && t !== 'sand') faded.push(`${gx},${gy} ${t}`);
         }
       }
     }

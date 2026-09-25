@@ -19,6 +19,11 @@ import type { Art } from './load.ts';
 type Ring = { readonly upTo: number; readonly color: Rgba };
 
 type TerrainArt = {
+  /**
+   * Seeds the hash that picks decorated fills. Fixed per terrain rather than taken from the draw
+   * order, so adding a terrain leaves the fills on stored screens where they were.
+   */
+  readonly salt: number;
   /** Plain fill first, then decorated variants. */
   readonly fills: readonly SpriteRef[];
   /** Chance a fully covered tile takes a decorated variant instead of the plain fill. */
@@ -38,6 +43,7 @@ const ring = (upTo: number, hex: string, alpha = 255): Ring => ({
 
 export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
   water: {
+    salt: 0,
     fills: [
       cell('water', 1, 7),
       cell('water', 11, 1),
@@ -51,6 +57,7 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
     fringe: WAVES,
   },
   sand: {
+    salt: 1,
     fills: [cell('floor', 1, 1), cell('floor', 0, 4), cell('floor', 1, 4)],
     decorChance: 0.05,
     inner: [ring(1.5, '#d78b4a'), ring(3.1, '#ffad5d')],
@@ -58,13 +65,23 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
     fringe: WAVES,
   },
   dirt: {
+    salt: 2,
     fills: [cell('floor', 1, 8), cell('floor', 0, 11), cell('floor', 1, 11)],
     decorChance: 0.08,
     inner: [ring(1.2, '#a3754e')],
     outer: [ring(1.2, '#7b473c', 70)],
     fringe: WAVES,
   },
+  path: {
+    salt: 6,
+    fills: [cell('floor', 12, 15), cell('floor', 11, 18), cell('floor', 12, 18)],
+    decorChance: 0.05,
+    inner: [ring(1.2, '#695953')],
+    outer: [ring(1.2, '#4e484a', 70)],
+    fringe: WAVES,
+  },
   grass: {
+    salt: 3,
     fills: [
       cell('floor', 0, 12),
       cell('floor', 1, 12),
@@ -78,6 +95,7 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
     fringe: TUFTS,
   },
   darkgrass: {
+    salt: 4,
     fills: [
       cell('floor', 11, 12),
       cell('floor', 12, 12),
@@ -91,6 +109,7 @@ export const TERRAIN_ART: Record<Terrain, TerrainArt> = {
     fringe: TUFTS,
   },
   snow: {
+    salt: 5,
     fills: [cell('floor', 1, 15), cell('floor', 0, 18), cell('floor', 1, 18)],
     decorChance: 0.04,
     inner: [ring(1.2, '#d2c9c9'), ring(2.6, '#f2eaf1')],
@@ -105,14 +124,8 @@ export type TerrainTextures = Readonly<Record<Terrain, readonly Uint8ClampedArra
 const RING_REACH = 5;
 const FRINGES = TERRAINS.map((t) => TERRAIN_ART[t].fringe);
 
-export function fillIndex(
-  screen: Screen,
-  tx: number,
-  ty: number,
-  layer: number,
-  terrain: TerrainArt,
-) {
-  const h = tileHash(screen.coord, tx, ty, layer);
+export function fillIndex(screen: Screen, tx: number, ty: number, terrain: TerrainArt) {
+  const h = tileHash(screen.coord, tx, ty, terrain.salt);
   if ((h & 0xffff) / 0x10000 >= terrain.decorChance) return 0;
   return 1 + ((h >>> 16) % (terrain.fills.length - 1));
 }
@@ -143,7 +156,7 @@ export function composeTerrain(screen: Screen, textures: TerrainTextures): Pixel
       for (let tx = 0; tx < SCREEN_W; tx++) {
         const corners = tileLayers(tx, ty);
         const full = layer === 0 ? cornerMask(corners, 1) === 0 : cornerMask(corners, layer) === 15;
-        const texture = textures[terrain][full ? fillIndex(screen, tx, ty, layer, art) : 0]!;
+        const texture = textures[terrain][full ? fillIndex(screen, tx, ty, art) : 0]!;
         for (let y = 0; y < TILE; y++) {
           const row = (ty * TILE + y) * SCREEN_PX_W + tx * TILE;
           if (!distance) {

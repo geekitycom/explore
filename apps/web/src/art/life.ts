@@ -47,7 +47,7 @@ export function twinkles(screen: Screen): Twinkle[] {
   const list: Twinkle[] = [];
   for (let ty = 0; ty < SCREEN_H; ty++) {
     for (let tx = 0; tx < SCREEN_W; tx++) {
-      if (!isOpenWater(screen, tx, ty) || fillIndex(screen, tx, ty, 0, TERRAIN_ART.water) !== 0)
+      if (!isOpenWater(screen, tx, ty) || fillIndex(screen, tx, ty, TERRAIN_ART.water) !== 0)
         continue;
       const h = tileHash(screen.coord, tx, ty, 101);
       if (unit(h) < 0.25) list.push({ tx, ty, phase: unit(tileHash(screen.coord, tx, ty, 102)) });

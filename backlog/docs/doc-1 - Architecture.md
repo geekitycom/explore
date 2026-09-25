@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 14:51'
+updated_date: '2026-09-25 16:46'
 ---
 # Architecture
 
@@ -23,7 +23,7 @@ pnpm workspace, TypeScript everywhere, Node 24.
 
 - A screen is `SCREEN_W = 20` by `SCREEN_H = 15` tiles of `TILE = 16` px (320x240 logical pixels, drawn at an integer scale).
 - Screens are addressed by `ScreenCoord { layer, sx, sy }`. `overworld` is the only layer today; houses, caves, and towns will be layers of their own (decision-20). The world is unbounded. `(0, 0)` is the secret garden. `sy` grows southward.
-- Terrain is stored on the corner lattice, not on tiles. Each screen stores `(SCREEN_W + 1) * (SCREEN_H + 1)` corners, each one of `water | sand | dirt | grass | darkgrass | snow`. A tile's look comes from its four corners. Two adjacent screens share their boundary lattice line, and diagonal screens share one corner point. Seams therefore match by construction: the generator copies every shared lattice point from any existing neighbor (including diagonals) before generating the rest.
+- Terrain is stored on the corner lattice, not on tiles. Each screen stores `(SCREEN_W + 1) * (SCREEN_H + 1)` corners, each one of `water | sand | dirt | path | grass | darkgrass | snow`. Roads are laid as `path`, a worn soil track, so they read apart from dirt patches; where a road fords water it is sand. A tile's look comes from its four corners. Two adjacent screens share their boundary lattice line, and diagonal screens share one corner point. Seams therefore match by construction: the generator copies every shared lattice point from any existing neighbor (including diagonals) before generating the rest.
 - Features sit on tiles: `none | tree | bush | rock | flowers | tallgrass`. `tree`, `bush`, and `rock` block movement. When a neighbor exists, the generator copies the neighbor's facing edge column or row of features onto its own edge, so a tree line or open meadow continues across the seam.
 - A tile is walkable when it has no blocking feature and fewer than 3 of its corners are water.
 - Persisted screen record: `{ v: 4, layer, sx, sy, biome, corners: string, features: string }` where `corners` and `features` are compact one-character-per-cell strings. The codec lives in core and is versioned by `v`. `upgradeScreenRecord` (core `upgrade.ts`) lifts a record of any past version, one step per version, and `openDatabase` rewrites older records in place; a version bump without an upgrade step does not compile (decision D23).
@@ -44,7 +44,7 @@ Guarantee (replacing the old decision-11 wording): every crossing leads on, and 
 
 ## Rendering
 
-Transition tiles are derived at render time from the corner lattice, not stored. Terrains draw in layer order (water, sand, dirt, grass, darkgrass, snow). Each higher terrain covers the pixels where a field is positive: the bilinear blend of its tile's four corner values, where a corner counts firmer the more its neighbours agree, plus a per-terrain fringe (tufts for grass, gentle waves elsewhere). Edges therefore run smoothly across tiles, like marching squares, instead of stair-stepping. Pixels on a screen's outer edge sample the border line itself, so neighbouring screens draw the seam identically. Each screen's terrain is baked once into an offscreen canvas. Features and players are then drawn y-sorted so tall trees overlap correctly.
+Transition tiles are derived at render time from the corner lattice, not stored. Terrains draw in layer order (water, sand, dirt, path, grass, darkgrass, snow). Each higher terrain covers the pixels where a field is positive: the bilinear blend of its tile's four corner values, where a corner counts firmer the more its neighbours agree, plus a per-terrain fringe (tufts for grass, gentle waves elsewhere). Edges therefore run smoothly across tiles, like marching squares, instead of stair-stepping. Pixels on a screen's outer edge sample the border line itself, so neighbouring screens draw the seam identically. Each screen's terrain is baked once into an offscreen canvas. Features and players are then drawn y-sorted so tall trees overlap correctly.
 
 ### Animation
 
