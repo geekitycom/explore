@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 01:02'
+updated_date: '2026-09-25 01:32'
 ---
 # Decision log
 
@@ -59,3 +59,9 @@ The pack's blob autotiles cover only some terrain pairs (no grass and sand) and 
 
 ## D18. Music is generated chiptune (product, 2026-09-24)
 Andrew listened to the prototype (task-17) and chose generated music over the Ninja Adventure tracks. A seeded composer picks scale, tempo, progression, motif, and an A A' B A'' form from a mood, and plays through NES-style voices (two pulse, stepped triangle, LFSR noise) on Web Audio. The pack's tracks stay available as a fallback. No audio files ship for music.
+
+## D19. World generation from world-seeded global fields (technical, proposed 2026-09-24)
+Replace D10's neighbour-constrained generator with pure functions of the world seed and global coordinates, generated and stored in 4x4-screen chunks, with biomes, roads between points of interest, and the garden as a stamp. Needed because per-screen generation cannot be coherent beyond one screen. D10's objection (a global field cannot honour the garden) is answered by the stamp registry. Details and sources in the "World generation v2 design" doc. Becomes accepted when the first implementation task lands.
+
+## D20. Coordinates carry a layer (product direction from Andrew, 2026-09-24)
+Houses, caves, and towns will come later as separate layers the player travels into. Screen and chunk coordinates gain a layer (only `overworld` for now), and entrances will be features linking an overworld tile to a place in another layer. Towns and cave mouths are points of interest the road network already connects to.
