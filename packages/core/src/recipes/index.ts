@@ -17,6 +17,8 @@ import { rock, type RockParams } from './rock.ts';
 import { rosette, type RosetteParams } from './rosette.ts';
 import { tree, type TreeParams } from './tree.ts';
 
+export { clamp } from './draw.ts';
+
 export type {
   BushParams,
   CactusParams,

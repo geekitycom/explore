@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   GARDEN_COORD,
   GARDEN_SPAWN,
+  REPLACED_CLOSE_CODE,
   SCREEN_PX_H,
   SCREEN_PX_W,
   WALK_SPEED,
@@ -128,7 +129,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
       const previous = online.get(user.id);
       if (previous) {
         disconnect(previous);
-        previous.conn.close(4000, 'replaced');
+        previous.conn.close(REPLACED_CLOSE_CODE, 'replaced');
       }
       const saved = loadPlayerState(db, user.id);
       const player: Player = {

@@ -8,6 +8,8 @@ import { DIRS, SCREEN_PX_H, SCREEN_PX_W, type Dir } from './world.ts';
 export const WALK_SPEED = 72;
 /** How often the client reports its position while moving. */
 export const MOVE_INTERVAL_MS = 100;
+/** WebSocket close code the server sends when a newer session replaces this one. */
+export const REPLACED_CLOSE_CODE = 4000;
 
 const dirSchema = z.enum(DIRS);
 const coordinate = (max: number) =>

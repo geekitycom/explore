@@ -1,6 +1,4 @@
-import type { ClientMessage, ServerMessage } from '@explore/core';
-
-const REPLACED_CLOSE_CODE = 4000;
+import { REPLACED_CLOSE_CODE, type ClientMessage, type ServerMessage } from '@explore/core';
 
 export type Connection = { send: (message: ClientMessage) => void; close: () => void };
 

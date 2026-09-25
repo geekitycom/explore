@@ -6,6 +6,7 @@ import {
   SCREEN_PX_W,
   SCREEN_W,
   TILE,
+  clamp,
   cornerAt,
   featureAt,
   type Dir,
@@ -88,8 +89,6 @@ export function butterflies(screen: Screen): Butterfly[] {
     return { hx: tx * TILE + TILE / 2, hy: ty * TILE, a: r(1), b: r(2), c: r(3), color: h % 4 };
   });
 }
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
 export function butterflyAt(bf: Butterfly, clock: number): { x: number; y: number; frame: 0 | 1 } {
   const t = clock;
