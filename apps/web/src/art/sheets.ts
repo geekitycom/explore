@@ -4,7 +4,6 @@ import { TILE, type ScreenCoord } from '@explore/core';
 export const SHEETS = {
   floor: 'Backgrounds/Tilesets/TilesetFloor.png',
   water: 'Backgrounds/Tilesets/TilesetWater.png',
-  nature: 'Backgrounds/Tilesets/TilesetNature.png',
   boy: 'Actor/Character/Boy/SeparateAnim/Walk.png',
   princess: 'Actor/Character/Princess/SeparateAnim/Walk.png',
   samuraiBlue: 'Actor/Character/SamuraiBlue/SeparateAnim/Walk.png',

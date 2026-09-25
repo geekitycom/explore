@@ -98,9 +98,9 @@ function drawFeature(
   motion: boolean,
   actors: readonly Actor[],
 ) {
-  const { image, src, dx, dy, variant } = f;
-  if (motion && variant.frames) {
-    const frame = Math.floor(clock * 5 + f.phase * variant.frames) % variant.frames;
+  const { image, src, dx, dy, variant, frames } = f;
+  if (motion && frames) {
+    const frame = Math.floor(clock * 5 + f.phase * frames) % frames;
     ctx.drawImage(image, src.x + frame * src.w, src.y, src.w, src.h, dx, dy, src.w, src.h);
     return;
   }

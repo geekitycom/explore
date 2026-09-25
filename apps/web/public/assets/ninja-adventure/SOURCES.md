@@ -13,7 +13,6 @@ Files are copied unchanged and keep their paths from the pack's `Ninja Adventure
 
 - `Backgrounds/Tilesets/TilesetFloor.png`
 - `Backgrounds/Tilesets/TilesetWater.png`
-- `Backgrounds/Tilesets/TilesetNature.png`
 - `Actor/Character/Boy/SeparateAnim/Walk.png`
 - `Actor/Character/Princess/SeparateAnim/Walk.png`
 - `Actor/Character/SamuraiBlue/SeparateAnim/Walk.png`

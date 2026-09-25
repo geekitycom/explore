@@ -11,6 +11,8 @@ import {
   PALETTE,
   PALETTE_BIOMES,
   RAMPS,
+  RECIPE_FAMILIES,
+  SAMPLE_RECIPES,
   SCREEN_H,
   SCREEN_PX_H,
   SCREEN_PX_W,
@@ -19,6 +21,7 @@ import {
   TERRAINS,
   TILE,
   cornerIndex,
+  drawRecipe,
   generateScreen,
   secretGarden,
   type Avatar,
@@ -30,8 +33,14 @@ import {
   type WorldSeed,
 } from '@explore/core';
 import { AVATAR_BASES, WALK_FRAMES, avatarSheet, walkFrameRect } from './avatars.ts';
-import { FEATURE_ART } from './features.ts';
-import { featureSprites } from './features.ts';
+import {
+  FEATURE_ART,
+  SPECIES_SEEDS,
+  featureSprites,
+  spriteCanvas,
+  variantImage,
+} from './features.ts';
+import { tileHash } from './sheets.ts';
 import { loadArt, type Art } from './load.ts';
 import { OVERLAY_MASKS } from './mask.ts';
 import { bakeTerrain } from './terrain.ts';
@@ -156,25 +165,82 @@ function showWorld(art: Art) {
 }
 
 function showFeatures(art: Art) {
-  const row = section('Feature variants');
+  const row = section('Feature variants, three seeds each');
+  const seeds = [0, 1, 2];
   for (const [feature, variants] of Object.entries(FEATURE_ART)) {
-    const ctx = figure(row, feature, variants.length * 34, 34);
-    variants.forEach(({ ref: { sheet, rect } }, i) => {
-      ctx.fillStyle = '#adbc3a';
-      ctx.fillRect(i * 34, 0, 33, 34);
+    const ctx = figure(row, feature, variants.length * seeds.length * 34, 34);
+    variants.forEach((variant, i) =>
+      seeds.forEach((seed, j) => {
+        const { image, src } = variantImage(variant, art, seed);
+        const x = (i * seeds.length + j) * 34;
+        ctx.fillStyle = '#adbc3a';
+        ctx.fillRect(x, 0, 33, 34);
+        const dx = x + (33 - src.w) / 2;
+        ctx.drawImage(image, src.x, src.y, src.w, src.h, dx, 34 - src.h, src.w, src.h);
+      }),
+    );
+  }
+}
+
+const RECIPE_SEEDS = 12;
+
+/** Every recipe family at several seeds, then one species planted with per-tile seeds. */
+function showRecipes(art: Art) {
+  const row = section(`Recipe families, ${RECIPE_SEEDS} seeds each`);
+  for (const family of RECIPE_FAMILIES) {
+    const recipe = SAMPLE_RECIPES[family];
+    const sprites = Array.from({ length: RECIPE_SEEDS }, (_, seed) => drawRecipe(recipe, seed));
+    const cellW = Math.max(...sprites.map((s) => s.width)) + 4;
+    const cellH = Math.max(...sprites.map((s) => s.height)) + 4;
+    const ctx = figure(
+      row,
+      `${family}: ${JSON.stringify(recipe.params)}`,
+      RECIPE_SEEDS * cellW,
+      cellH,
+    );
+    ctx.fillStyle = RAMPS.grass[3];
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    sprites.forEach((sprite, i) => {
       ctx.drawImage(
-        art.sheets[sheet],
-        rect.x,
-        rect.y,
-        rect.w,
-        rect.h,
-        i * 34,
-        34 - rect.h,
-        rect.w,
-        rect.h,
+        spriteCanvas(sprite),
+        i * cellW + (cellW - sprite.width) / 2,
+        cellH - 2 - sprite.height,
       );
     });
   }
+
+  const planted = section('Per-tile seeds: one species per row, neighbours differ');
+  const cols = 16;
+  const rows = FEATURE_ART.tree.filter(
+    (v, i, all) =>
+      'recipe' in v && all.findIndex((w) => 'recipe' in w && w.recipe === v.recipe) === i,
+  );
+  const ctx = figure(
+    planted,
+    `game tree species on every other tile of a ${cols}-tile row, ${SPECIES_SEEDS} seeds per species`,
+    cols * TILE,
+    rows.length * 2 * TILE + TILE,
+  );
+  ctx.fillStyle = RAMPS.grass[3];
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const coord = { layer: OVERWORLD, sx: 3, sy: 4 };
+  rows.forEach((variant, r) => {
+    for (let tx = 0; tx < cols; tx += 2) {
+      const { image, src, anchor } = variantImage(variant, art, tileHash(coord, tx, r, 0) >>> 8);
+      const bottom = (r + 1) * 2 * TILE + TILE / 2;
+      ctx.drawImage(
+        image,
+        src.x,
+        src.y,
+        src.w,
+        src.h,
+        tx * TILE + TILE / 2 - anchor.x,
+        bottom - anchor.y,
+        src.w,
+        src.h,
+      );
+    }
+  });
 }
 
 function showAvatars(art: Art) {
@@ -305,26 +371,27 @@ function showStyle(art: Art) {
   );
   const ctx = figure(
     anchoring,
-    'pack sprites on their anchor tiles',
+    'game sprites on their anchor tiles',
     picks.length * 3 * TILE,
     3 * TILE,
     4,
   );
   ctx.fillStyle = RAMPS.grass[3];
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  picks.forEach(({ ref: { sheet, rect } }, i) => {
+  picks.forEach((variant, i) => {
+    const { image, src, anchor } = variantImage(variant, art, 0);
     const tx = i * 3 + 1;
     const bottom = 3 * TILE - 4;
     ctx.drawImage(
-      art.sheets[sheet],
-      rect.x,
-      rect.y,
-      rect.w,
-      rect.h,
-      tx * TILE + (TILE - rect.w) / 2,
-      bottom - rect.h,
-      rect.w,
-      rect.h,
+      image,
+      src.x,
+      src.y,
+      src.w,
+      src.h,
+      tx * TILE + TILE / 2 - anchor.x,
+      bottom - anchor.y,
+      src.w,
+      src.h,
     );
     ctx.strokeStyle = RAMPS.rose[1];
     ctx.strokeRect(tx * TILE + 0.5, bottom - TILE + 0.5, TILE - 1, TILE - 1);
@@ -339,6 +406,7 @@ const SECTIONS = {
   masks: showMasks,
   world: showWorld,
   features: showFeatures,
+  recipes: showRecipes,
   avatars: showAvatars,
   motion: showMotion,
 };
