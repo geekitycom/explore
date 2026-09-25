@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 14:34'
+updated_date: '2026-09-25 14:51'
 ---
 # Architecture
 
@@ -26,11 +26,11 @@ pnpm workspace, TypeScript everywhere, Node 24.
 - Terrain is stored on the corner lattice, not on tiles. Each screen stores `(SCREEN_W + 1) * (SCREEN_H + 1)` corners, each one of `water | sand | dirt | grass | darkgrass | snow`. A tile's look comes from its four corners. Two adjacent screens share their boundary lattice line, and diagonal screens share one corner point. Seams therefore match by construction: the generator copies every shared lattice point from any existing neighbor (including diagonals) before generating the rest.
 - Features sit on tiles: `none | tree | bush | rock | flowers | tallgrass`. `tree`, `bush`, and `rock` block movement. When a neighbor exists, the generator copies the neighbor's facing edge column or row of features onto its own edge, so a tree line or open meadow continues across the seam.
 - A tile is walkable when it has no blocking feature and fewer than 3 of its corners are water.
-- Persisted screen record: `{ v: 4, layer, sx, sy, biome, corners: string, features: string }` where `corners` and `features` are compact one-character-per-cell strings. The codec lives in core and is versioned by `v`.
+- Persisted screen record: `{ v: 4, layer, sx, sy, biome, corners: string, features: string }` where `corners` and `features` are compact one-character-per-cell strings. The codec lives in core and is versioned by `v`. `upgradeScreenRecord` (core `upgrade.ts`) lifts a record of any past version, one step per version, and `openDatabase` rewrites older records in place; a version bump without an upgrade step does not compile (decision D23).
 
 ## Generation
 
-Every tile is a pure function of the world seed, the layer, and its global position (decision-19). The seed lives in a one-row `world` table and a wipe rolls a new one. `generateScreen(world, coord)` assembles a screen from per-point functions, so shared lattice points agree whatever order screens are generated in.
+Every tile is a pure function of the world seed, the layer, and its global position (decision-19). The seed lives in a one-row `world` table and a wipe rolls a new one. `generateScreen(world, coord, older)` assembles a screen from per-point functions, so shared lattice points agree whatever order screens are generated in. `older` finds stored neighbours an earlier generator made (`screens.gen_version` below `GENERATOR_VERSION`); the new screen copies every lattice point such a neighbour holds and blends into it (step 7).
 
 1. **Biomes.** `biomeField` in `biome.ts` puts one jittered site in each cell of a grid eight screens square. A site's biome comes from temperature, moisture, and elevation sampled there (meadow, forest, lakeland, scrubland, desert, highlands, taiga, tundra). A hot site with a cold site within two cells turns temperate, so snow never meets desert. A point belongs to the site nearest its domain-warped position, and its `BiomeParams` blend every site almost as near, so borders wander and blend over about a screen. The garden's cell is pinned to a meadow site. `biomeAt(world, layer, gx, gy)` returns the biome, its patch (cell), and the blended params; each screen records the biome at its centre.
 2. **Stamps.** Inside a stamp's footprint (the secret garden at overworld 0,0, boundary included) the functions return the hand-built cells. A clearing weight fades from the footprint to 1.5 screens out, thinning blocking features and suppressing dirt, and dirt trails continue the garden's exits into the meadow.
@@ -38,8 +38,9 @@ Every tile is a pure function of the world seed, the layer, and its global posit
 4. **Features.** A low-frequency forest field and the biome's woods share set tree chance, clumped by a finer field so forests have glades; bushes ring tree stands, rocks favour dirt, flowers and tall grass grow on grass and darkgrass. Densities come from the blended biome params.
 5. **Crossings.** Each seam's crossing tiles are a pure function of the seam, so both screens agree. Both sides clear blocking features on them.
 6. **Repair.** Per screen, the components holding crossings are joined by the cheapest feature-clearing path. Repair never raises water and never touches a shared lattice point.
+7. **Stitching.** Next to a stored screen from an older generator, the shared edge is that screen's, and within `STITCH_REACH` (6) points of it the fields' terrain is dithered with the held edge value, sand standing in for water so the band adds no water. The crossing onto that neighbour is every walkable tile of its main land whose facing tile is open by terrain, so the new screen opens onto all of the old edge. Same-generation neighbours are not stitched. Decision D23 states the rule for future generator changes.
 
-Guarantee (replacing the old decision-11 wording): every crossing leads on, and a traveller only ever arrives on a tile a crossing leads to; the arrival nudge searches only tiles reachable from the entry. Property tests grow 12x12 regions over several seeds and check seam equality in shuffled orders, crossings on every land seam, and that a BFS from the garden reaches every screen.
+Guarantee (replacing the old decision-11 wording): every crossing leads on, and a traveller only ever arrives on a tile open on both sides of the seam (`seamOpenings`, read from the two stored screens); the arrival nudge searches only tiles reachable from those, and a seam with no opening refuses the travel. Property tests grow 12x12 regions over several seeds and check seam equality in shuffled orders, crossings on every land seam, and that a BFS from the garden reaches every screen.
 
 ## Rendering
 

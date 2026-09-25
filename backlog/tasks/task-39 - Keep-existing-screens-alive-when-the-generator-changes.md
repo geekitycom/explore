@@ -1,9 +1,11 @@
 ---
 id: TASK-39
 title: Keep existing screens alive when the generator changes
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-25 13:26'
+updated_date: '2026-09-25 15:15'
 labels: []
 milestone: m-3
 dependencies: []
@@ -22,9 +24,31 @@ Required before running a live world (decision D22). Stored screens are places p
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every change to the stored screen format ships a migration that upgrades existing records in place; no migration deletes screens or player positions
-- [ ] #2 The server starts and serves a world containing screens from any earlier generator version, with players resuming where they stood
-- [ ] #3 A new screen generated next to a stored screen from an older generator matches the stored screen's shared edge exactly and blends into it, and stays reachable
-- [ ] #4 Tests cover upgrading records from every past version, starting on a mixed old and new world, and seam matching at the old/new frontier
-- [ ] #5 The startup refusal for outdated screens is removed; pnpm world:wipe --yes remains available as an optional reset
+- [x] #1 Every change to the stored screen format ships a migration that upgrades existing records in place; no migration deletes screens or player positions
+- [x] #2 The server starts and serves a world containing screens from any earlier generator version, with players resuming where they stood
+- [x] #3 A new screen generated next to a stored screen from an older generator matches the stored screen's shared edge exactly and blends into it, and stays reachable
+- [x] #4 Tests cover upgrading records from every past version, starting on a mixed old and new world, and seam matching at the old/new frontier
+- [x] #5 The startup refusal for outdated screens is removed; pnpm world:wipe --yes remains available as an optional reset
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Core codec: an upgrade chain in packages/core/src/upgrade.ts lifts a stored record one version at a time (v1 gains layer, v2 drops seed, v3 gains the biome the current generator gives that screen); the chain's tuple type is tied to SCREEN_RECORD_VERSION so a bump without a step fails typecheck.
+2. Server: openDatabase runs migrations, then rewrites every stored record below the current version in place in one transaction (idempotent, no rows deleted); the startup refusal and outdatedScreens go away.
+3. Core generator: generateScreen(world, coord, older) takes a lookup of stored screens made by an older generator. At every lattice point a stored older neighbour holds, the new screen copies it; within STITCH_REACH points of such an edge it dithers between the stored value and the field (water becomes sand in the band, so no new water). Crossings onto an older neighbour are its walkable edge tiles (largest component) whose facing tile is walkable; other seams keep the field rule evaluated on the stitched terrain, which both sides compute identically because a point's stitched value depends only on stored screens within reach (< 15) and both sides see the same ones.
+4. Server Chunks passes older(coord) = stored screen with gen_version < GENERATOR_VERSION; travel arrivals use seamOpenings(from, to, dir) computed from the two actual screens instead of field crossings, so arriving in an old screen never throws.
+5. Tests: record upgrade from every past version; stitched seams and reachability in a mixed world over six seeds; a real v3 fixture dumped from the dev database (apps/server/fixtures/world-v3.sql) opened, upgraded, played, and extended with a stitched chunk.
+6. Decision D23 in the decision log with the rule for future generator changes; lint, typecheck, test, format:check, e2e; boot the server on a copy of the dev v3 database.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Design: record upgrades are a chain in core upgrade.ts (v1 gains layer, v2 drops seed, v3 gains the biome the current generator gives the position; a stamp keeps its own biome). The chain's tuple type is tied to SCREEN_RECORD_VERSION, so a version bump without a step fails typecheck (checked by removing a step: tsc reports the tuple length mismatch). openDatabase rewrites older records in place on every open, in one transaction; nothing is deleted. The old startup refusal and outdatedScreens are gone.
+Stitching: generateScreen(world, coord, older) reads stored neighbours with gen_version below GENERATOR_VERSION. A lattice point an older neighbour holds is copied; within STITCH_REACH (6) points the fields dither toward the held value with sand standing in for water, so the band adds no water and land stays connected. Crossings onto an older neighbour are the walkable edge tiles of its largest walkable component whose facing tile is terrain-walkable, the same rule stamps use, so repair joins the new screen to all of the old edge. Same-generation neighbours are not stitched (stitching to them is not a no-op: a neighbour's edge value differs from our point's field value, so the server filters by gen_version). Two new screens sharing a seam agree because a point's stitched value depends only on older screens within 6 points, which are fewer than a screen away and so in both screens' rings, sorted by coordinate for a common tie-break.
+Arrivals: play.ts travel uses seamOpenings(from, to, dir) from the two stored screens instead of field crossings, so entering an old screen never throws; a seam with no opening answers with a correct.
+Mutation checks on the stitching tests: no copy of held points fails the seam test in all six seeds; no ports onto older screens fails the opening test in all six seeds; water allowed in the band fails the dither test in two seeds. seamOpenings test caught a real sign error in the facing-tile formula while writing it.
+
+Validation: pnpm lint, typecheck, format:check clean; pnpm test 355/355 (32 files); pnpm e2e 11/11. The one vitest 'Unhandled Errors' line comes from play.test.ts teardown (savePlayerState on socket close after db.close), which is on main before this change and is being fixed separately. Real-surface check: the server booted on a copy of the dev database (user_version 4, 40 v3 screens): it started, answered /api/map with 401 and signup with 201, and afterwards the database held 40 v4 records with gen_version 0, corners and features byte-identical to the copy for all 40, the saved position kept, and user_version 6.
+<!-- SECTION:NOTES:END -->

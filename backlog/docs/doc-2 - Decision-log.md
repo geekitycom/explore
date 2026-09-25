@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 13:26'
+updated_date: '2026-09-25 14:51'
 ---
 # Decision log
 
@@ -76,4 +76,14 @@ Once the world is live, stored screens are places people have visited or are sta
 
 Consequence for generator changes: new screens generated next to stored ones must fit them. Where a new screen borders a stored screen whose edge differs from what the current generator would produce, the stored edge wins and the new screen blends into it (the stitching the old neighbour-constrained generator did, applied only at the frontier between old and new).
 
-Current state (dev only, acceptable for now per Andrew): migration 4 cleared screens once, and the server refuses to start on screens with an older record version. Both must be replaced by task-39 before running a live world.
+Superseded state: migration 4 once cleared screens, and the server used to refuse to start on screens with an older record version. Task-39 replaced both with in-place record upgrades and stitching (D23).
+
+## D23. Generator changes bump a version and stitch; record changes ship an upgrade step (technical, task-39, 2026-09-25)
+The rule every change to world generation or the stored screen format follows, so that a running world is never reset by an update:
+
+1. **Output changes bump `GENERATOR_VERSION`** (core `generate.ts`) and nothing else. Stored screens keep the terrain and features players saw, with the `gen_version` that made them. A new screen is generated with `generateScreen(world, coord, older)`, where `older` finds stored neighbours whose `gen_version` is lower. At every lattice point such a neighbour holds, the new screen copies its value; within `STITCH_REACH` (6) points of that edge it dithers between the held value and the fields, with sand standing in for water so the band adds no water. Crossings onto an older neighbour are the walkable tiles of its main land whose facing tile is open by terrain, so the new screen opens onto all of the old edge and its repair joins every pocket to those crossings. Same-generation neighbours are never stitched: their seams already agree by construction. Two new screens sharing a seam compute identical stitched values because a point's value depends only on the older screens within reach, which are fewer than a screen away and so visible to both.
+2. **Format changes bump `SCREEN_RECORD_VERSION`** (core `codec.ts`) and add one step to `UPGRADES` in core `upgrade.ts`, lifting a record from the previous version to the new one. The tuple's type is tied to the version constant, so a bump without a step fails `pnpm typecheck`. `openDatabase` rewrites every stored record below the current version in place, in one transaction, on every open (a no-op once current). A new field that is a pure function of the world and position (like `biome`) is filled from the current generator; a field that depends on stored cells is derived from them. Cells are never regenerated.
+3. **Migrations never delete screens, visits, or positions** (D22). `pnpm world:wipe --yes` stays the only reset, and it is an admin's choice.
+4. **Arrivals read the two stored screens**: travel lands a player on a tile open on both sides of the seam (`seamOpenings`), never on tiles the current fields predict, so crossing into an older screen always works or is refused, never crashes.
+
+Tests that guard this: `upgrade.test.ts` lifts records from every past version; `generate.test.ts` stitches a block of another world's screens (standing in for an older generator) over six seeds and checks seam equality, the blend band, reachability from the garden, and pocket repair; `legacy.test.ts` and `play.test.ts` open a real v3 database dumped from the dev world (`apps/server/fixtures/world-v3.sql`), upgrade it in place, build a chunk around its screens, and walk a player from an old screen into a new one.
