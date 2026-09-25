@@ -1,13 +1,16 @@
 import type { DatabaseSync } from 'node:sqlite';
 import {
+  CHUNK_H,
+  CHUNK_W,
+  GENERATOR_VERSION,
   SCREEN_RECORD_VERSION,
   DIRS,
   decodeScreen,
   encodeScreen,
-  generateScreen,
   layerIdSchema,
   randomWorldSeed,
   secretGarden,
+  type ChunkCoord,
   type Pose,
   type Screen,
   type ScreenCoord,
@@ -27,9 +30,11 @@ const playerStateRow = z.object({
   dir: z.enum(DIRS),
 });
 
+/** A stored screen is never replaced: the first generator to store a coordinate wins. */
 function insertScreen(db: DatabaseSync, screen: Screen, userId: number | null): void {
   db.prepare(
-    `INSERT INTO screens (layer, sx, sy, data, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (layer, sx, sy) DO NOTHING`,
   ).run(
     screen.coord.layer,
@@ -38,7 +43,33 @@ function insertScreen(db: DatabaseSync, screen: Screen, userId: number | null): 
     JSON.stringify(encodeScreen(screen)),
     userId,
     Date.now(),
+    GENERATOR_VERSION,
   );
+}
+
+/** Whether every screen of the chunk is stored, whichever generator made each. */
+export function isChunkStored(db: DatabaseSync, { layer, cx, cy }: ChunkCoord): boolean {
+  const { n } = db
+    .prepare(
+      `SELECT count(*) AS n FROM screens
+       WHERE layer = ? AND sx >= ? AND sx < ? AND sy >= ? AND sy < ?`,
+    )
+    .get(layer, cx * CHUNK_W, (cx + 1) * CHUNK_W, cy * CHUNK_H, (cy + 1) * CHUNK_H) as {
+    n: number;
+  };
+  return n === CHUNK_W * CHUNK_H;
+}
+
+/** Stores a whole chunk at once, keeping any screen of it stored earlier. */
+export function storeChunk(db: DatabaseSync, screens: readonly Screen[], userId: number): void {
+  db.exec('BEGIN');
+  try {
+    for (const screen of screens) insertScreen(db, screen, userId);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 /**
@@ -73,14 +104,6 @@ export function getScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Scr
     .prepare('SELECT data FROM screens WHERE layer = ? AND sx = ? AND sy = ?')
     .get(layer, sx, sy) as { data: string } | undefined;
   return row && decodeScreen(JSON.parse(row.data));
-}
-
-/** Synchronous from select to insert, so two arrivals at a new coordinate get one screen. */
-export function getOrCreateScreen(db: DatabaseSync, coord: ScreenCoord, userId: number): Screen {
-  const existing = getScreen(db, coord);
-  if (existing) return existing;
-  insertScreen(db, generateScreen(loadWorld(db), coord), userId);
-  return getScreen(db, coord)!;
 }
 
 export function loadPlayerState(db: DatabaseSync, userId: number): PlayerState | undefined {

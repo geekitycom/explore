@@ -17,15 +17,10 @@ import {
   type Pose,
   type ScreenCoord,
 } from '@explore/core';
+import { Chunks } from './chunks.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import type { User } from './users.ts';
-import {
-  ensureGarden,
-  getOrCreateScreen,
-  loadPlayerState,
-  loadWorld,
-  savePlayerState,
-} from './world.ts';
+import { ensureGarden, loadPlayerState, loadWorld, savePlayerState } from './world.ts';
 
 /** How far past the speed cap a move may be, absorbing network jitter. */
 const SPEED_SLACK = 1.5;
@@ -56,11 +51,12 @@ export type Game = ReturnType<typeof createGame>;
 
 export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => number } = {}) {
   ensureGarden(db);
+  const chunks = new Chunks(db);
   const presence = new Presence();
   const online = new Map<number, Player>();
 
   const roomAt = (coord: ScreenCoord, userId: number) =>
-    presence.room(coord, () => getOrCreateScreen(db, coord, userId));
+    presence.room(coord, () => chunks.screenAt(coord, userId));
 
   const save = (player: Player) => {
     savePlayerState(db, player.user.id, { coord: player.room.screen.coord, pose: player.pose });
@@ -69,6 +65,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
 
   const isLive = (player: Player) => online.get(player.user.id) === player;
 
+  /** Sends the player's screen, then builds the chunks they could walk into next. */
   const sendScreen = (player: Player) => {
     const others = presence.enter(player);
     player.conn.send({
@@ -78,6 +75,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
       you: player.pose,
       others,
     });
+    chunks.prefetchAround(player.room.screen.coord, player.user.id);
   };
 
   const correct = (player: Player) =>
@@ -167,6 +165,11 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
     /** Saves every pose that moved since its last save. */
     flush(): void {
       for (const player of online.values()) if (player.dirty) save(player);
+    },
+
+    /** Drops any chunk still being prefetched; the next approach builds it again. */
+    stop(): void {
+      chunks.stop();
     },
   };
 }

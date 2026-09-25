@@ -44,6 +44,7 @@ setInterval(() => game.flush(), SAVE_INTERVAL_MS).unref();
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
+    game.stop();
     game.flush();
     db.close();
     process.exit(0);

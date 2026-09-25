@@ -7,15 +7,9 @@ import { hashPassword } from './password.ts';
 import { createSession, sessionUser } from './sessions.ts';
 import { insertUser } from './users.ts';
 import { wipeWorld } from './wipe.ts';
-import {
-  ensureGarden,
-  getOrCreateScreen,
-  getScreen,
-  loadPlayerState,
-  loadWorld,
-  savePlayerState,
-} from './world.ts';
-import { DEFAULT_AVATAR, GARDEN_COORD, secretGarden } from '@explore/core';
+import { Chunks } from './chunks.ts';
+import { ensureGarden, getScreen, loadPlayerState, loadWorld, savePlayerState } from './world.ts';
+import { CHUNK_H, CHUNK_W, DEFAULT_AVATAR, GARDEN_COORD, secretGarden } from '@explore/core';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -35,13 +29,13 @@ test('wiping keeps accounts, forgets the world, rolls a new seed, and restores t
   })!;
   const { token } = createSession(db, user.id);
   const east = { ...GARDEN_COORD, sx: 1 };
-  const before = getOrCreateScreen(db, east, user.id);
+  const before = new Chunks(db).screenAt(east, user.id);
   const seed = loadWorld(db).seed;
   savePlayerState(db, user.id, { coord: east, pose: { x: 50, y: 60, dir: 'e', moving: false } });
   db.close();
 
   db = openDatabase(path);
-  expect(wipeWorld(db)).toEqual({ screens: 2, players: 1 });
+  expect(wipeWorld(db)).toEqual({ screens: CHUNK_W * CHUNK_H, players: 1 });
   expect(getScreen(db, east)).toBeUndefined();
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
   expect(loadPlayerState(db, user.id)).toBeUndefined();
@@ -50,6 +44,6 @@ test('wiping keeps accounts, forgets the world, rolls a new seed, and restores t
   expect(wipeWorld(db)).toEqual({ screens: 1, players: 0 });
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
   expect(loadWorld(db).seed).not.toBe(seed);
-  expect(getOrCreateScreen(db, east, user.id)).not.toEqual(before);
+  expect(new Chunks(db).screenAt(east, user.id)).not.toEqual(before);
   db.close();
 });

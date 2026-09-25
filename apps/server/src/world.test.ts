@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  CHUNK_H,
+  CHUNK_W,
   DEFAULT_AVATAR,
   GARDEN_COORD,
   LATTICE_H,
@@ -13,13 +15,14 @@ import {
   generateScreen,
   secretGarden,
   type LayerId,
+  type ScreenCoord,
 } from '@explore/core';
 import { afterEach, expect, it } from 'vitest';
+import { Chunks } from './chunks.ts';
 import { openDatabase } from './db.ts';
 import { insertUser } from './users.ts';
 import {
   ensureGarden,
-  getOrCreateScreen,
   getScreen,
   loadPlayerState,
   loadWorld,
@@ -30,6 +33,10 @@ import { wipeWorld } from './wipe.ts';
 
 const EAST = { layer: OVERWORLD, sx: 1, sy: 0 };
 const CELLAR = 'cellar' as LayerId;
+const CHUNK_SCREENS = CHUNK_W * CHUNK_H;
+
+const getOrCreateScreen = (db: DatabaseSync, coord: ScreenCoord, userId: number) =>
+  new Chunks(db).screenAt(coord, userId);
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -57,7 +64,7 @@ it('creates a screen once from the world seed, seamless with the garden, and kee
   for (let cy = 0; cy < LATTICE_H; cy++) {
     expect(cornerAt(eastScreen, 0, cy)).toBe(cornerAt(garden, SCREEN_W, cy));
   }
-  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 2 });
+  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: CHUNK_SCREENS });
   db.close();
 
   const reopened = openDatabase(path);
@@ -76,10 +83,10 @@ it('stores screens at the same sx, sy on different layers separately', () => {
   expect(cellar.coord).toEqual(cellarOrigin);
   expect(cellar.features).not.toEqual(secretGarden().features);
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
-  expect(getScreen(db, { layer: CELLAR, sx: 1, sy: 0 })).toBeUndefined();
-  expect(db.prepare('SELECT layer, sx, sy FROM screens ORDER BY layer').all()).toEqual([
-    { layer: 'cellar', sx: 0, sy: 0 },
-    { layer: 'overworld', sx: 0, sy: 0 },
+  expect(getScreen(db, { layer: CELLAR, sx: CHUNK_W, sy: 0 })).toBeUndefined();
+  expect(db.prepare('SELECT layer, count(*) AS n FROM screens GROUP BY layer').all()).toEqual([
+    { layer: 'cellar', n: CHUNK_SCREENS },
+    { layer: 'overworld', n: 1 },
   ]);
   db.close();
 });
@@ -165,6 +172,6 @@ it('upgrades an old database without deleting its world, which then waits for an
   expect(loadPlayerState(db, 1)).toBeUndefined();
   expect(getScreen(db, GARDEN_COORD)).toEqual(garden);
   getOrCreateScreen(db, { layer: CELLAR, sx: 0, sy: 0 }, 1);
-  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 2 });
+  expect(db.prepare('SELECT COUNT(*) AS n FROM screens').get()).toEqual({ n: 1 + CHUNK_SCREENS });
   db.close();
 });

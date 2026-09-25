@@ -65,6 +65,7 @@ const migrations: readonly string[] = [
     seed INTEGER NOT NULL
   );
   INSERT INTO world (id, seed) VALUES (1, abs(random()) % 2147483648);`,
+  `ALTER TABLE screens ADD COLUMN gen_version INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export function openDatabase(path: string): DatabaseSync {

@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import {
+  CHUNK_H,
+  CHUNK_W,
   DEFAULT_AVATAR,
   GARDEN_SPAWN,
   SCREEN_PX_W,
@@ -54,6 +56,7 @@ async function start(dbPath = ':memory:'): Promise<Running> {
     stopped = true;
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
+    game.stop();
     db.close();
   };
   cleanups.push(stop);
@@ -330,7 +333,7 @@ describe('world socket', () => {
         expect.objectContaining({ sx: 1, sy: 0 }),
       ]),
     );
-    expect(map.screens).toHaveLength(2);
+    expect(map.screens.length).toBeGreaterThanOrEqual(CHUNK_W * CHUNK_H);
     expect(map.screens).toContainEqual(east.screen);
 
     expect((await fetch(`http://${base}/api/map`)).status).toBe(401);
