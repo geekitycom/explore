@@ -67,6 +67,31 @@ export function screenKey({ layer, sx, sy }: ScreenCoord): string {
   return `${layer}/${sx},${sy}`;
 }
 
+/** Screens are generated and stored a chunk at a time, CHUNK_W by CHUNK_H screens. */
+export const CHUNK_W = 4;
+export const CHUNK_H = 4;
+
+export type ChunkCoord = { readonly layer: LayerId; readonly cx: number; readonly cy: number };
+
+export function chunkKey({ layer, cx, cy }: ChunkCoord): string {
+  return `${layer}/${cx},${cy}`;
+}
+
+export function chunkOf({ layer, sx, sy }: ScreenCoord): ChunkCoord {
+  return { layer, cx: Math.floor(sx / CHUNK_W), cy: Math.floor(sy / CHUNK_H) };
+}
+
+/** The chunk's screens, row-major from its north-west corner. */
+export function chunkScreens({ layer, cx, cy }: ChunkCoord): ScreenCoord[] {
+  const screens: ScreenCoord[] = [];
+  for (let dy = 0; dy < CHUNK_H; dy++) {
+    for (let dx = 0; dx < CHUNK_W; dx++) {
+      screens.push({ layer, sx: cx * CHUNK_W + dx, sy: cy * CHUNK_H + dy });
+    }
+  }
+  return screens;
+}
+
 export function neighborCoord({ layer, sx, sy }: ScreenCoord, dir: Dir): ScreenCoord {
   const { dx, dy } = DIR_DELTA[dir];
   return { layer, sx: sx + dx, sy: sy + dy };

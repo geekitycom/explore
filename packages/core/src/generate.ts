@@ -26,6 +26,12 @@ export type Stamp = { readonly screen: Screen };
 
 export const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
 
+/**
+ * Bumped whenever the generator's output changes. Stored screens record the version that made
+ * them and are kept as they are, so a bump never invalidates a world.
+ */
+export const GENERATOR_VERSION = 1;
+
 export const CLEARING_SCREENS = 1.5;
 
 const PURPOSE = {
@@ -608,15 +614,19 @@ function crossingComponents(comp: readonly number[], crossings: readonly [number
 
 /**
  * Water and shared lattice points never change: land is connected across the whole world by
- * construction, so each crossing already leads somewhere. Other walkable edge tiles stay as they
- * are; a player can only step onto one straight from a walkable tile, and can step straight back.
+ * construction, so each crossing already leads somewhere. Crossings are joined to each other
+ * first, then every walkable pocket is joined to a crossing, so no walkable tile is out of reach.
+ * Other walkable edge tiles stay as they are; a player can only step onto one straight from a
+ * walkable tile, and can step straight back.
  */
 function repair(draft: Draft, crossings: readonly [number, number][], treeCost: Cost): void {
   for (;;) {
     const comp = components(draft);
     const ids = crossingComponents(comp, crossings);
+    const byId = (a: number, b: number) => a - b;
+    const pockets = [...new Set(comp)].filter((c) => c !== -1 && !ids.has(c));
     let joined = false;
-    for (const from of [...ids].sort((a, b) => a - b)) {
+    for (const from of [...(ids.size > 1 ? [...ids].sort(byId) : []), ...pockets.sort(byId)]) {
       const path = cheapestPath(draft, treeCost, comp, from, ids);
       if (!path) continue;
       for (const [tx, ty] of path) draft.features[tileIndex(tx, ty)] = 'none';

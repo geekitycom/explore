@@ -220,6 +220,20 @@ describe.each(SEEDS)('a world with seed %i', (seed) => {
     expect(split).toEqual([]);
   });
 
+  test('joins every walkable pocket to a crossing, so no walkable tile is out of reach', () => {
+    const stranded: string[] = [];
+    for (const screen of screens.values()) {
+      const walk = components((tx, ty) => isTileWalkable(screen, tx, ty));
+      const reached = new Set(
+        crossingTiles(world, screen.coord).map(([tx, ty]) => walk[ty * SCREEN_W + tx]),
+      );
+      for (const id of new Set(walk)) {
+        if (id !== -1 && !reached.has(id)) stranded.push(`${screenKey(screen.coord)} ${id}`);
+      }
+    }
+    expect(stranded).toEqual([]);
+  });
+
   test('reaches every screen of the region from the garden on foot', () => {
     const reached = reachableScreens(world, screens);
     expect([...screens.keys()].filter((k) => !reached.has(k))).toEqual([]);

@@ -54,7 +54,7 @@ export const worldSeedSchema = z
   .int()
   .transform((n) => n as WorldSeed);
 
-/** Bumped whenever stored screens can no longer be read or no longer match the generator. */
+/** Bumped whenever stored screens can no longer be read. Generator changes bump GENERATOR_VERSION. */
 export const SCREEN_RECORD_VERSION = 4;
 
 /** The persisted, versioned form of a screen. One character per lattice point or tile. */
