@@ -1,10 +1,10 @@
 ---
 id: TASK-50.2
-title: Signs with short notes at landmarks
+title: Name a landmark
 status: To Do
 assignee: []
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-25 22:53'
+updated_date: '2026-09-25 23:32'
 labels: []
 milestone: m-5
 dependencies:
@@ -17,21 +17,23 @@ ordinal: 3000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-A player can plant a sign with a short note (for example up to 80 characters) near a landmark or road. Other players read it by walking up to it, with the author's name shown. Signs are the rarest trace (for example one a day), so each one is worth writing. Because this is free text from players, the author can remove their own sign, an admin can remove any sign, and players can report a sign.
+Landmarks are the points of interest the generator already places (POI_KINDS: stone circles, ruins, groves, lakesides, clearings, towns, caves, graveyards). The first player to reach a landmark that has no name can choose to name it. Naming plants a signpost at a spot the generator picks for that landmark, and everyone who walks up to it reads the name and who gave it; the name also appears on /map. There is one landmark per region, so names stay rare and need no allowance. Names are public text written by players, so they can be removed and reported.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A player can place a sign with a note up to the length limit on a walkable tile near a landmark or road, within their allowance
-- [ ] #2 Walking up to a sign shows its note and author
-- [ ] #3 Authors can remove their own signs; an admin command removes any sign; players can report a sign and reports are recorded
-- [ ] #4 Signs never block a road or trap a player
-- [ ] #5 A sign sprite exists as a recipe and passes pnpm lint:art
-- [ ] #6 Players start with one sign in inventory slot 1 and get one more each day up to the allowance; using it on open ground within two tiles of a road opens a note dialog with a live character count
+- [ ] #1 Landmarks are defined in code from POI_KINDS, each with its area and a fixed signpost spot chosen by the generator that never blocks a road or traps a player
+- [ ] #2 When a player stands in an unnamed landmark's area, the hint bar offers 'Name this place'; declining leaves it open for the next visitor, and named landmarks never offer it
+- [ ] #3 The naming dialog takes a name (up to about 30 characters) and an optional short line (up to about 80), with live counts; saving plants the signpost; if two players save at once the first wins and the other is told who named it
+- [ ] #4 Walking up to a signpost shows the name, the optional line and the namer in a bubble, and named landmarks show their names on /map
+- [ ] #5 The namer can rename or clear their name; an admin command clears any name; players can report a name and reports are recorded
+- [ ] #6 The signpost sprite is a recipe that passes pnpm lint:art
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 Interaction design settled in a throwaway demo on 2026-09-25 (local only, _local/traces-demo, not in the repo). Reading: the note shows in a bubble with the author's name when the player stands next to the sign, no key press.
+
+Replaces free-form note signs placed from the inventory with a daily allowance. Decided 2026-09-25 while brainstorming how players get signs.
 <!-- SECTION:NOTES:END -->
