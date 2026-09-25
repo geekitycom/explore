@@ -1,11 +1,11 @@
 ---
 id: TASK-39
 title: Keep existing screens alive when the generator changes
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 13:26'
-updated_date: '2026-09-25 15:15'
+updated_date: '2026-09-25 15:26'
 labels: []
 milestone: m-3
 dependencies: []
@@ -51,4 +51,14 @@ Arrivals: play.ts travel uses seamOpenings(from, to, dir) from the two stored sc
 Mutation checks on the stitching tests: no copy of held points fails the seam test in all six seeds; no ports onto older screens fails the opening test in all six seeds; water allowed in the band fails the dither test in two seeds. seamOpenings test caught a real sign error in the facing-tile formula while writing it.
 
 Validation: pnpm lint, typecheck, format:check clean; pnpm test 355/355 (32 files); pnpm e2e 11/11. The one vitest 'Unhandled Errors' line comes from play.test.ts teardown (savePlayerState on socket close after db.close), which is on main before this change and is being fixed separately. Real-surface check: the server booted on a copy of the dev database (user_version 4, 40 v3 screens): it started, answered /api/map with 401 and signup with 201, and afterwards the database held 40 v4 records with gen_version 0, corners and features byte-identical to the copy for all 40, the saved position kept, and user_version 6.
+
+Independent review (second model) found: an older screen within reach could out-vote a stamp's lattice point, so siteTerrain now returns stored values first, stamp values second, and dithers only elsewhere (with garden-consistent stored screens the nearest older point to a garden point is itself a garden point, so the real garden cannot show the difference; the clause guards a future stamp). The wipe CLI now opens the database without lifting records, so an unliftable record never blocks the reset (legacy.test.ts covers it, and that a failed lift rolls back every row). travel computes the arrival pose before leaving the old room. The legacy reachability test now starts from the player's saved tile, and every old/new seam in the stitched chunk must have an opening. Not changed: 8 lookups per generated screen and the json_extract scan per open (measured 4.7 ms to open and lift the 40-screen dev world, 46 ms to build a stitched chunk), and the record's own coordinates are trusted as everywhere else. Fresh-world output is byte-identical to the previous generator (256 screens over 4 seeds compared), so GENERATOR_VERSION stays 1.
+
+Final validation on the recut commits: lint, typecheck, format:check clean; pnpm e2e 11/11; pnpm test 353/356 with three timeouts in unrelated files (biome.test, preview.test, web mask.test) under a load average of 14 from parallel agents; the same three files pass alone (19/19) and an earlier full run passed 355/355. CI on main already shows the same timeouts and the play.test.ts teardown logs, which another agent is fixing.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The server now starts on any stored world. openDatabase lifts stored screen records of every past version to the current one in place (core upgrade chain whose tuple type is tied to SCREEN_RECORD_VERSION, so a bump without a step fails typecheck); the startup refusal is gone and pnpm world:wipe --yes stays an optional reset that never depends on the lift. New screens stitch to stored neighbours from an older generator: shared lattice points are copied, a six-point band dithers toward the old edge without adding water, and the crossing onto the old screen is the walkable edge of its main land, so repair connects them. Travel arrivals read the openings of the two actual screens. Decision D23 records the rule for TASK-29/30/32: bump GENERATOR_VERSION for output changes, bump SCREEN_RECORD_VERSION plus one upgrade step for format changes, never delete. Verified with record upgrades from v1, v2, v3; stitched mixed worlds over six seeds (seam equality, blend band, reachability from the garden, pocket repair, mutation-checked); a real v3 dev database fixture opened, lifted, extended with a stitched chunk, walked from the saved tile, and played over a socket; the real server booted on a copy of the dev database with all 40 screens' cells unchanged; lint, typecheck, format, unit tests, e2e.
+<!-- SECTION:FINAL_SUMMARY:END -->
