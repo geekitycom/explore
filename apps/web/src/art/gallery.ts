@@ -1,4 +1,5 @@
 import {
+  BIOME_PHOTO_PALETTES,
   BIOME_RAMPS,
   CLOTH_COLORS,
   HAIR_COLORS,
@@ -272,6 +273,24 @@ function showStyle(art: Art) {
     );
     drawRamps(ctx, ground);
     drawRamps(ctx, flora, gap);
+  }
+
+  const photos = section(
+    'Photo palettes: reference-photo colours (top) snapped to the palette (bottom), width by share',
+  );
+  const width = 120;
+  for (const biome of PALETTE_BIOMES) {
+    const { clusters, ramps } = BIOME_PHOTO_PALETTES[biome];
+    const ctx = figure(photos, `${biome}: ${ramps.map((r) => r.ramp).join(', ')}`, width, 24, 2);
+    let x = 0;
+    for (const { colour, snapped, share } of clusters) {
+      const w = share * width;
+      ctx.fillStyle = colour;
+      ctx.fillRect(x, 0, w + 1, 12);
+      ctx.fillStyle = snapped;
+      ctx.fillRect(x, 12, w + 1, 12);
+      x += w;
+    }
   }
 
   const picks = [

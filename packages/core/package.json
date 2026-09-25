@@ -9,9 +9,13 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json",
-    "preview": "node scripts/preview.ts"
+    "preview": "node scripts/preview.ts",
+    "palettes": "node scripts/biome-palettes.ts"
   },
   "dependencies": {
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "jpeg-js": "^0.4.4"
   }
 }

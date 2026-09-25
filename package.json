@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "world:wipe": "pnpm --filter @explore/server world:wipe"
+    "world:wipe": "pnpm --filter @explore/server world:wipe",
+    "palettes": "pnpm --filter @explore/core palettes"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

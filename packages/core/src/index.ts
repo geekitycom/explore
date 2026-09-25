@@ -9,3 +9,4 @@ export * from './garden.ts';
 export * from './protocol.ts';
 export * from './travel.ts';
 export * from './palette.ts';
+export * from './biome-photo-palettes.ts';

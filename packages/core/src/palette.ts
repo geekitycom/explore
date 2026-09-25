@@ -56,11 +56,11 @@ export const BIOME_RAMPS: Record<
   forest: { ground: ['pine', 'soil'], flora: ['grass', 'pine', 'bark', 'stone', 'peach'] },
   lakeland: { ground: ['grass', 'sand', 'water'], flora: ['grass', 'straw', 'bark', 'rose'] },
   scrubland: { ground: ['straw', 'soil'], flora: ['sage', 'pine', 'straw', 'bark', 'stone'] },
-  desert: { ground: ['dune', 'sand'], flora: ['cactus', 'sage', 'straw', 'sand'] },
+  desert: { ground: ['dune', 'sand', 'soil'], flora: ['cactus', 'sage', 'straw', 'sand'] },
   highlands: {
     ground: ['grass', 'soil', 'granite'],
     flora: ['pine', 'bark', 'heather', 'gold', 'granite'],
   },
   taiga: { ground: ['snow', 'pine'], flora: ['pine', 'bark', 'gold', 'poppy'] },
-  tundra: { ground: ['snow', 'stone'], flora: ['sage', 'snow', 'stone'] },
+  tundra: { ground: ['snow', 'stone', 'straw'], flora: ['sage', 'snow', 'stone'] },
 };
