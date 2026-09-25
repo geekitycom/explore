@@ -48,4 +48,5 @@ export type ServerMessage =
   | { t: 'join'; player: PlayerView }
   | { t: 'leave'; id: number }
   | ({ t: 'moved'; id: number } & Pose)
+  | { t: 'avatar'; id: number; avatar: Avatar }
   | { t: 'correct'; x: number; y: number };

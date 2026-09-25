@@ -173,7 +173,9 @@ export function createApp({
 
   app.put('/api/me/avatar', async (c) => {
     const { avatar } = await parseBody(c, avatarBody);
-    return c.json({ user: updateAvatar(db, c.get('user').id, avatar) });
+    const user = updateAvatar(db, c.get('user').id, avatar);
+    game.changeAvatar(user);
+    return c.json({ user });
   });
 
   app.get('/api/map', requireUser, (c) =>

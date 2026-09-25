@@ -326,6 +326,36 @@ legend {
   font-size: 0.9rem;
 }
 
+.avatar-dialog {
+  max-width: min(32rem, calc(100vw - 32px));
+  padding: 1rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink-soft);
+}
+
+.avatar-dialog::backdrop {
+  background: #141b1bb3;
+}
+
+.avatar-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.avatar-form h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+}
+
 .game-bar a.link {
   color: inherit;
 }

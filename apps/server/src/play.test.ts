@@ -11,6 +11,7 @@ import {
   decodeScreen,
   encodeScreen,
   secretGarden,
+  type Avatar,
   type LayerId,
   type Pose,
   type ScreenRecord,
@@ -229,6 +230,42 @@ describe('world socket', () => {
 
     await expectNothingPending(bob);
     await expectNothingPending(alice);
+  });
+
+  it('shows a saved avatar change to the same screen and to later arrivals', async () => {
+    const { base } = await start();
+    const [aliceCookie, bobCookie, carolCookie, daveCookie] = [
+      await signup(base, 'alice'),
+      await signup(base, 'bob'),
+      await signup(base, 'carol'),
+      await signup(base, 'dave'),
+    ];
+    const carol = await connect(base, carolCookie);
+    await nextOf(carol, 'screen');
+    await travelEast(carol);
+    const alice = await connect(base, aliceCookie);
+    await nextOf(alice, 'screen');
+    const bob = await connect(base, bobCookie);
+    await nextOf(bob, 'screen');
+    await nextOf(alice, 'join');
+
+    const avatar: Avatar = { ...DEFAULT_AVATAR, hairStyle: 'bun', shirt: 'purple' };
+    const res = await fetch(`http://${base}/api/me/avatar`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: aliceCookie },
+      body: JSON.stringify({ avatar }),
+    });
+    expect(res.status).toBe(200);
+    expect(await bob.next()).toEqual({ t: 'avatar', id: 1, avatar });
+
+    const dave = await connect(base, daveCookie);
+    expect((await nextOf(dave, 'screen')).others).toContainEqual(
+      expect.objectContaining({ id: 1, avatar }),
+    );
+
+    expect(await alice.next()).toMatchObject({ t: 'join', player: { id: 4 } });
+    await expectNothingPending(alice);
+    await expectNothingPending(carol);
   });
 
   it('stores a screen on first visit and returns the identical screen later', async () => {

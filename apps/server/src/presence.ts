@@ -16,7 +16,7 @@ export type Conn = {
 export type Room = { readonly screen: Screen; readonly players: Set<Player> };
 
 export type Player = {
-  readonly user: User;
+  user: User;
   readonly conn: Conn;
   room: Room;
   /** The last accepted pose; every correction sends the player back here. */

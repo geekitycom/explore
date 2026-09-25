@@ -154,6 +154,14 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
 
     disconnect,
 
+    /** Shows a player's saved avatar change to everyone on their screen. */
+    changeAvatar(user: User): void {
+      const player = online.get(user.id);
+      if (!player) return;
+      player.user = user;
+      presence.broadcast(player, { t: 'avatar', id: user.id, avatar: user.avatar });
+    },
+
     /** Saves every pose that moved since its last save. */
     flush(): void {
       for (const player of online.values()) if (player.dirty) save(player);

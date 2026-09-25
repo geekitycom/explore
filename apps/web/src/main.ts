@@ -8,6 +8,7 @@ import { startGame, type GameStatus } from './game/game.ts';
 import { canvasRenderer } from './game/render.ts';
 import { mapView } from './map/map-view.ts';
 import { authView, type AuthMode } from './ui/auth.ts';
+import { avatarEditor } from './ui/avatar-editor.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
 import { soundSettings } from './ui/sound-settings.ts';
@@ -46,6 +47,7 @@ Object.assign(window, {
 let stopGame: (() => void) | undefined;
 
 function gameView(user: User) {
+  let avatar = user.avatar;
   const canvas = h('canvas', { class: 'game-canvas', 'aria-label': 'Game world' });
   const status = h('p', { class: 'status', role: 'status' });
   const view = h(
@@ -56,6 +58,14 @@ function gameView(user: User) {
       { class: 'game-bar' },
       h('span', { class: 'who' }, user.username),
       status,
+      avatarEditor(
+        () => avatar,
+        drawAvatar,
+        (saved) => {
+          avatar = saved.avatar;
+          game.setAvatar(avatar);
+        },
+      ),
       soundSettings(audio),
       h('a', { class: 'link', href: '/map' }, 'Map'),
       h(
