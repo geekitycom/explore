@@ -4,6 +4,7 @@ title: World map page at /map
 status: To Do
 assignee: []
 created_date: '2026-09-25 01:27'
+updated_date: '2026-09-25 01:29'
 labels: []
 milestone: m-3
 dependencies: []
@@ -26,3 +27,9 @@ A page that shows the entire discovered world at once, so players can see how fa
 - [ ] #4 Logged-out visitors are sent to log in
 - [ ] #5 The game view links to the map and back
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Confirmed with Andrew on 2026-09-24: any logged-in player can see the map.
+<!-- SECTION:NOTES:END -->
