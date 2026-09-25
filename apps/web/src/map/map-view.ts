@@ -87,13 +87,8 @@ export function mapView(data: WorldMap) {
       for (let sx = sx0; sx <= sx1; sx++) {
         const tile = tiles.get(screenKey({ layer, sx, sy }));
         if (!tile) continue;
-        ctx.drawImage(
-          tile,
-          ox + sx * SCREEN_W * s,
-          oy + sy * SCREEN_H * s,
-          SCREEN_W * s,
-          SCREEN_H * s,
-        );
+        const { x, y, w, h } = screenRect(s, ox, oy, sx, sy);
+        ctx.drawImage(tile, x, y, w, h);
       }
     }
 
@@ -101,21 +96,13 @@ export function mapView(data: WorldMap) {
       ctx.strokeStyle = 'rgba(15, 21, 21, 0.35)';
       ctx.lineWidth = 1;
       for (const screen of screens) {
-        const { sx, sy } = screen.coord;
-        ctx.strokeRect(
-          ox + sx * SCREEN_W * s + 0.5,
-          oy + sy * SCREEN_H * s + 0.5,
-          SCREEN_W * s,
-          SCREEN_H * s,
-        );
+        const { x, y, w, h } = screenRect(s, ox, oy, screen.coord.sx, screen.coord.sy);
+        ctx.strokeRect(x + 0.5, y + 0.5, w, h);
       }
     }
 
     const marker = (sx: number, sy: number, color: string, label: string) => {
-      const x = ox + sx * SCREEN_W * s;
-      const y = oy + sy * SCREEN_H * s;
-      const w = SCREEN_W * s;
-      const hgt = SCREEN_H * s;
+      const { x, y, w, h: hgt } = screenRect(s, ox, oy, sx, sy);
       const pad = 2 * dpr;
       ctx.lineWidth = 4 * dpr;
       ctx.strokeStyle = '#141b1b';
@@ -226,6 +213,22 @@ export function mapView(data: WorldMap) {
     dispose: () => observer.disconnect(),
     /** Test hook: the world-pixel scale and which screens were drawn. */
     state: () => ({ ...view, screens: screens.map((s) => s.coord) }),
+  };
+}
+
+/**
+ * Where a screen lands on the canvas, in device pixels. Each edge is rounded on its own so
+ * neighbours share it exactly: a fractional edge is antialiased and lets the background show
+ * through as a line between screens.
+ */
+export function screenRect(scale: number, ox: number, oy: number, sx: number, sy: number) {
+  const x = Math.round(ox + sx * SCREEN_W * scale);
+  const y = Math.round(oy + sy * SCREEN_H * scale);
+  return {
+    x,
+    y,
+    w: Math.round(ox + (sx + 1) * SCREEN_W * scale) - x,
+    h: Math.round(oy + (sy + 1) * SCREEN_H * scale) - y,
   };
 }
 
