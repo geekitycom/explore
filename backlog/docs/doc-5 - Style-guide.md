@@ -3,7 +3,7 @@ id: doc-5
 title: Style guide
 type: guide
 created_date: '2026-09-25 13:42'
-updated_date: '2026-09-25 13:56'
+updated_date: '2026-09-25 14:17'
 ---
 # Style guide
 
@@ -121,3 +121,11 @@ Each biome's ramps are checked against public-domain and CC0 reference photos of
 - Trees, conifers, cacti, and rocks come from code recipes (D21).
 - Bushes, flowers, and other small props start from a hand-drawn base. Recipes recolour and vary it, or it ships as drawn.
 - Both follow this guide, and the palette lint checks both.
+
+## Lint
+
+- `pnpm lint:art` checks every PNG under `apps/web/public` with `styleViolations` from `packages/core/src/sprite.ts`. It prints each violation as `file:x,y rule colour` and exits non-zero. CI runs it.
+- `SHIPPED_ART` in `packages/core/scripts/art-lint.ts` lists every shipped PNG with its sprite cell size and the rules it is exempt from, each with a reason. An unlisted PNG fails the lint.
+- Ground tilesets are exempt from the outline and colour-count rules. Character walk sheets are exempt from them too: feet stand on unoutlined ground, and the pack draws characters with up to 10 colours. The plant sheet's stems meet the ground unoutlined.
+- `pnpm lint:art --fix` remaps each off-palette colour to its nearest palette colour in OKLab. On character sheets it picks the nearest colour the sheet does not already use, because avatars recolour by source colour. A rerun changes nothing.
+- Recipe sprites are checked by `recipes.test.ts`. Terrain edge-band colours are checked by `terrain.test.ts`.
