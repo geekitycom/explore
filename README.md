@@ -27,15 +27,18 @@ pnpm start
 
 ## Scripts
 
-| Script                              | What it does                                     |
-| ----------------------------------- | ------------------------------------------------ |
-| `pnpm dev`                          | Server with watch mode, plus the Vite dev server |
-| `pnpm build`                        | Build every package that has a build step        |
-| `pnpm start`                        | Start the server                                 |
-| `pnpm lint`                         | ESLint with type-aware rules                     |
-| `pnpm format` / `pnpm format:check` | Prettier write or check                          |
-| `pnpm typecheck`                    | `tsc` in every package                           |
-| `pnpm test`                         | Vitest across all packages                       |
+| Script                                | What it does                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                            | Server with watch mode, plus the Vite dev server                                                                                                                    |
+| `pnpm build`                          | Build every package that has a build step                                                                                                                           |
+| `pnpm start`                          | Start the server                                                                                                                                                    |
+| `pnpm lint`                           | ESLint with type-aware rules                                                                                                                                        |
+| `pnpm format` / `pnpm format:check`   | Prettier write or check                                                                                                                                             |
+| `pnpm typecheck`                      | `tsc` in every package                                                                                                                                              |
+| `pnpm test`                           | Vitest across all packages                                                                                                                                          |
+| `pnpm e2e`                            | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                         |
+| `pnpm world:wipe --yes`               | Delete the generated world and saved positions (accounts stay) and restore the garden. Stop the server first. Uses `DB_PATH`, default `apps/server/data/explore.db` |
+| `pnpm --filter @explore/core preview` | Render a large area of the world to a PNG for tuning generation                                                                                                     |
 
 ## Layout
 
