@@ -178,24 +178,45 @@ export function edgeDistance(
   reach: number,
 ): Float32Array {
   const offsets = offsetsWithin(reach);
-  const out = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    const onRow = y === 0 || y === h - 1;
+  const out = new Float32Array(w * h).fill(Infinity);
+  const edgePixel = (i: number, x: number, y: number) =>
+    (x > 0 && region[i - 1] !== region[i]) ||
+    (x < w - 1 && region[i + 1] !== region[i]) ||
+    (y > 0 && region[i - w] !== region[i]) ||
+    (y < h - 1 && region[i + w] !== region[i]);
+  for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
-      const onColumn = x === 0 || x === w - 1;
-      const inside = region[y * w + x]!;
-      let d = Infinity;
-      for (const [dx, dy, dist] of onColumn && onRow ? [] : offsets) {
-        if ((onColumn && dx !== 0) || (onRow && dy !== 0)) continue;
-        const nx = Math.min(w - 1, Math.max(0, x + dx));
-        const ny = Math.min(h - 1, Math.max(0, y + dy));
-        if (region[ny * w + nx] !== inside) {
-          d = dist;
-          break;
-        }
+      const i = y * w + x;
+      if (!edgePixel(i, x, y)) continue;
+      const v = region[i];
+      for (const [dx, dy, dist] of offsets) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 1 || ny < 1 || nx >= w - 1 || ny >= h - 1) continue;
+        const j = ny * w + nx;
+        if (region[j] !== v && dist < out[j]!) out[j] = dist;
       }
-      out[y * w + x] = inside ? -d : d;
     }
+
+  const steps = Math.floor(reach);
+  const alongBorder = (i: number, at: number, length: number, stride: number) => {
+    const v = region[i];
+    for (let k = 1; k <= steps; k++) {
+      const back = Math.max(0, at - k) - at;
+      const ahead = Math.min(length - 1, at + k) - at;
+      if (region[i + back * stride] !== v || region[i + ahead * stride] !== v) return k;
+    }
+    return Infinity;
+  };
+  for (let y = 1; y < h - 1; y++) {
+    out[y * w] = alongBorder(y * w, y, h, w);
+    out[y * w + w - 1] = alongBorder(y * w + w - 1, y, h, w);
   }
+  for (let x = 1; x < w - 1; x++) {
+    out[x] = alongBorder(x, x, w, 1);
+    out[(h - 1) * w + x] = alongBorder((h - 1) * w + x, x, w, 1);
+  }
+
+  for (let i = 0; i < out.length; i++) if (region[i]) out[i] = -out[i]!;
   return out;
 }

@@ -118,7 +118,8 @@ export function fillIndex(
 }
 
 function ringColor(rings: readonly Ring[], distance: number): Rgba | undefined {
-  return rings.find((r) => distance < r.upTo)?.color;
+  for (const r of rings) if (distance < r.upTo) return r.color;
+  return undefined;
 }
 
 /**
@@ -144,14 +145,25 @@ export function composeTerrain(screen: Screen, textures: TerrainTextures): Pixel
         const full = layer === 0 ? cornerMask(corners, 1) === 0 : cornerMask(corners, layer) === 15;
         const texture = textures[terrain][full ? fillIndex(screen, tx, ty, layer, art) : 0]!;
         for (let y = 0; y < TILE; y++) {
+          const row = (ty * TILE + y) * SCREEN_PX_W + tx * TILE;
+          if (!distance) {
+            out.set(texture.subarray(y * TILE * 4, (y + 1) * TILE * 4), row * 4);
+            continue;
+          }
           for (let x = 0; x < TILE; x++) {
-            const px = (ty * TILE + y) * SCREEN_PX_W + tx * TILE + x;
+            const px = row + x;
             const o = px * 4;
-            const d = distance ? distance[px]! : -Infinity;
+            const d = distance[px]!;
             if (d < 0) {
               const color = ringColor(art.inner, -d);
               if (color) paint(out, o, color);
-              else out.set(texture.subarray((y * TILE + x) * 4, (y * TILE + x) * 4 + 4), o);
+              else {
+                const t = (y * TILE + x) * 4;
+                out[o] = texture[t]!;
+                out[o + 1] = texture[t + 1]!;
+                out[o + 2] = texture[t + 2]!;
+                out[o + 3] = texture[t + 3]!;
+              }
             } else {
               const color = ringColor(art.outer, d);
               if (color) paint(out, o, color);

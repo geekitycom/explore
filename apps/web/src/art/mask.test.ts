@@ -175,4 +175,33 @@ describe('edgeDistance', () => {
     }
     expect([...distance].filter((d) => Math.abs(d) === 1).length).toBeGreaterThan(0);
   });
+
+  it('matches a direct search from every pixel, on random regions', () => {
+    const reach = 5;
+    const direct = (region: Uint8Array, x: number, y: number) => {
+      const v = region[y * PX_W + x];
+      const onRow = y === 0 || y === PX_H - 1;
+      const onColumn = x === 0 || x === PX_W - 1;
+      let best = Infinity;
+      for (let dy = -reach; dy <= reach; dy++)
+        for (let dx = -reach; dx <= reach; dx++) {
+          if ((onColumn && dx !== 0) || (onRow && dy !== 0)) continue;
+          const d = Math.hypot(dx, dy);
+          if (d === 0 || d > reach || d >= best) continue;
+          const nx = Math.min(PX_W - 1, Math.max(0, x + dx));
+          const ny = Math.min(PX_H - 1, Math.max(0, y + dy));
+          if (region[ny * PX_W + nx] !== v) best = d;
+        }
+      return Math.fround(v ? -best : best);
+    };
+    for (const lattice of randomLattices.slice(0, 10)) {
+      const region = layerRegion(lattice, W, H, 2, fringeSets['mixed']!);
+      const distance = edgeDistance(region, PX_W, PX_H, reach);
+      const wrong = [];
+      for (let y = 0; y < PX_H; y++)
+        for (let x = 0; x < PX_W; x++)
+          if (distance[y * PX_W + x] !== direct(region, x, y)) wrong.push(`${x},${y}`);
+      expect(wrong).toEqual([]);
+    }
+  });
 });
