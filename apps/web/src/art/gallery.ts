@@ -1,10 +1,15 @@
 import {
+  BIOME_RAMPS,
   CLOTH_COLORS,
   HAIR_COLORS,
   HAIR_STYLES,
   LATTICE_H,
   LATTICE_W,
+  OUTLINE,
   OVERWORLD,
+  PALETTE,
+  PALETTE_BIOMES,
+  RAMPS,
   SCREEN_H,
   SCREEN_PX_H,
   SCREEN_PX_W,
@@ -18,6 +23,7 @@ import {
   type Avatar,
   type Dir,
   type Feature,
+  type RampName,
   type Screen,
   type Terrain,
   type WorldSeed,
@@ -231,7 +237,86 @@ function showAvatars(art: Art) {
   setInterval(() => draw((frame = (frame + 1) % WALK_FRAMES)), 180);
 }
 
+const SWATCH = 12;
+
+function drawRamps(ctx: CanvasRenderingContext2D, names: readonly RampName[], y = 0) {
+  names.forEach((name, row) =>
+    RAMPS[name].forEach((hex, i) => {
+      ctx.fillStyle = hex;
+      ctx.fillRect(i * SWATCH, y + row * SWATCH, SWATCH, SWATCH);
+    }),
+  );
+}
+
+function showStyle(art: Art) {
+  const ramps = section(
+    `Master palette: ${PALETTE.length} colours, outline plus ramps dark to light`,
+  );
+  const outline = figure(ramps, 'outline', SWATCH, SWATCH);
+  outline.fillStyle = OUTLINE;
+  outline.fillRect(0, 0, SWATCH, SWATCH);
+  for (const name of Object.keys(RAMPS) as RampName[]) {
+    drawRamps(figure(ramps, name, RAMPS[name].length * SWATCH, SWATCH), [name]);
+  }
+
+  const biomes = section('Biome ramps: ground rows, then flora rows');
+  for (const biome of PALETTE_BIOMES) {
+    const { ground, flora } = BIOME_RAMPS[biome];
+    const gap = ground.length * SWATCH + 4;
+    const ctx = figure(
+      biomes,
+      `${biome}: ground ${ground.join(', ')}; flora ${flora.join(', ')}`,
+      6 * SWATCH,
+      gap + flora.length * SWATCH,
+      2,
+    );
+    drawRamps(ctx, ground);
+    drawRamps(ctx, flora, gap);
+  }
+
+  const picks = [
+    FEATURE_ART.tree[0]!,
+    FEATURE_ART.tree[2]!,
+    FEATURE_ART.bush[0]!,
+    FEATURE_ART.rock[0]!,
+    FEATURE_ART.flowers[0]!,
+  ];
+  const anchoring = section(
+    'Scale and anchoring: a 16px grid, each object bottom-centre on its tile (outlined); light from the top left',
+  );
+  const ctx = figure(
+    anchoring,
+    'pack sprites on their anchor tiles',
+    picks.length * 3 * TILE,
+    3 * TILE,
+    4,
+  );
+  ctx.fillStyle = RAMPS.grass[3];
+  ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  picks.forEach(({ ref: { sheet, rect } }, i) => {
+    const tx = i * 3 + 1;
+    const bottom = 3 * TILE - 4;
+    ctx.drawImage(
+      art.sheets[sheet],
+      rect.x,
+      rect.y,
+      rect.w,
+      rect.h,
+      tx * TILE + (TILE - rect.w) / 2,
+      bottom - rect.h,
+      rect.w,
+      rect.h,
+    );
+    ctx.strokeStyle = RAMPS.rose[1];
+    ctx.strokeRect(tx * TILE + 0.5, bottom - TILE + 0.5, TILE - 1, TILE - 1);
+  });
+  ctx.fillStyle = 'rgb(20 27 27 / 0.25)';
+  for (let x = TILE; x < ctx.canvas.width; x += TILE) ctx.fillRect(x, 0, 1, ctx.canvas.height);
+  for (let y = TILE - 4; y < ctx.canvas.height; y += TILE) ctx.fillRect(0, y, ctx.canvas.width, 1);
+}
+
 const SECTIONS = {
+  style: showStyle,
   masks: showMasks,
   world: showWorld,
   features: showFeatures,
