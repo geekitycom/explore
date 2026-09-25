@@ -4,6 +4,7 @@ title: Biomes across the world
 status: To Do
 assignee: []
 created_date: '2026-09-25 01:32'
+updated_date: '2026-09-25 01:36'
 labels: []
 milestone: m-3
 dependencies:
@@ -29,3 +30,9 @@ Place biomes at world scale (meadow, forest, lakeland, scrubland, desert, highla
 - [ ] #4 Each stored screen records its biome
 - [ ] #5 The preview tool shows biome regions for review
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Confirmed with Andrew on 2026-09-24: keep all eight biomes (meadow, forest, lakeland, scrubland, desert, highlands, taiga, tundra).
+<!-- SECTION:NOTES:END -->
