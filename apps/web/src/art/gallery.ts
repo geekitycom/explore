@@ -29,6 +29,8 @@ import { featureSprites } from './features.ts';
 import { loadArt, type Art } from './load.ts';
 import { OVERLAY_MASKS } from './mask.ts';
 import { bakeTerrain } from './terrain.ts';
+import { butterflies, fishes, twinkles } from './life.ts';
+import { buildScene, drawScene, type Actor } from './scene.ts';
 
 const SCALE = 3;
 const WALK_ORDER: readonly Dir[] = ['s', 'n', 'w', 'e'];
@@ -160,7 +162,7 @@ function showFeatures(art: Art) {
   const row = section('Feature variants');
   for (const [feature, variants] of Object.entries(FEATURE_ART)) {
     const ctx = figure(row, feature, variants.length * 34, 34);
-    variants.forEach(({ sheet, rect }, i) => {
+    variants.forEach(({ ref: { sheet, rect } }, i) => {
       ctx.fillStyle = '#adbc3a';
       ctx.fillRect(i * 34, 0, 33, 34);
       ctx.drawImage(
@@ -244,7 +246,54 @@ const SECTIONS = {
   world: showWorld,
   features: showFeatures,
   avatars: showAvatars,
+  motion: showMotion,
 };
+function showMotion(art: Art) {
+  const params = new URLSearchParams(location.search);
+  const base = Number(params.get('t') ?? 0);
+  const times = [0, 0.4, 0.8, 1.2, 1.6, 2.0].map((dt) => base + dt);
+  const candidates = Array.from({ length: 400 }, (_, seed) =>
+    generateScreen({ sx: 9, sy: seed }, seed, {}),
+  );
+  const find = (label: string, test: (s: Screen) => boolean) => {
+    const screen = candidates.find(test);
+    return screen ? [{ label, screen }] : [];
+  };
+  const picks = [
+    { label: 'garden', screen: secretGarden() },
+    ...find('lake', (s) => fishes(s).length > 0 && twinkles(s).length > 20),
+    ...find('forest with cherry trees', (s) => {
+      const f = featureSprites(s, art);
+      return (
+        f.filter((x) => x.variant.sheds).length >= 2 && f.some((x) => x.feature === 'tallgrass')
+      );
+    }),
+    ...find('meadow', (s) => butterflies(s).length >= 2),
+  ];
+  for (const { label, screen } of picks) {
+    const scene = buildScene(screen, art);
+    const grass = scene.features.find((f) => f.feature === 'tallgrass');
+    const walker: Actor[] = grass
+      ? [
+          {
+            x: grass.tx * TILE + 8,
+            y: grass.ty * TILE + 10,
+            moving: true,
+            sortY: grass.ty * TILE + 12,
+            draw: () => undefined,
+          },
+        ]
+      : [];
+    const row = section(`Motion: ${label} (${screen.coord.sx},${screen.coord.sy})`);
+    for (const t of times) {
+      const ctx = figure(row, `t=${t.toFixed(1)}s`, SCREEN_PX_W, SCREEN_PX_H, 2);
+      drawScene(ctx, scene, art, t, walker, true);
+    }
+    const still = figure(row, 'reduced motion', SCREEN_PX_W, SCREEN_PX_H, 2);
+    drawScene(still, scene, art, times[0]!, walker, false);
+  }
+}
+
 const only = new URLSearchParams(location.search).get('section');
 const art = await loadArt();
 for (const [name, show] of Object.entries(SECTIONS)) if (!only || only === name) show(art);

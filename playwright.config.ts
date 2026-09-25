@@ -9,6 +9,7 @@ export default defineConfig({
   testDir: 'e2e',
   outputDir: 'e2e/.results',
   fullyParallel: false,
+  workers: 1,
   reporter: 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,

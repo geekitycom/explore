@@ -1,24 +1,24 @@
 import { SCREEN_PX_H, SCREEN_PX_W, TILE, type Avatar, type Pose, type Screen } from '@explore/core';
 import type { User } from '../api.ts';
 import { avatarSheet, walkFrameRect } from '../art/avatars.ts';
-import { featureSprites, type PlacedSprite } from '../art/features.ts';
 import type { Art } from '../art/load.ts';
-import { bakeTerrain } from '../art/terrain.ts';
+import { buildScene, drawScene, type Scene } from '../art/scene.ts';
 import type { Renderer } from './game.ts';
 import type { GameState } from './state.ts';
 
 const FRAME_MS = 140;
+/** Ambient motion runs on wall-clock time so players on one screen see it roughly in step. */
+const AMBIENT_EPOCH_MS = Date.UTC(2026, 0, 1);
 /** The sprite's feet sit this far above its bottom edge. */
 const SPRITE_FOOT = 2;
-
-type Baked = { terrain: HTMLCanvasElement; features: PlacedSprite[] };
 
 type Actor = { avatar: Avatar; name: string; x: number; y: number; pose: Pose };
 
 /** Draws the game at the largest integer scale that fits the canvas's container. */
 export function canvasRenderer(canvas: HTMLCanvasElement, art: Art): Renderer {
   const ctx = canvas.getContext('2d')!;
-  const baked = new WeakMap<Screen, Baked>();
+  const scenes = new WeakMap<Screen, Scene>();
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let scale = 1;
 
   const fit = () => {
@@ -31,13 +31,13 @@ export function canvasRenderer(canvas: HTMLCanvasElement, art: Art): Renderer {
   observer.observe(canvas.parentElement!);
   fit();
 
-  const bake = (screen: Screen): Baked => {
-    let entry = baked.get(screen);
-    if (!entry) {
-      entry = { terrain: bakeTerrain(screen, art), features: featureSprites(screen, art) };
-      baked.set(screen, entry);
+  const sceneFor = (screen: Screen): Scene => {
+    let scene = scenes.get(screen);
+    if (!scene) {
+      scene = buildScene(screen, art);
+      scenes.set(screen, scene);
     }
-    return entry;
+    return scene;
   };
 
   const drawActor = ({ avatar, x, y, pose }: Actor, clock: number) => {
@@ -90,10 +90,8 @@ export function canvasRenderer(canvas: HTMLCanvasElement, art: Art): Renderer {
         message('Connecting…');
         return;
       }
-      const { terrain, features } = bake(state.screen);
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(terrain, 0, 0);
 
       const actors: Actor[] = [
         { avatar: you.avatar, name: you.username, x: state.you.x, y: state.you.y, pose: state.you },
@@ -105,25 +103,20 @@ export function canvasRenderer(canvas: HTMLCanvasElement, art: Art): Renderer {
           pose: p,
         })),
       ];
-      const drawables = [
-        ...features.map((s) => ({
-          sortY: s.sortY,
-          draw: () =>
-            ctx.drawImage(
-              s.image,
-              s.src.x,
-              s.src.y,
-              s.src.w,
-              s.src.h,
-              s.dx,
-              s.dy,
-              s.src.w,
-              s.src.h,
-            ),
+      drawScene(
+        ctx,
+        sceneFor(state.screen),
+        art,
+        (Date.now() - AMBIENT_EPOCH_MS) / 1000,
+        actors.map((a) => ({
+          x: a.x,
+          y: a.y,
+          moving: a.pose.moving,
+          sortY: a.y + SPRITE_FOOT,
+          draw: () => drawActor(a, clock),
         })),
-        ...actors.map((a) => ({ sortY: a.y + SPRITE_FOOT, draw: () => drawActor(a, clock) })),
-      ].sort((a, b) => a.sortY - b.sortY);
-      for (const d of drawables) d.draw();
+        !reducedMotion.matches,
+      );
       for (const a of actors) drawName(a);
 
       if (state.phase === 'travelling') {

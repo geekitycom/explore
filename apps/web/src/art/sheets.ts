@@ -9,6 +9,9 @@ export const SHEETS = {
   princess: 'Actor/Character/Princess/SeparateAnim/Walk.png',
   samuraiBlue: 'Actor/Character/SamuraiBlue/SeparateAnim/Walk.png',
   villager3: 'Actor/Character/Villager3/SeparateAnim/Walk.png',
+  plant: 'Backgrounds/Animated/Plant/SpriteSheet16x16.png',
+  petal: 'FX/Particle/LeafPink.png',
+  fish: 'Actor/Animal/Fish/SpriteSheetWhite.png',
 } as const;
 
 export type SheetId = keyof typeof SHEETS;

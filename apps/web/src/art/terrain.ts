@@ -78,7 +78,13 @@ export type TerrainTextures = Readonly<Record<Terrain, readonly Uint8ClampedArra
 
 const RING_REACH = 5;
 
-function fillIndex(screen: Screen, tx: number, ty: number, layer: number, terrain: TerrainArt) {
+export function fillIndex(
+  screen: Screen,
+  tx: number,
+  ty: number,
+  layer: number,
+  terrain: TerrainArt,
+) {
   const h = tileHash(screen.coord, tx, ty, layer);
   if ((h & 0xffff) / 0x10000 >= terrain.decorChance) return 0;
   return 1 + ((h >>> 16) % (terrain.fills.length - 1));

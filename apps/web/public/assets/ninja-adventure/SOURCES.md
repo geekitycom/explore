@@ -18,4 +18,7 @@ Files are copied unchanged and keep their paths from the pack's `Ninja Adventure
 - `Actor/Character/Princess/SeparateAnim/Walk.png`
 - `Actor/Character/SamuraiBlue/SeparateAnim/Walk.png`
 - `Actor/Character/Villager3/SeparateAnim/Walk.png`
+- `Backgrounds/Animated/Plant/SpriteSheet16x16.png`
+- `FX/Particle/LeafPink.png`
+- `Actor/Animal/Fish/SpriteSheetWhite.png`
 - `LICENSE.txt`

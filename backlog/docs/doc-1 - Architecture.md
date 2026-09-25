@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-24 21:55'
+updated_date: '2026-09-25 01:18'
 ---
 # Architecture
 
@@ -42,6 +42,10 @@ Property tests over many seeds and random neighbor layouts assert seam equality,
 ## Rendering
 
 Transition tiles are derived at render time from the corner lattice, not stored. Terrains draw in layer order (water, sand, dirt, grass). For each tile, the lowest terrain fills the tile and each higher terrain is drawn through one of 16 corner masks. Each screen's terrain is baked once into an offscreen canvas. Features and players are then drawn y-sorted so tall trees overlap correctly.
+
+### Animation
+
+`art/scene.ts` builds a scene once per screen (baked terrain, feature sprites, twinkling water tiles, butterflies, fish runs, petal sources) and draws it every frame. All motion is a pure function of the screen, world position, and wall-clock time, so players on one screen see roughly the same thing and every path is unit-testable. Wind shifts horizontal slices of trees, bushes, flowers, and grass by at most one pixel; the gust wave is keyed to world x so it rolls across seams, and trunks and stems never move. Only open water (a tile whose whole neighbourhood is water) twinkles, so shorelines are never redrawn. A live `prefers-reduced-motion` check freezes all of it.
 
 ## Server
 
