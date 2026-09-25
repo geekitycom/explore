@@ -1,9 +1,11 @@
 ---
 id: TASK-26
 title: Generate terrain from world-seeded global fields
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-25 01:32'
+updated_date: '2026-09-25 01:51'
 labels: []
 milestone: m-3
 dependencies:
@@ -30,3 +32,9 @@ Replace the neighbour-constrained generator with pure functions of the world see
 - [ ] #4 A world seed is stored once per world and changing it produces a different world
 - [ ] #5 The neighbour-copy generator and its tests are removed
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+Delegated to a subagent (strongest-judgment model) in an isolated worktree. Pure world-seeded fields over global lattice coordinates (elevation, moisture, detail, warp) with a single temperate parameter set ready for biomes in task-27; garden stamp with a meadow falloff ring; features from seeded density fields; pure edge crossings shared by both screens of every edge so the world stays connected until roads land; per-screen connectivity repair that never changes shared lattice points; world table with the seed, rolled by the wipe; server generates per screen from the seed; preview gets a fields source; neighbour-copy code and tests deleted.
+<!-- SECTION:PLAN:END -->

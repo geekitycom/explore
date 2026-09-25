@@ -1,11 +1,11 @@
 ---
 id: TASK-33
 title: 'Spike: can code recipes match hand-made pixel art?'
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 01:37'
-updated_date: '2026-09-25 01:48'
+updated_date: '2026-09-25 01:51'
 labels: []
 milestone: m-4
 dependencies: []
@@ -26,7 +26,7 @@ Before committing to generated scenery, find out by building it. Throwaway recip
 <!-- AC:BEGIN -->
 - [x] #1 The gallery shows each recipe at several seeds beside the pack sprite it would replace, at game scale
 - [x] #2 Recipes use only palette ramps and follow the outline and light rules in the doc
-- [ ] #3 Andrew's verdict (go, adjust, or fall back to hand-drawn) is recorded in the decision log
+- [x] #3 Andrew's verdict (go, adjust, or fall back to hand-drawn) is recorded in the decision log
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -36,4 +36,12 @@ Spike built in scratchpad/recipe-spike (throwaway), viewer at http://localhost:8
 Five tuning rounds. Result: banded broadleaf, conifer, saguaro, and rocks pass beside the pack; bushes are the weakest (smooth domes versus the pack's notched, lumpy bushes). 0 off-ramp pixels and at most 8 colours per sprite across 50 seeds per recipe. Added colours: #23403C, #4A7F4B, #7B473C (already used by the pack outside Palette.png), #2A4B3F, #3F6E4C, #7FA24A, #D5D66B.
 Researcher recommendation: adjust. Recipes for large objects in the pack's drawing method; hybrid (hand-drawn base, recipe recolour and variation) or hand-drawn for bushes and flowers. doc-4 updated: full dark outline to match the pack, and the spike findings.
 Waiting on Andrew's verdict (AC 3).
+
+Andrew's verdict on 2026-09-24: adjust as recommended (recorded in D21).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built a throwaway recipe prototype for broadleaf, conifer, saguaro, bush, and rock and compared it against the pack over five rounds. Trees, cacti, and rocks pass when they copy the pack's drawing method; bushes fall short. Andrew chose to adjust: recipes for large scenery, hand-drawn bases for small props (D21).
+<!-- SECTION:FINAL_SUMMARY:END -->

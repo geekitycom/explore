@@ -4,6 +4,7 @@ title: Sprite recipe generator
 status: To Do
 assignee: []
 created_date: '2026-09-25 01:37'
+updated_date: '2026-09-25 01:51'
 labels: []
 milestone: m-4
 dependencies:
@@ -29,3 +30,9 @@ Build the lasting version of the recipe approach: deterministic families (tree, 
 - [ ] #3 Unit tests cover determinism, palette use, and anchoring
 - [ ] #4 The game renders generated scenery with no visible drop in frame rate
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Scope per the task-33 verdict (D21): recipes for trees, conifers, cacti, rocks in the pack's drawing method; bushes and flowers as hand-drawn base shapes recoloured and varied by recipe. Fix the spike's tells: uneven drips, root bases, varied cactus widths and arms, varied rock cracks.
+<!-- SECTION:NOTES:END -->
