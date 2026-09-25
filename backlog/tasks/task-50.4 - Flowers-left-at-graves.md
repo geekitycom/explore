@@ -4,7 +4,7 @@ title: Flowers picked and left at graves
 status: To Do
 assignee: []
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-25 22:53'
+updated_date: '2026-09-25 22:55'
 labels: []
 milestone: m-5
 dependencies:
@@ -27,6 +27,7 @@ Players pick flowers from the flower patches that grow in the world and carry th
 - [ ] #3 A grave with flowers, fresh or wilted, refuses more with 'This grave already has flowers' and the player keeps their bouquet; facing it shows who left them
 - [ ] #4 Flowers on a grave show fresh, then wilted, then disappear over a fixed number of days
 - [ ] #5 Flower sprites come from the species recipes in FLORA and pass pnpm lint:art
+- [ ] #6 A picked plant regrows through visible stages, sprout then bud then full flower, over its regrowth days, and can only be picked again once it is a full flower; each stage is a recipe of the species that passes pnpm lint:art
 <!-- AC:END -->
 
 ## Implementation Notes
