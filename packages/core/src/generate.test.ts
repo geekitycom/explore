@@ -5,6 +5,7 @@ import {
   crossingTiles,
   fieldTerrain,
   generateScreen,
+  networkOf,
   type Older,
 } from './generate.ts';
 import { createRng } from './rng.ts';
@@ -323,6 +324,37 @@ describe.each(SEEDS)('next to older screens, a world with seed %i', (seed) => {
     }
     expect(differing).toBeGreaterThan(20);
     expect(held / differing).toBeGreaterThan(0.6);
+  });
+
+  test('keeps a road solid through the blend band, up to their edge', () => {
+    const plan = networkOf(world, OVERWORLD).plan({
+      x0: REGION.x0 * SCREEN_W,
+      y0: REGION.y0 * SCREEN_H,
+      x1: (REGION.x0 + REGION.w) * SCREEN_W,
+      y1: (REGION.y0 + REGION.h) * SCREEN_H,
+    });
+    const oldX0 = OLD_BLOCK.x0 * SCREEN_W;
+    const oldY0 = OLD_BLOCK.y0 * SCREEN_H;
+    const oldX1 = (OLD_BLOCK.x0 + OLD_BLOCK.w) * SCREEN_W;
+    const oldY1 = (OLD_BLOCK.y0 + OLD_BLOCK.h) * SCREEN_H;
+    let banded = 0;
+    const faded: string[] = [];
+    for (const screen of [...screens.values()].filter(isNew)) {
+      for (let cy = 0; cy < LATTICE_H; cy++) {
+        for (let cx = 0; cx < LATTICE_W; cx++) {
+          const gx = screen.coord.sx * SCREEN_W + cx;
+          const gy = screen.coord.sy * SCREEN_H + cy;
+          const d = Math.max(oldX0 - gx, gx - oldX1, oldY0 - gy, gy - oldY1);
+          if (d < 1 || d >= STITCH_REACH || !plan.road(gx, gy)) continue;
+          banded++;
+          const t = cornerAt(screen, cx, cy);
+          if (t !== 'dirt' && t !== 'sand') faded.push(`${gx},${gy} ${t}`);
+        }
+      }
+    }
+    expect(faded).toEqual([]);
+    // In the first seed's world no road passes the old block; in the others one does.
+    if (seed !== SEEDS[0]) expect(banded).toBeGreaterThan(0);
   });
 
   test('opens onto the whole walkable edge of their main land, so every screen is reached from the garden', () => {

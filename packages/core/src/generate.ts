@@ -1,6 +1,8 @@
-import { biomeField, type BiomeField, type BiomeSample } from './biome.ts';
+import { biomeField, type BiomeField, type BiomeParams, type BiomeSample } from './biome.ts';
 import { secretGarden } from './garden.ts';
 import { fbm, hash4, hashString, unit, type Noise2 } from './noise.ts';
+import type { Land } from './poi.ts';
+import { roadNetwork, type Network, type Plan } from './roads.ts';
 import { isTileWalkable } from './walk.ts';
 import {
   BLOCKING_FEATURES,
@@ -32,7 +34,7 @@ export const STAMPS: readonly Stamp[] = [{ screen: secretGarden() }];
  * lattice points it shares with a stored older neighbour, blends into them over STITCH_REACH
  * points, and opens onto that neighbour's walkable edge (decision D23).
  */
-export const GENERATOR_VERSION = 1;
+export const GENERATOR_VERSION = 2;
 
 /**
  * Looks up a stored screen that an older generator made; undefined for a screen the current
@@ -55,7 +57,6 @@ const PURPOSE = {
   place: 4,
   crossingV: 5,
   crossingH: 6,
-  trail: 7,
   lake: 8,
   shore: 9,
   clump: 10,
@@ -87,7 +88,8 @@ type Lake = {
   readonly phase: readonly [number, number, number];
 };
 
-type Fields = {
+/** The layer's noise fields, lakes, and stamps: everything the road network is laid over. */
+type LandFields = {
   readonly seed: number;
   readonly biome: BiomeField;
   readonly stamps: readonly Stamp[];
@@ -101,6 +103,8 @@ type Fields = {
   readonly bloom: Noise2;
   readonly shore: Noise2;
 };
+
+type Fields = LandFields & { readonly network: Network };
 
 const fieldsCache = new Map<string, Fields>();
 
@@ -125,7 +129,7 @@ function makeFields(world: World, layer: LayerId): Fields {
     y: (screen.coord.sy + 0.5) * SCREEN_H,
     biome: 'meadow' as const,
   }));
-  return {
+  const fields: LandFields = {
     seed,
     biome: biomeField(field(PURPOSE.biome), pins),
     stamps,
@@ -138,6 +142,17 @@ function makeFields(world: World, layer: LayerId): Fields {
     clump: fbm(field(PURPOSE.clump), { wavelength: 5, octaves: 2 }),
     bloom: fbm(field(PURPOSE.bloom), { wavelength: 18, octaves: 2 }),
     shore: fbm(field(PURPOSE.shore), { wavelength: 12, octaves: 2 }),
+  };
+  return { ...fields, network: roadNetwork(landOf(fields)) };
+}
+
+function landOf(f: LandFields): Land {
+  return {
+    seed: f.seed,
+    biome: f.biome,
+    waterDepth: (x, y) => waterDepth(f, x, y),
+    woods: (x, y) => woodsAt(f, x, y, f.biome(x, y).params, 1 - clearing(f, x, y)),
+    stamps: f.stamps.map((s) => s.screen),
   };
 }
 
@@ -182,7 +197,7 @@ function clearingBox(screen: Screen) {
   return { x0: x0 - rx, x1: x0 + SCREEN_W + rx, y0: y0 - ry, y1: y0 + SCREEN_H + ry };
 }
 
-function clearing(f: Fields, x: number, y: number): number {
+function clearing(f: LandFields, x: number, y: number): number {
   let best = 0;
   for (const { screen } of f.stamps) {
     const x0 = screen.coord.sx * SCREEN_W;
@@ -194,7 +209,7 @@ function clearing(f: Fields, x: number, y: number): number {
   return best;
 }
 
-function lakeIn(f: Fields, cellX: number, cellY: number): Lake | undefined {
+function lakeIn(f: LandFields, cellX: number, cellY: number): Lake | undefined {
   const key = `${cellX},${cellY}`;
   if (f.lakes.has(key)) return f.lakes.get(key);
   const lake = makeLake(f, cellX, cellY);
@@ -202,7 +217,7 @@ function lakeIn(f: Fields, cellX: number, cellY: number): Lake | undefined {
   return lake;
 }
 
-function makeLake(f: Fields, cellX: number, cellY: number): Lake | undefined {
+function makeLake(f: LandFields, cellX: number, cellY: number): Lake | undefined {
   const roll = (k: number) => unit(hash4(f.seed, PURPOSE.lake + k, cellX, cellY));
   const { params } = f.biome((cellX + 0.5) * LAKE_CELL_W, (cellY + 0.5) * LAKE_CELL_H);
   if (roll(0) >= params.lakeChance) return undefined;
@@ -270,7 +285,7 @@ function lakeDepth(lake: Lake, x: number, y: number): number {
 }
 
 /** Shores can spill into the next cell, so check all nine. */
-function waterDepth(f: Fields, x: number, y: number): number {
+function waterDepth(f: LandFields, x: number, y: number): number {
   const cellX = Math.floor(x / LAKE_CELL_W);
   const cellY = Math.floor(y / LAKE_CELL_H);
   let depth = -Infinity;
@@ -283,28 +298,8 @@ function waterDepth(f: Fields, x: number, y: number): number {
   return depth;
 }
 
-/** Continues a stamp's dirt paths outward as trails that taper into the clearing. */
-function onTrail(f: Fields, gx: number, gy: number, c: number): boolean {
-  if (c === 0) return false;
-  for (const { screen } of f.stamps) {
-    const x = gx - screen.coord.sx * SCREEN_W;
-    const y = gy - screen.coord.sy * SCREEN_H;
-    const insideX = x >= 0 && x < LATTICE_W;
-    const insideY = y >= 0 && y < LATTICE_H;
-    const port = insideX
-      ? cornerAt(screen, x, y < 0 ? 0 : SCREEN_H)
-      : insideY
-        ? cornerAt(screen, x < 0 ? 0 : SCREEN_W, y)
-        : undefined;
-    if (port !== 'dirt') continue;
-    const taper = 0.6 + 0.25 * unit(hash4(f.seed, PURPOSE.trail, gx, gy));
-    if (c > taper) return true;
-  }
-  return false;
-}
-
 /** The screen being generated: its layer's fields and the stored older screens around it. */
-type Site = { readonly f: Fields; readonly older: readonly Screen[] };
+type Site = { readonly f: Fields; readonly plan: Plan; readonly older: readonly Screen[] };
 
 const AROUND = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({ dx, dy })));
 
@@ -320,7 +315,15 @@ function siteOf(world: World, { layer, sx, sy }: ScreenCoord, older: Older): Sit
     if (stored) around.push(stored);
   }
   around.sort((a, b) => a.coord.sy - b.coord.sy || a.coord.sx - b.coord.sx);
-  return { f: fieldsOf(world, layer), older: around };
+  const f = fieldsOf(world, layer);
+  return { f, plan: planOf(f, sx, sy), older: around };
+}
+
+/** The network's plan for a screen's lattice and the points just outside it. */
+function planOf(f: Fields, sx: number, sy: number): Plan {
+  const x0 = sx * SCREEN_W;
+  const y0 = sy * SCREEN_H;
+  return f.network.plan({ x0: x0 - 1, y0: y0 - 1, x1: x0 + SCREEN_W + 1, y1: y0 + SCREEN_H + 1 });
 }
 
 /**
@@ -328,10 +331,11 @@ function siteOf(world: World, { layer, sx, sy }: ScreenCoord, older: Older): Sit
  * keeps that screen's value, a stamp's point keeps the stamp's, and within STITCH_REACH of an
  * older screen the fields' value is dithered with the nearest held value, so the join is a band
  * rather than a line. Water is never added in the band (sand stands in for it), so the land
- * stays as connected as the fields made it. The result depends only on the point and the older
+ * stays as connected as the fields made it. A road is not dithered, so it runs solid up to the
+ * older screen's edge and ends there. The result depends only on the point and the older
  * screens within reach, which two new screens sharing a seam both see, so they agree on it.
  */
-function siteTerrain({ f, older }: Site, gx: number, gy: number): Terrain {
+function siteTerrain({ f, plan, older }: Site, gx: number, gy: number): Terrain {
   let nearest: { screen: Screen; x: number; y: number; d: number } | undefined;
   for (const screen of older) {
     const x = Math.min(Math.max(gx - screen.coord.sx * SCREEN_W, 0), SCREEN_W);
@@ -343,8 +347,10 @@ function siteTerrain({ f, older }: Site, gx: number, gy: number): Terrain {
     if (!nearest || d < nearest.d) nearest = { screen, x, y, d };
   }
   if (nearest?.d === 0) return cornerAt(nearest.screen, nearest.x, nearest.y);
-  const field = terrainAt(f, gx, gy);
-  if (!nearest || nearest.d >= STITCH_REACH || stampCorner(f, gx, gy)) return field;
+  const field = terrainAt(f, plan, gx, gy);
+  if (!nearest || nearest.d >= STITCH_REACH || stampCorner(f, gx, gy) || plan.road(gx, gy)) {
+    return field;
+  }
   const held = cornerAt(nearest.screen, nearest.x, nearest.y);
   if (held === field) return field;
   const t = unit(hash4(f.seed, PURPOSE.stitch, gx, gy));
@@ -352,16 +358,18 @@ function siteTerrain({ f, older }: Site, gx: number, gy: number): Terrain {
   return picked === 'water' ? 'sand' : picked;
 }
 
-function terrainAt(f: Fields, gx: number, gy: number): Terrain {
+/** Stamps win, then roads (sand where they ford water), then footprints, then the fields. */
+function terrainAt(f: Fields, plan: Plan, gx: number, gy: number): Terrain {
   const stamped = stampCorner(f, gx, gy);
   if (stamped) return stamped;
   const depth = waterDepth(f, gx, gy);
+  if (plan.road(gx, gy)) return depth > 0 ? 'sand' : 'dirt';
+  const ground = plan.ground(gx, gy);
+  if (ground) return ground;
   if (depth > 0) return 'water';
   const p = f.biome(gx, gy).params;
   if (depth > -p.shore * (0.6 + 0.8 * f.shore(gx, gy))) return 'sand';
-  const c = clearing(f, gx, gy);
-  if (onTrail(f, gx, gy, c)) return 'dirt';
-  const open = 1 - c;
+  const open = 1 - clearing(f, gx, gy);
   if (f.sand(gx, gy) < threshold(p.sand * open)) return 'sand';
   if (f.dryness(gx, gy) < threshold(p.dirt * open)) return 'dirt';
   if (f.snow(gx, gy) < threshold(p.snow * open)) return 'snow';
@@ -506,6 +514,11 @@ function onCrossing(x: Crossings, tx: number, ty: number): boolean {
 const GROWS: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass', 'snow']);
 const GREEN: ReadonlySet<Terrain> = new Set(['grass', 'darkgrass']);
 
+/** The chance, 0..1, that a tile here grows a tree. */
+function woodsAt(f: LandFields, x: number, y: number, p: BiomeParams, open: number): number {
+  return clamp01((threshold(p.woods) - f.forest(x, y)) * 3.5) * p.trees * open;
+}
+
 function featureFor(
   f: Fields,
   gtx: number,
@@ -523,7 +536,7 @@ function featureFor(
   const hasWater = corners.includes('water');
   const hasDirt = corners.includes('dirt');
   const shrubs = grows || corners.every((t) => t === 'sand');
-  const treeChance = clamp01((threshold(p.woods) - f.forest(x, y)) * 3.5) * p.trees * open;
+  const treeChance = woodsAt(f, x, y, p, open);
   const bushChance = (0.015 + 0.1 * treeChance) * p.bushes * open;
   const rockChance = (hasDirt ? 0.05 : 0.008) * p.rocks * open;
   const r = unit(hash4(f.seed, PURPOSE.place, gtx, gty));
@@ -539,24 +552,18 @@ function featureFor(
 
 /** The terrain at a global lattice point. Screens never change it. */
 export function fieldTerrain(world: World, layer: LayerId, gx: number, gy: number): Terrain {
-  return terrainAt(fieldsOf(world, layer), gx, gy);
+  const f = fieldsOf(world, layer);
+  return terrainAt(f, f.network.plan({ x0: gx, y0: gy, x1: gx, y1: gy }), gx, gy);
 }
 
-/** The feature on a global tile, before its screen's connectivity repair. */
-export function fieldFeature(world: World, layer: LayerId, gtx: number, gty: number): Feature {
-  const f = fieldsOf(world, layer);
-  const corners: [Terrain, Terrain, Terrain, Terrain] = [
-    terrainAt(f, gtx, gty),
-    terrainAt(f, gtx + 1, gty),
-    terrainAt(f, gtx, gty + 1),
-    terrainAt(f, gtx + 1, gty + 1),
-  ];
-  const feature = featureFor(f, gtx, gty, corners);
-  const sx = Math.floor(gtx / SCREEN_W);
-  const sy = Math.floor(gty / SCREEN_H);
-  const crossings = crossingsOf({ f, older: [] }, sx, sy);
-  const cleared = onCrossing(crossings, gtx - sx * SCREEN_W, gty - sy * SCREEN_H);
-  return BLOCKING_FEATURES.has(feature) && cleared ? 'none' : feature;
+/** The land under a layer's roads, for building a network of its own with `roadNetwork`. */
+export function landFor(world: World, layer: LayerId): Land {
+  return landOf(fieldsOf(world, layer));
+}
+
+/** The layer's roads and points of interest. */
+export function networkOf(world: World, layer: LayerId): Network {
+  return fieldsOf(world, layer).network;
 }
 
 /**
@@ -598,7 +605,9 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
   for (let ty = 0; ty < SCREEN_H; ty++) {
     for (let tx = 0; tx < SCREEN_W; tx++) {
       const feature = featureFor(f, x0 + tx, y0 + ty, tileCornersOf(draft, tx, ty));
-      const cleared = BLOCKING_FEATURES.has(feature) && onCrossing(crossings, tx, ty);
+      const cleared =
+        BLOCKING_FEATURES.has(feature) &&
+        (onCrossing(crossings, tx, ty) || reserved(site.plan, x0 + tx, y0 + ty));
       draft.features.push(cleared ? 'none' : feature);
     }
   }
@@ -606,6 +615,15 @@ export function generateScreen(world: World, coord: ScreenCoord, older: Older = 
     2 + 8 * unit(hash4(f.seed, PURPOSE.carve, x0 + tx, y0 + ty));
   repair(draft, tilesOf(crossings), treeCost);
   return draft;
+}
+
+/** A tile touching a road or a footprint grows nothing that blocks. */
+function reserved(plan: Plan, gtx: number, gty: number): boolean {
+  return CORNER_OFFSETS.some(([dx, dy]) => {
+    const gx = gtx + dx;
+    const gy = gty + dy;
+    return plan.road(gx, gy) || plan.ground(gx, gy) !== undefined;
+  });
 }
 
 function tileCornersOf(draft: Draft, tx: number, ty: number): [Terrain, Terrain, Terrain, Terrain] {

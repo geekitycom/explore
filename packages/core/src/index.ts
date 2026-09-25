@@ -6,6 +6,8 @@ export * from './rng.ts';
 export * from './noise.ts';
 export * from './biome.ts';
 export * from './generate.ts';
+export * from './poi.ts';
+export * from './roads.ts';
 export * from './upgrade.ts';
 export * from './garden.ts';
 export * from './protocol.ts';

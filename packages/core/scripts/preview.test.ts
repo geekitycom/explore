@@ -39,7 +39,12 @@ describe('world preview', () => {
 
   it('colours tiles by biome in biome mode', () => {
     const area = { x0: -8, y0: -8, w: 16, h: 16 };
-    const { png, stats } = renderPreview(fieldsSource(1), { ...options, area, mode: 'biome' });
+    const { png, stats } = renderPreview(fieldsSource(1), {
+      ...options,
+      area,
+      mode: 'biome',
+      overlays: new Set(),
+    });
     expect(stats.screensWithoutBiome).toBe(0);
     const at = (sx: number, sy: number) =>
       pixelAt(png, (sx - area.x0) * SCREEN_W + 3, (sy - area.y0) * SCREEN_H + 3).join();

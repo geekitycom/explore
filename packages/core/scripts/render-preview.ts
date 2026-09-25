@@ -66,6 +66,9 @@ export const BIOME_RGB: Readonly<Record<string, Rgb>> = {
 
 export const ROAD_RGB: Rgb = [230, 140, 30];
 
+/** Footprints that points of interest reserve are washed toward this under the pois overlay. */
+export const FOOTPRINT_RGB: Rgb = [255, 255, 255];
+
 export const POI_RGB: Readonly<Record<string, Rgb>> = {
   hub: [255, 255, 255],
   clearing: [255, 230, 0],
@@ -188,6 +191,13 @@ function drawTile(
     const inset = Math.floor(scale / 4);
     const colour = mode === 'biome' ? grey(feature) : feature;
     canvas.fill(ox + inset, oy + inset, scale - 2 * inset, scale - 2 * inset, colour);
+  }
+  if (options.overlays.has('pois') && screen.reserved?.[t]) {
+    for (let py = 0; py < scale; py++) {
+      for (let px = 0; px < scale; px++) {
+        canvas.set(ox + px, oy + py, mix(canvas.get(ox + px, oy + py), FOOTPRINT_RGB, 0.5));
+      }
+    }
   }
   if (options.overlays.has('roads') && screen.roads?.[t]) {
     canvas.fill(ox, oy, scale, scale, ROAD_RGB);
