@@ -4,6 +4,7 @@ title: Palette and style lint in CI
 status: To Do
 assignee: []
 created_date: '2026-09-25 01:37'
+updated_date: '2026-09-25 14:03'
 labels: []
 milestone: m-4
 dependencies:
@@ -27,3 +28,9 @@ Make the style guide enforceable: a script checks every shipped PNG and every ge
 - [ ] #2 All shipped art passes after a one-time remap, with before and after reviewed in the gallery
 - [ ] #3 CI runs the lint and fails on violations
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+From TASK-36: packages/core/src/sprite.ts exports styleViolations(image: PixelImage) covering off-palette, too-many-colours, partial-alpha (except SHADOW), stray-pixel and open-outline. Decode PNGs to {width, height, rgba} and reuse it; recipe sprites already pass it (recipes.test.ts). Pack bushes have no bottom outline, so ground-level open-outline may need a per-sheet decision.
+<!-- SECTION:NOTES:END -->
