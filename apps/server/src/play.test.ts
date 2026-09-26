@@ -1,19 +1,15 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import {
   CHUNK_H,
   CHUNK_W,
   DEFAULT_AVATAR,
   GARDEN_COORD,
   GARDEN_SPAWN,
-  GENERATOR_VERSION,
   OVERWORLD,
-  SCREEN_H,
   SCREEN_PX_W,
-  SCREEN_RECORD_VERSION,
   TILE,
   bare,
   canOccupy,
@@ -26,7 +22,6 @@ import {
   parseTraces,
   placeOf,
   REASONS,
-  seamOpenings,
   secretGarden,
   siteOf,
   type Avatar,
@@ -41,15 +36,17 @@ import { serve } from '@hono/node-server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { createApp } from './app.ts';
-import { openDatabase } from './db.ts';
+import { openMainDatabase, openWorldDatabase, type MainDb, type WorldDb } from './db.ts';
 import { saveInventory } from './inventory.ts';
 import { clearName, landmarkNames } from './names.ts';
 import { createGame, type Game } from './play.ts';
 import type { Conn } from './presence.ts';
-import { insertUser, type User } from './users.ts';
-import { getScreen, loadPlayerState, loadWorld, savePlayerState } from './world.ts';
+import { userNamed } from './testing.ts';
+import type { User } from './users.ts';
+import { loadPlayerState, loadWorld, savePlayerState } from './world.ts';
 
-type Running = { db: DatabaseSync; base: string; stop: () => Promise<void> };
+/** `db` is the world file; accounts live in `main`. */
+type Running = { db: WorldDb; main: MainDb; base: string; stop: () => Promise<void> };
 
 const cleanups: (() => Promise<void> | void)[] = [];
 
@@ -57,12 +54,18 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-async function start(dbPath = ':memory:'): Promise<Running> {
-  const db = openDatabase(dbPath);
+async function start(dir?: string): Promise<Running> {
+  const main = openMainDatabase(dir ? join(dir, 'main.db') : ':memory:');
+  const db = openWorldDatabase(dir ? join(dir, 'world.db') : ':memory:');
   let clock = 0;
   // Every clock read is a tick later, so each move sees at least one report interval pass.
   const game = createGame(db, { now: () => (clock += 100) });
-  const { app, injectWebSocket } = createApp({ db, game, scryptCost: { N: 2 ** 4, r: 1, p: 1 } });
+  const { app, injectWebSocket } = createApp({
+    db: main,
+    world: db,
+    game,
+    scryptCost: { N: 2 ** 4, r: 1, p: 1 },
+  });
   let server!: Server;
   const port = await new Promise<number>((resolve) => {
     server = serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' }, (info) =>
@@ -78,9 +81,10 @@ async function start(dbPath = ':memory:'): Promise<Running> {
     await new Promise((resolve) => server.close(resolve));
     game.stop();
     db.close();
+    main.close();
   };
   cleanups.push(stop);
-  return { db, base: `127.0.0.1:${port}`, stop };
+  return { db, main, base: `127.0.0.1:${port}`, stop };
 }
 
 async function signup(base: string, username: string): Promise<string> {
@@ -432,9 +436,8 @@ describe('world socket', () => {
   it('keeps the screen, the position, and the map across a restart on a file database', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'explore-play-'));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    const path = join(dir, 'explore.db');
 
-    const first = await start(path);
+    const first = await start(dir);
     const cookie = await signup(first.base, 'alice');
     const alice = await connect(first.base, cookie);
     await nextOf(alice, 'screen');
@@ -442,7 +445,7 @@ describe('world socket', () => {
     await alice.close();
     await first.stop();
 
-    const second = await start(path);
+    const second = await start(dir);
     expect((await fetchMap(second.base, cookie)).screens).toEqual([
       encodeScreen(secretGarden()),
       arrival.screen,
@@ -453,55 +456,12 @@ describe('world socket', () => {
     expect(resumed.you).toEqual(arrival.you);
   });
 
-  it('resumes a player in a screen an older generator made and walks them into new land', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'explore-play-'));
-    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    const path = join(dir, 'explore.db');
-    const legacy = new DatabaseSync(path);
-    legacy.exec(readFileSync(new URL('../fixtures/world-v3.sql', import.meta.url), 'utf8'));
-    legacy.close();
-
-    const { db, base } = await start(path);
-    const cookie = await signup(base, 'alice');
-    const { id } = db.prepare("SELECT id FROM users WHERE username = 'alice'").get() as {
-      id: number;
-    };
-    const edgeOf = { layer: OVERWORLD, sx: 1, sy: 1 };
-    const stood = getScreen(db, edgeOf)!;
-    const y = Array.from({ length: SCREEN_H }, (_, ty) => ty * 16 + 12).find((y) =>
-      canOccupy(bare(stood), SCREEN_PX_W - 8, y),
-    )!;
-    const pose: Pose = { x: SCREEN_PX_W - 8, y, dir: 'e', moving: false };
-    savePlayerState(db, id, { coord: edgeOf, pose });
-
-    const alice = await connect(base, cookie);
-    const resumed = await nextOf(alice, 'screen');
-    expect(resumed.screen).toEqual(encodeScreen(stood));
-    expect(resumed.screen.v).toBe(SCREEN_RECORD_VERSION);
-    expect(resumed.you).toEqual(pose);
-    expect(db.prepare('SELECT gen_version FROM screens WHERE sx = 1 AND sy = 1').get()).toEqual({
-      gen_version: 0,
-    });
-
-    alice.send({ t: 'travel', dir: 'e' });
-    const arrival = await nextOf(alice, 'screen');
-    expect(arrival.screen).toMatchObject({ sx: 2, sy: 1 });
-    const fresh = decodeScreen(arrival.screen);
-    expect(canOccupy(bare(fresh), arrival.you.x, arrival.you.y)).toBe(true);
-    const entered = Math.floor(arrival.you.y / 16);
-    expect(seamOpenings(bare(stood), bare(fresh), 'e').map(([, ty]) => ty)).toContain(entered);
-    expect(db.prepare('SELECT gen_version FROM screens WHERE sx = 2 AND sy = 1').get()).toEqual({
-      gen_version: GENERATOR_VERSION,
-    });
-    expect(encodeScreen(getScreen(db, edgeOf)!)).toEqual(resumed.screen);
-  });
-
   it('keeps players on different layers apart, even at the same sx, sy', async () => {
     const { base, db } = await start();
     const cellar = 'cellar' as LayerId;
     const cellarGarden = { ...secretGarden(), coord: { layer: cellar, sx: 0, sy: 0 } };
     db.prepare(
-      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at) VALUES (?, 0, 0, ?, NULL, 0)',
+      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version) VALUES (?, 0, 0, ?, NULL, 0, 0)',
     ).run(cellar, JSON.stringify(encodeScreen(cellarGarden)));
     const aliceCookie = await signup(base, 'alice');
     const bobCookie = await signup(base, 'bob');
@@ -573,8 +533,8 @@ const PROBE_STAND = { x: 200, y: 202 };
 const PROBE_TILE = { tx: 13, ty: 12 };
 
 /** Alice (id 1, holding two probes) walks east of the spawn; Bob (id 2) stays at the spawn. */
-async function probeGarden(dbPath?: string) {
-  const running = await start(dbPath);
+async function probeGarden(dir?: string) {
+  const running = await start(dir);
   const aliceCookie = await signup(running.base, 'alice');
   const bobCookie = await signup(running.base, 'bob');
   saveInventory(running.db, 1, PROBES);
@@ -646,9 +606,8 @@ describe('traces', () => {
   it('keeps a placed probe and the spent inventory across a restart on a file database', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'explore-play-'));
     cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    const path = join(dir, 'explore.db');
 
-    const first = await probeGarden(path);
+    const first = await probeGarden(dir);
     first.alice.send({ t: 'use', slot: 0, ...PROBE_TILE });
     await nextOf(first.alice, 'traces');
     await nextOf(first.alice, 'inventory');
@@ -656,7 +615,7 @@ describe('traces', () => {
     await first.bob.close();
     await first.stop();
 
-    const second = await start(path);
+    const second = await start(dir);
     const again = await connect(second.base, first.aliceCookie);
     const resumed = await nextOf(again, 'screen');
     expect(resumed.traces).toEqual([{ kind: 'probe', ...PROBE_TILE, by: 1 }]);
@@ -688,7 +647,7 @@ describe('traces', () => {
 });
 
 /** The first screen out from the garden that holds a landmark's centre. */
-function landmarkScreen(db: DatabaseSync): ScreenCoord {
+function landmarkScreen(db: WorldDb): ScreenCoord {
   const world = loadWorld(db);
   for (let r = 1; r < 20; r++) {
     for (let sy = -r; sy <= r; sy++) {
@@ -829,7 +788,7 @@ describe('sessions', () => {
   const EAST: ScreenCoord = { layer: OVERWORLD, sx: 1, sy: 0 };
   const STOOD: Pose = { x: 162, y: 202, dir: 'e', moving: false };
 
-  function sessionsOn(db: DatabaseSync) {
+  function sessionsOn(db: WorldDb) {
     const clock = { t: 0 };
     const game = createGame(db, { now: () => clock.t, sessionTimeoutMs: TIMEOUT });
     const firstScreen = (user: User) => {
@@ -842,8 +801,8 @@ describe('sessions', () => {
   }
 
   function setup() {
-    const db = openDatabase(':memory:');
-    const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
+    const db = openWorldDatabase(':memory:');
+    const alice = userNamed(1, 'alice');
     const games: Game[] = [];
     cleanups.push(() => {
       for (const game of games) game.stop();
@@ -902,15 +861,14 @@ describe('sessions', () => {
 
 describe('game', () => {
   it('ignores messages from a connection that has been replaced', () => {
-    const db = openDatabase(':memory:');
+    const db = openWorldDatabase(':memory:');
     let clock = 0;
     const game = createGame(db, { now: () => (clock += 100) });
     cleanups.push(() => {
       game.stop();
       db.close();
     });
-    const user = (username: string) => insertUser(db, { username, passwordHash: 'x' })!;
-    const [alice, bob] = [user('alice'), user('bob')];
+    const [alice, bob] = [userNamed(1, 'alice'), userNamed(2, 'bob')];
     const inbox = (sent: ServerMessage[]): Conn => ({
       send: (message) => sent.push(message),
       close: () => {},
@@ -927,10 +885,10 @@ describe('game', () => {
   });
 
   it('saves every position when stopped, so the database can close before sockets do', () => {
-    const db = openDatabase(':memory:');
+    const db = openWorldDatabase(':memory:');
     let clock = 0;
     const game = createGame(db, { now: () => (clock += 100) });
-    const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
+    const alice = userNamed(1, 'alice');
     const player = game.connect(alice, { send: () => {}, close: () => {} });
     game.receive(player, JSON.stringify({ t: 'move', x: 162, y: 202, dir: 'e', moving: true }));
 

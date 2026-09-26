@@ -1,17 +1,17 @@
 import { GARDEN_COORD, parseInventory } from '@explore/core';
 import { expect, test } from 'vitest';
-import { openDatabase } from './db.ts';
+import { openWorldDatabase, type WorldDb } from './db.ts';
 import { Presence } from './presence.ts';
 import { TraceStore } from './traces.ts';
-import { insertUser } from './users.ts';
+import { userNamed } from './testing.ts';
 
 const PROBE = { kind: 'probe', tx: 5, ty: 5, by: 1 } as const;
-const traceCount = (db: ReturnType<typeof openDatabase>) =>
+const traceCount = (db: WorldDb) =>
   (db.prepare('SELECT count(*) AS n FROM traces').get() as { n: number }).n;
 
 test('a trace lands only together with the inventory it was spent from', () => {
-  const db = openDatabase(':memory:');
-  const user = insertUser(db, { username: 'ann', passwordHash: 'x' })!;
+  const db = openWorldDatabase(':memory:');
+  const user = userNamed(1, 'ann');
   const store = new TraceStore(db, new Presence());
   const spent = parseInventory([{ kind: 'probe', variant: 'probe', count: 1 }]);
 

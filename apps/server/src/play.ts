@@ -1,4 +1,3 @@
-import type { DatabaseSync } from 'node:sqlite';
 import {
   GARDEN_COORD,
   GARDEN_SPAWN,
@@ -21,12 +20,13 @@ import {
   type ScreenCoord,
 } from '@explore/core';
 import { Chunks } from './chunks.ts';
+import type { WorldDb } from './db.ts';
 import { epitaphWriter, type WriteText } from './epitaphs.ts';
 import { loadInventory } from './inventory.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import { TraceStore, perform, reportTrace } from './traces.ts';
 import type { User } from './users.ts';
-import { ensureGarden, loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
+import { loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 
 /** How far past the speed cap a move may be, absorbing network jitter. */
 const SPEED_SLACK = 1.5;
@@ -60,14 +60,13 @@ const tileOf = ({ tx, ty }: { tx: number; ty: number }) => ({ tx, ty });
 export type Game = ReturnType<typeof createGame>;
 
 export function createGame(
-  db: DatabaseSync,
+  db: WorldDb,
   {
     now = Date.now,
     writeText,
     sessionTimeoutMs = SESSION_TIMEOUT_MS,
   }: { now?: () => number; writeText?: WriteText | undefined; sessionTimeoutMs?: number } = {},
 ) {
-  ensureGarden(db);
   const chunks = new Chunks(db);
   const presence = new Presence();
   const store = new TraceStore(db, presence);

@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { WorldDb } from './db.ts';
 import { layerIdSchema, traceSchema, type ScreenCoord } from '@explore/core';
 
 export type LandmarkName = {
@@ -19,7 +19,7 @@ const named = (row: Row) => {
 };
 
 /** Every named landmark, with how many reports its signpost has drawn. */
-export function landmarkNames(db: DatabaseSync): LandmarkName[] {
+export function landmarkNames(db: WorldDb): LandmarkName[] {
   const rows = db
     .prepare(
       `SELECT layer, sx, sy, tx, ty, data FROM traces WHERE kind = 'landmark' ORDER BY layer, sy, sx`,
@@ -51,7 +51,7 @@ export function landmarkNames(db: DatabaseSync): LandmarkName[] {
  * Returns the name it cleared. A server holding the screen open shows the change once everyone
  * has left it.
  */
-export function clearName(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): string | undefined {
+export function clearName(db: WorldDb, { layer, sx, sy }: ScreenCoord): string | undefined {
   const row = db
     .prepare(
       `SELECT layer, sx, sy, tx, ty, data FROM traces

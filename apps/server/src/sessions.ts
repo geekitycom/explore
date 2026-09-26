@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
+import type { MainDb } from './db.ts';
 import { parse } from 'hono/utils/cookie';
 import { rowToUser, USER_COLUMNS, type User, type UserRow } from './users.ts';
 
@@ -9,7 +9,7 @@ export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export function createSession(
-  db: DatabaseSync,
+  db: MainDb,
   userId: number,
   now = Date.now(),
 ): { token: string; expiresAt: number } {
@@ -24,7 +24,7 @@ export function createSession(
   return { token, expiresAt };
 }
 
-export function deleteSession(db: DatabaseSync, token: string): void {
+export function deleteSession(db: MainDb, token: string): void {
   db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
 }
 
@@ -33,7 +33,7 @@ export function sessionToken(cookieHeader: string | undefined): string | undefin
 }
 
 export function sessionUser(
-  db: DatabaseSync,
+  db: MainDb,
   cookieHeader: string | undefined,
   now = Date.now(),
 ): User | undefined {

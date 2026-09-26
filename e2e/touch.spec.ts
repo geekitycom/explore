@@ -1,8 +1,7 @@
 /// <reference lib="dom" />
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import { GARDEN_SPAWN, SCREEN_PX_W, TILE, type Tile } from '../packages/core/src/index.ts';
-import { unique } from './helpers.ts';
+import { mainDb, unique, worldDb } from './helpers.ts';
 
 type Seen = {
   phase: string;
@@ -104,8 +103,12 @@ async function signUpByTouch(page: Page, name: string, stones: string[]) {
   await page.getByRole('button', { name: 'Create account' }).tap();
   await expect(page.getByRole('button', { name: 'Start exploring' })).toBeVisible();
 
-  const db = new DatabaseSync(process.env['E2E_DB_PATH']!);
-  const { id } = db.prepare('SELECT id FROM users WHERE username = ?').get(name) as { id: number };
+  const main = mainDb();
+  const { id } = main.prepare('SELECT id FROM users WHERE username = ?').get(name) as {
+    id: number;
+  };
+  main.close();
+  const db = worldDb();
   db.prepare('INSERT INTO inventories (user_id, items, updated_at) VALUES (?, ?, 0)').run(
     id,
     JSON.stringify(stones.map((variant) => ({ kind: 'rock', variant, count: 1 }))),

@@ -1,4 +1,3 @@
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import {
   OVERWORLD,
@@ -6,7 +5,7 @@ import {
   generateScreen,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { playing, probeOutput, signUp, unique } from './helpers.ts';
+import { playing, probeOutput, signUp, unique, worldDb } from './helpers.ts';
 
 type Coord = { sx: number; sy: number };
 type Rect = { x: number; y: number; w: number; h: number };
@@ -137,7 +136,7 @@ test('the map opens over the game, keeping the music and the connection', async 
 test('the map opens on you at one size however much is discovered, and shows more in a bigger window', async ({
   page,
 }) => {
-  const db = new DatabaseSync(process.env['E2E_DB_PATH']!);
+  const db = worldDb();
   const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   await page.setViewportSize({ width: 960, height: 600 });
   await signUp(page, unique('mapsize'));

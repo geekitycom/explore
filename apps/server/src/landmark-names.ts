@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { OVERWORLD, layerIdSchema } from '@explore/core';
-import { openDatabase } from './db.ts';
+import { openWorldDatabase } from './db.ts';
 import { clearName, landmarkNames } from './names.ts';
+import { SHARED_WORLD_ID, dataDir, worldDbPath } from './paths.ts';
 
-const dbPath = resolve(process.env.DB_PATH ?? './data/explore.db');
+const dbPath = worldDbPath(dataDir(), SHARED_WORLD_ID);
 
 const USAGE = `usage: pnpm names [--clear <sx>,<sy> [--layer <layer>]]
   Lists every named landmark in ${dbPath} with its reports.
@@ -23,11 +23,11 @@ if ((clear !== undefined && !at) || !layer.success) {
   process.exit(2);
 }
 if (!existsSync(dbPath)) {
-  console.error(`No database at ${dbPath}. Set DB_PATH to point at it.`);
+  console.error(`No database at ${dbPath}. Set DATA_DIR to the directory holding it.`);
   process.exit(1);
 }
 
-const db = openDatabase(dbPath, { upgradeRecords: false });
+const db = openWorldDatabase(dbPath, { upgradeRecords: false });
 if (at) {
   const coord = { layer: layer.data, sx: Number(at[1]), sy: Number(at[2]) };
   const cleared = clearName(db, coord);

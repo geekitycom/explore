@@ -93,6 +93,7 @@ test('reloading within the timeout resumes the session where the player stood', 
   const stood = (await snapshot(page)).you!;
 
   await page.reload();
+  await page.waitForFunction(() => 'exploreState' in window);
   await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
   expect((await snapshot(page)).you).toEqual(stood);
   await expect(page.locator('.wake')).toHaveCount(0);

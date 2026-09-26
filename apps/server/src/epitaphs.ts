@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { WorldDb } from './db.ts';
 import {
   EPITAPH_MAX,
   LANDMARK_NOUNS,
@@ -142,7 +142,7 @@ const epitaphOf = (row: Row) => {
   return parsed.success && parsed.data.kind === 'epitaph' ? parsed.data : undefined;
 };
 
-export function listEpitaphs(db: DatabaseSync): StoredEpitaph[] {
+export function listEpitaphs(db: WorldDb): StoredEpitaph[] {
   const rows = db
     .prepare(
       `SELECT layer, sx, sy, tx, ty, data FROM traces WHERE kind = 'epitaph'
@@ -170,7 +170,7 @@ export function listEpitaphs(db: DatabaseSync): StoredEpitaph[] {
  * holding the screen open shows the change once everyone has left it.
  */
 export function setEpitaph(
-  db: DatabaseSync,
+  db: WorldDb,
   coord: ScreenCoord,
   tile: Tile,
   text: string | undefined,

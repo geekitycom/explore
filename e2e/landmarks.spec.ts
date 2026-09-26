@@ -1,4 +1,3 @@
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import {
   OVERWORLD,
@@ -11,7 +10,7 @@ import {
   type ScreenCoord,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { playing, signUp, teleport, unique } from './helpers.ts';
+import { playing, signUp, teleport, unique, worldDb } from './helpers.ts';
 
 type Hud = { hint: string | undefined };
 type Site = { tx: number; ty: number; area: Area };
@@ -44,7 +43,7 @@ function landmarkScreen(seed: WorldSeed): ScreenCoord {
 }
 
 test('the first to reach a landmark names it for everyone and the map', async ({ page }) => {
-  const db = new DatabaseSync(process.env['E2E_DB_PATH']!);
+  const db = worldDb();
   const user = unique('namer');
   await signUp(page, user);
   await playing(page);
@@ -52,7 +51,7 @@ test('the first to reach a landmark names it for everyone and the map', async ({
 
   const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   const coord = landmarkScreen(seed);
-  await teleport(page, db, user, coord, { tx: 10, ty: 7 });
+  await teleport(page, user, coord, { tx: 10, ty: 7 });
   const { screen, site } = await siteOnPage(page);
   expect(site).toBeDefined();
   const { tx, ty, area } = site!;
@@ -62,7 +61,7 @@ test('the first to reach a landmark names it for everyone and the map', async ({
     { tx: tx + 1, ty },
     { tx: tx - 1, ty },
   ].find((t) => isWalkable(bare(screen), t.tx, t.ty) && inArea(area, t))!;
-  await teleport(page, db, user, coord, stand);
+  await teleport(page, user, coord, stand);
 
   await expect.poll(async () => (await hud(page)).hint).toBe('Name this place');
   await page.keyboard.press('KeyE');

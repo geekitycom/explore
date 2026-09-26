@@ -1,10 +1,17 @@
 /// <reference lib="dom" />
-import type { DatabaseSync } from 'node:sqlite';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { expect, type Page } from '@playwright/test';
 import { TILE, type ScreenCoord, type Tile } from '../packages/core/src/index.ts';
 
 export const unique = (tag: string) =>
   `${tag}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
+
+/** The e2e server's accounts database, under the data directory playwright.config.ts picked. */
+export const mainDb = () => new DatabaseSync(join(process.env['E2E_DATA_DIR']!, 'main.db'));
+
+/** The one world file every e2e player shares until TASK-64.2. */
+export const worldDb = () => new DatabaseSync(join(process.env['E2E_DATA_DIR']!, 'worlds', '1.db'));
 
 let signupAddress = 0;
 
@@ -49,19 +56,21 @@ export async function wakeUp(page: Page) {
  * Moves a signed-out player by rewriting their saved position, then signs them back in there.
  * The server saves a position when the socket closes, so the page leaves first.
  */
-export async function teleport(
-  page: Page,
-  db: DatabaseSync,
-  user: string,
-  coord: ScreenCoord,
-  at: Tile,
-) {
+export async function teleport(page: Page, user: string, coord: ScreenCoord, at: Tile) {
   await page.goto('about:blank');
   await page.waitForTimeout(500);
-  const { id } = db.prepare('SELECT id FROM users WHERE username = ?').get(user) as { id: number };
-  db.prepare(
-    `UPDATE player_state SET layer = ?, sx = ?, sy = ?, x = ?, y = ?, dir = 'n' WHERE user_id = ?`,
-  ).run(coord.layer, coord.sx, coord.sy, (at.tx + 0.5) * TILE, (at.ty + 1) * TILE - 2, id);
+  const main = mainDb();
+  const { id } = main.prepare('SELECT id FROM users WHERE username = ?').get(user) as {
+    id: number;
+  };
+  main.close();
+  const world = worldDb();
+  world
+    .prepare(
+      `UPDATE player_state SET layer = ?, sx = ?, sy = ?, x = ?, y = ?, dir = 'n' WHERE user_id = ?`,
+    )
+    .run(coord.layer, coord.sx, coord.sy, (at.tx + 0.5) * TILE, (at.ty + 1) * TILE - 2, id);
+  world.close();
   await page.goto('/');
   await playing(page);
 }

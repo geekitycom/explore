@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { WorldDb } from './db.ts';
 import {
   CHUNK_H,
   CHUNK_W,
@@ -36,7 +36,7 @@ const playerStateRow = z.object({
 });
 
 /** A stored screen is never replaced: the first generator to store a coordinate wins. */
-function insertScreen(db: DatabaseSync, screen: Screen, userId: number | null): void {
+function insertScreen(db: WorldDb, screen: Screen, userId: number | null): void {
   db.prepare(
     `INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version)
      VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -53,7 +53,7 @@ function insertScreen(db: DatabaseSync, screen: Screen, userId: number | null): 
 }
 
 /** Whether every screen of the chunk is stored, whichever generator made each. */
-export function isChunkStored(db: DatabaseSync, { layer, cx, cy }: ChunkCoord): boolean {
+export function isChunkStored(db: WorldDb, { layer, cx, cy }: ChunkCoord): boolean {
   const { n } = db
     .prepare(
       `SELECT count(*) AS n FROM screens
@@ -66,7 +66,7 @@ export function isChunkStored(db: DatabaseSync, { layer, cx, cy }: ChunkCoord): 
 }
 
 /** Stores a whole chunk at once, keeping any screen of it stored earlier. */
-export function storeChunk(db: DatabaseSync, screens: readonly Screen[], userId: number): void {
+export function storeChunk(db: WorldDb, screens: readonly Screen[], userId: number): void {
   db.exec('BEGIN');
   try {
     for (const screen of screens) insertScreen(db, screen, userId);
@@ -82,7 +82,7 @@ export function storeChunk(db: DatabaseSync, screens: readonly Screen[], userId:
  * cells, in one transaction. Runs at every open and changes nothing once records are current.
  * Never deletes a screen: a record it cannot lift stops the open (decision D22).
  */
-export function upgradeScreenRecords(db: DatabaseSync): number {
+export function upgradeScreenRecords(db: WorldDb): number {
   const rows = db
     .prepare("SELECT layer, sx, sy, data FROM screens WHERE json_extract(data, '$.v') IS NOT ?")
     .all(SCREEN_RECORD_VERSION) as { layer: string; sx: number; sy: number; data: string }[];
@@ -104,7 +104,7 @@ export function upgradeScreenRecords(db: DatabaseSync): number {
 }
 
 /** A stored screen an older generator made, which new neighbours stitch to. */
-export function olderScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Screen | undefined {
+export function olderScreen(db: WorldDb, { layer, sx, sy }: ScreenCoord): Screen | undefined {
   const row = db
     .prepare('SELECT data FROM screens WHERE layer = ? AND sx = ? AND sy = ? AND gen_version < ?')
     .get(layer, sx, sy, GENERATOR_VERSION) as { data: string } | undefined;
@@ -115,7 +115,7 @@ export function olderScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): S
  * Stores the hand-built garden, replacing a stored garden from an earlier layout in place. Its
  * neighbours keep their edges; a seam crossing only needs both facing tiles walkable.
  */
-export function ensureGarden(db: DatabaseSync): void {
+export function ensureGarden(db: WorldDb): void {
   const garden = secretGarden();
   db.prepare(
     `INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version)
@@ -134,16 +134,16 @@ export function ensureGarden(db: DatabaseSync): void {
 const worldRow = z.object({ seed: worldSeedSchema });
 
 /** Its row is created by the migrations. */
-export function loadWorld(db: DatabaseSync): World {
+export function loadWorld(db: WorldDb): World {
   const row: unknown = db.prepare('SELECT seed FROM world WHERE id = 1').get();
   return { seed: worldRow.parse(row).seed };
 }
 
-export function reseedWorld(db: DatabaseSync): void {
+export function reseedWorld(db: WorldDb): void {
   db.prepare('UPDATE world SET seed = ? WHERE id = 1').run(randomWorldSeed());
 }
 
-export function getScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Screen | undefined {
+export function getScreen(db: WorldDb, { layer, sx, sy }: ScreenCoord): Screen | undefined {
   const row = db
     .prepare('SELECT data FROM screens WHERE layer = ? AND sx = ? AND sy = ?')
     .get(layer, sx, sy) as { data: string } | undefined;
@@ -151,7 +151,7 @@ export function getScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): Scr
 }
 
 /** The map shows a screen once any player has stood on it. */
-export function recordVisit(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): void {
+export function recordVisit(db: WorldDb, { layer, sx, sy }: ScreenCoord): void {
   db.prepare('INSERT INTO visits (layer, sx, sy) VALUES (?, ?, ?) ON CONFLICT DO NOTHING').run(
     layer,
     sx,
@@ -159,7 +159,7 @@ export function recordVisit(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): v
   );
 }
 
-export function loadPlayerState(db: DatabaseSync, userId: number): SavedPlayer | undefined {
+export function loadPlayerState(db: WorldDb, userId: number): SavedPlayer | undefined {
   const row: unknown = db
     .prepare('SELECT layer, sx, sy, x, y, dir, updated_at FROM player_state WHERE user_id = ?')
     .get(userId);
@@ -169,7 +169,7 @@ export function loadPlayerState(db: DatabaseSync, userId: number): SavedPlayer |
 }
 
 export function savePlayerState(
-  db: DatabaseSync,
+  db: WorldDb,
   userId: number,
   state: PlayerState,
   seenAt = Date.now(),

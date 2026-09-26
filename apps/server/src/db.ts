@@ -1,16 +1,22 @@
 import { DatabaseSync } from 'node:sqlite';
-import { upgradeScreenRecords } from './world.ts';
+import { ensureGarden, upgradeScreenRecords } from './world.ts';
 
-/**
- * Schema changes, one per version. A migration may add to or rewrite stored screens and
- * positions, never delete them (decision D22); a world is reset only by pnpm world:wipe --yes.
- */
-const migrations: readonly string[] = [
+declare const kind: unique symbol;
+
+/** The main database: accounts and sessions, one per deployment (decision D25). */
+export type MainDb = DatabaseSync & { readonly [kind]: 'main' };
+
+/** A world file: everything inside one world, with user ids as plain integers (D25). */
+export type WorldDb = DatabaseSync & { readonly [kind]: 'world' };
+
+/** Schema changes to the main database, one per version. */
+const mainMigrations: readonly string[] = [
   `CREATE TABLE users (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash TEXT NOT NULL,
     avatar TEXT NOT NULL,
+    avatar_chosen INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
   );
   CREATE TABLE sessions (
@@ -19,66 +25,46 @@ const migrations: readonly string[] = [
     expires_at INTEGER NOT NULL
   );
   CREATE INDEX sessions_user_id ON sessions(user_id);`,
-  `CREATE TABLE screens (
-    sx INTEGER NOT NULL,
-    sy INTEGER NOT NULL,
-    data TEXT NOT NULL,
-    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY (sx, sy)
-  );
-  CREATE TABLE player_state (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    sx INTEGER NOT NULL,
-    sy INTEGER NOT NULL,
-    x REAL NOT NULL,
-    y REAL NOT NULL,
-    dir TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-  );`,
-  `CREATE TABLE layered_screens (
-    layer TEXT NOT NULL,
-    sx INTEGER NOT NULL,
-    sy INTEGER NOT NULL,
-    data TEXT NOT NULL,
-    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    created_at INTEGER NOT NULL,
-    PRIMARY KEY (layer, sx, sy)
-  );
-  INSERT INTO layered_screens (layer, sx, sy, data, created_by, created_at)
-    SELECT 'overworld', sx, sy, json_set(data, '$.v', 2, '$.layer', 'overworld'),
-      created_by, created_at
-    FROM screens;
-  DROP TABLE screens;
-  ALTER TABLE layered_screens RENAME TO screens;
-  CREATE TABLE layered_player_state (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    layer TEXT NOT NULL,
-    sx INTEGER NOT NULL,
-    sy INTEGER NOT NULL,
-    x REAL NOT NULL,
-    y REAL NOT NULL,
-    dir TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
-  INSERT INTO layered_player_state (user_id, layer, sx, sy, x, y, dir, updated_at)
-    SELECT user_id, 'overworld', sx, sy, x, y, dir, updated_at FROM player_state;
-  DROP TABLE player_state;
-  ALTER TABLE layered_player_state RENAME TO player_state;`,
+];
+
+/**
+ * Schema changes to a world file, one per version. A migration may add to or rewrite stored
+ * screens and positions, never delete them (decision D22); a world is reset only by
+ * pnpm world:wipe --yes.
+ */
+const worldMigrations: readonly string[] = [
   `CREATE TABLE world (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     seed INTEGER NOT NULL
   );
-  INSERT INTO world (id, seed) VALUES (1, abs(random()) % 2147483648);`,
-  `ALTER TABLE screens ADD COLUMN gen_version INTEGER NOT NULL DEFAULT 0;`,
-  `CREATE TABLE visits (
+  INSERT INTO world (id, seed) VALUES (1, abs(random()) % 2147483648);
+  CREATE TABLE screens (
+    layer TEXT NOT NULL,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    created_by INTEGER,
+    created_at INTEGER NOT NULL,
+    gen_version INTEGER NOT NULL,
+    PRIMARY KEY (layer, sx, sy)
+  );
+  CREATE TABLE player_state (
+    user_id INTEGER PRIMARY KEY,
+    layer TEXT NOT NULL,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    dir TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE visits (
     layer TEXT NOT NULL,
     sx INTEGER NOT NULL,
     sy INTEGER NOT NULL,
     PRIMARY KEY (layer, sx, sy)
   ) WITHOUT ROWID;
-  INSERT OR IGNORE INTO visits (layer, sx, sy) SELECT layer, sx, sy FROM player_state;`,
-  `CREATE TABLE traces (
+  CREATE TABLE traces (
     layer TEXT NOT NULL,
     sx INTEGER NOT NULL,
     sy INTEGER NOT NULL,
@@ -86,7 +72,7 @@ const migrations: readonly string[] = [
     ty INTEGER NOT NULL,
     kind TEXT NOT NULL,
     data TEXT NOT NULL,
-    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_by INTEGER,
     updated_at INTEGER NOT NULL,
     PRIMARY KEY (layer, sx, sy, tx, ty, kind)
   ) WITHOUT ROWID;
@@ -99,31 +85,43 @@ const migrations: readonly string[] = [
     tx INTEGER NOT NULL,
     ty INTEGER NOT NULL,
     kind TEXT NOT NULL,
-    reporter INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reporter INTEGER,
     snapshot TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );
   CREATE TABLE inventories (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER PRIMARY KEY,
     items TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );`,
-  `ALTER TABLE users ADD COLUMN avatar_chosen INTEGER NOT NULL DEFAULT 1;`,
 ];
 
+export function openMainDatabase(path: string): MainDb {
+  const db = open(path) as MainDb;
+  migrate(db, mainMigrations);
+  return db;
+}
+
 /**
- * Opens the database, applies pending migrations, and lifts stored screens to the current record
- * version. A wipe skips the lift, so a record that cannot be lifted never blocks the reset.
+ * Opens a world file, applies pending migrations, puts the current garden in, and lifts stored
+ * screens to the current record version. A wipe skips the lift, so a record that cannot be
+ * lifted never blocks the reset.
  */
-export function openDatabase(path: string, { upgradeRecords = true } = {}): DatabaseSync {
-  const db = new DatabaseSync(path);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
-  migrate(db);
+export function openWorldDatabase(path: string, { upgradeRecords = true } = {}): WorldDb {
+  const db = open(path) as WorldDb;
+  migrate(db, worldMigrations);
+  ensureGarden(db);
   if (upgradeRecords) upgradeScreenRecords(db);
   return db;
 }
 
-function migrate(db: DatabaseSync): void {
+function open(path: string): DatabaseSync {
+  const db = new DatabaseSync(path);
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  return db;
+}
+
+function migrate(db: DatabaseSync, migrations: readonly string[]): void {
   const { user_version: version } = db.prepare('PRAGMA user_version').get() as {
     user_version: number;
   };

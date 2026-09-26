@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { WorldDb } from './db.ts';
 import {
   chunkKey,
   chunkOf,
@@ -34,13 +34,13 @@ const NEARBY = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => ({ dx, dy })));
  * generating the chunk again, so a chunk is generated once however players arrive at it.
  */
 export class Chunks {
-  readonly #db: DatabaseSync;
+  readonly #db: WorldDb;
   readonly #generate: Generate;
   readonly #older: Older;
   readonly #jobs = new Map<string, Job>();
   #turn: NodeJS.Immediate | undefined;
 
-  constructor(db: DatabaseSync, generate: Generate = generateScreen) {
+  constructor(db: WorldDb, generate: Generate = generateScreen) {
     this.#db = db;
     this.#generate = generate;
     this.#older = (coord) => olderScreen(db, coord);

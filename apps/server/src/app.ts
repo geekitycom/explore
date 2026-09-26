@@ -1,7 +1,7 @@
-import type { DatabaseSync } from 'node:sqlite';
 import { avatarSchema } from '@explore/core';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { createNodeWebSocket } from '@hono/node-ws';
+import type { MainDb, WorldDb } from './db.ts';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
@@ -72,12 +72,14 @@ async function parseBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.
 
 export function createApp({
   db,
+  world,
   game,
   secureCookies = false,
   trustProxy = false,
   scryptCost = SCRYPT_COST,
 }: {
-  db: DatabaseSync;
+  db: MainDb;
+  world: WorldDb;
   game: Game;
   secureCookies?: boolean;
   /** Behind a reverse proxy, key rate limits on the client address it reports. */
@@ -199,7 +201,7 @@ export function createApp({
   });
 
   app.get('/api/map', requireUser, (c) =>
-    c.body(worldMapJson(db, c.get('user').id), 200, { 'content-type': 'application/json' }),
+    c.body(worldMapJson(world, c.get('user').id), 200, { 'content-type': 'application/json' }),
   );
 
   app.all('/api/*', () => {

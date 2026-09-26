@@ -1,4 +1,3 @@
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import {
   OVERWORLD,
@@ -13,7 +12,7 @@ import {
   type ScreenCoord,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { playing, signUp, teleport, unique } from './helpers.ts';
+import { playing, signUp, teleport, unique, worldDb } from './helpers.ts';
 
 function graveyardScreen(seed: WorldSeed): ScreenCoord {
   const poi = networkOf({ seed }, OVERWORLD)
@@ -66,7 +65,7 @@ async function expectBeside(page: Page, grave: { tx: number; ty: number }, side:
 }
 
 test('a grave speaks to a player facing it, its bubble beside it', async ({ page }) => {
-  const db = new DatabaseSync(process.env['E2E_DB_PATH']!);
+  const db = worldDb();
   const user = unique('mourner');
   await signUp(page, user);
   await playing(page);
@@ -74,7 +73,7 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
 
   const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   const coord = graveyardScreen(seed);
-  await teleport(page, db, user, coord, { tx: 10, ty: 7 });
+  await teleport(page, user, coord, { tx: 10, ty: 7 });
   const screen = await screenOnPage(page);
   const open = (tx: number, ty: number) => isWalkable(bare(screen), tx, ty);
   const grave = (() => {
@@ -93,7 +92,7 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
   const words = seedEpitaph({ seed }, coord, grave);
   const bubble = page.getByRole('note');
 
-  await teleport(page, db, user, coord, { tx: grave.tx - 1, ty: grave.ty });
+  await teleport(page, user, coord, { tx: grave.tx - 1, ty: grave.ty });
   await expect(bubble).toHaveCount(0);
   await face(page, 'ArrowRight', 'e');
   await expect(bubble).toHaveText(words);
@@ -101,13 +100,13 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
   await page.waitForTimeout(700);
   await page.screenshot({ path: 'e2e/.results/epitaph-beside.png' });
 
-  await teleport(page, db, user, coord, { tx: grave.tx, ty: grave.ty + 1 });
+  await teleport(page, user, coord, { tx: grave.tx, ty: grave.ty + 1 });
   await expect(bubble).toHaveText(words);
   await expectBeside(page, grave, 'above');
   await page.waitForTimeout(700);
   await page.screenshot({ path: 'e2e/.results/epitaph-below.png' });
 
-  await teleport(page, db, user, coord, { tx: grave.tx, ty: grave.ty - 1 });
+  await teleport(page, user, coord, { tx: grave.tx, ty: grave.ty - 1 });
   await face(page, 'ArrowDown', 's');
   await expect(bubble).toHaveText(words);
   await expectBeside(page, grave, 'below');

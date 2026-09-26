@@ -2,20 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
-import { openDatabase } from './db.ts';
-import { createSession, sessionUser } from './sessions.ts';
-import { insertUser } from './users.ts';
+import { openWorldDatabase } from './db.ts';
+import { userNamed } from './testing.ts';
 import { wipeWorld } from './wipe.ts';
 import { Chunks } from './chunks.ts';
 import { worldMapJson } from './map.ts';
-import {
-  ensureGarden,
-  getScreen,
-  loadPlayerState,
-  loadWorld,
-  recordVisit,
-  savePlayerState,
-} from './world.ts';
+import { getScreen, loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 import {
   CHUNK_H,
   CHUNK_W,
@@ -42,17 +34,12 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 
-test('wiping keeps accounts, forgets the world and its traces, rolls a new seed, and restores the garden', () => {
+test('wiping forgets the world and its traces, rolls a new seed, and restores the garden', () => {
   const dir = mkdtempSync(join(tmpdir(), 'explore-wipe-'));
   dirs.push(dir);
   const path = join(dir, 'world.db');
-  let db = openDatabase(path);
-  ensureGarden(db);
-  const user = insertUser(db, {
-    username: 'wanderer',
-    passwordHash: 'x',
-  })!;
-  const { token } = createSession(db, user.id);
+  let db = openWorldDatabase(path);
+  const user = userNamed(1, 'wanderer');
   const east = { ...GARDEN_COORD, sx: 1 };
   new Chunks(db, generate).screenAt(east, user.id);
   const seed = loadWorld(db).seed;
@@ -70,7 +57,7 @@ test('wiping keeps accounts, forgets the world and its traces, rolls a new seed,
   saveInventory(db, user.id, parseInventory([{ kind: 'probe', variant: 'probe', count: 1 }]));
   db.close();
 
-  db = openDatabase(path);
+  db = openWorldDatabase(path);
   expect(wipeWorld(db)).toEqual({ screens: CHUNK_W * CHUNK_H, players: 1, traces: 1 });
   const count = (table: string) =>
     (db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
@@ -80,7 +67,6 @@ test('wiping keeps accounts, forgets the world and its traces, rolls a new seed,
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
   expect(loadPlayerState(db, user.id)).toBeUndefined();
   expect(JSON.parse(worldMapJson(db, user.id))).toMatchObject({ screens: [] });
-  expect(sessionUser(db, `session=${token}`)?.username).toBe('wanderer');
 
   expect(wipeWorld(db)).toEqual({ screens: 1, players: 0, traces: 0 });
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());

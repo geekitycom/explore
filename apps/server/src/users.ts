@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { MainDb } from './db.ts';
 import { avatarSchema, DEFAULT_AVATAR, type Avatar } from '@explore/core';
 
 /** `avatarChosen` is false from sign-up until the player first saves an avatar. */
@@ -19,7 +19,7 @@ export function rowToUser(row: UserRow): User {
 
 /** A new account wears the default avatar until the player chooses one. */
 export function insertUser(
-  db: DatabaseSync,
+  db: MainDb,
   input: { username: string; passwordHash: string },
 ): User | undefined {
   const row = db
@@ -35,7 +35,7 @@ export function insertUser(
 }
 
 export function findUserCredentials(
-  db: DatabaseSync,
+  db: MainDb,
   username: string,
 ): { user: User; passwordHash: string } | undefined {
   const row = db
@@ -44,7 +44,7 @@ export function findUserCredentials(
   return row && { user: rowToUser(row), passwordHash: row.password_hash };
 }
 
-export function updateAvatar(db: DatabaseSync, userId: number, avatar: Avatar): User {
+export function updateAvatar(db: MainDb, userId: number, avatar: Avatar): User {
   const row = db
     .prepare(
       `UPDATE users SET avatar = ?, avatar_chosen = 1 WHERE id = ? RETURNING ${USER_COLUMNS}`,

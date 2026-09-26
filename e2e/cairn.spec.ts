@@ -1,6 +1,5 @@
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
-import { playing, signUp, unique } from './helpers.ts';
+import { playing, signUp, unique, worldDb } from './helpers.ts';
 
 type Pose = { x: number; y: number; dir: string };
 type Stone = { stone: string; by?: number };
@@ -45,7 +44,7 @@ async function give(page: Page, stones: string[]) {
   const id = await page.evaluate(
     () => (window as unknown as { exploreUser: () => { id: number } }).exploreUser().id,
   );
-  const db = new DatabaseSync(process.env['E2E_DB_PATH']!);
+  const db = worldDb();
   db.prepare(
     `INSERT INTO inventories (user_id, items, updated_at) VALUES (?, ?, ?)
      ON CONFLICT (user_id) DO UPDATE SET items = excluded.items, updated_at = excluded.updated_at`,

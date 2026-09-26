@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { EPITAPH_MAX, OVERWORLD, layerIdSchema } from '@explore/core';
-import { openDatabase } from './db.ts';
+import { openWorldDatabase } from './db.ts';
 import { listEpitaphs, setEpitaph } from './epitaphs.ts';
+import { SHARED_WORLD_ID, dataDir, worldDbPath } from './paths.ts';
 
-const dbPath = resolve(process.env.DB_PATH ?? './data/explore.db');
+const dbPath = worldDbPath(dataDir(), SHARED_WORLD_ID);
 
 const USAGE = `usage: pnpm epitaphs [--set <sx>,<sy> <tx>,<ty> <text> | --clear <sx>,<sy> <tx>,<ty>] [--layer <layer>]
   Lists every grave's epitaph in ${dbPath} with who wrote it.
@@ -31,11 +31,11 @@ if ((set && clear) || (edit && (!screen || !tile)) || badText || !layer.success)
   process.exit(2);
 }
 if (!existsSync(dbPath)) {
-  console.error(`No database at ${dbPath}. Set DB_PATH to point at it.`);
+  console.error(`No database at ${dbPath}. Set DATA_DIR to the directory holding it.`);
   process.exit(1);
 }
 
-const db = openDatabase(dbPath, { upgradeRecords: false });
+const db = openWorldDatabase(dbPath, { upgradeRecords: false });
 if (screen && tile) {
   const coord = { layer: layer.data, sx: Number(screen[1]), sy: Number(screen[2]) };
   const at = { tx: Number(tile[1]), ty: Number(tile[2]) };

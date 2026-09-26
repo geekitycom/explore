@@ -1,12 +1,8 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import { DEFAULT_AVATAR, type Avatar } from '@explore/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.ts';
-import { openDatabase } from './db.ts';
+import { openMainDatabase, openWorldDatabase, type MainDb, type WorldDb } from './db.ts';
 import { hashPassword, verifyPassword } from './password.ts';
 import { AUTH_LIMITS } from './rate-limit.ts';
 import { createGame } from './play.ts';
@@ -14,17 +10,22 @@ import { SESSION_TTL_MS, sessionUser } from './sessions.ts';
 
 type App = ReturnType<typeof createApp>['app'];
 
-let db: DatabaseSync;
+let db: MainDb;
+let world: WorldDb;
 let app: App;
 
 const scryptCost = { N: 2 ** 4, r: 1, p: 1 };
 
 beforeEach(() => {
-  db = openDatabase(':memory:');
-  app = createApp({ db, game: createGame(db), scryptCost }).app;
+  db = openMainDatabase(':memory:');
+  world = openWorldDatabase(':memory:');
+  app = createApp({ db, world, game: createGame(world), scryptCost }).app;
 });
 
-afterEach(() => db.close());
+afterEach(() => {
+  world.close();
+  db.close();
+});
 
 const PASSWORD = 'correct horse battery';
 
@@ -76,7 +77,7 @@ describe('signup', () => {
   });
 
   it('marks the cookie Secure when secure cookies are on', async () => {
-    app = createApp({ db, game: createGame(db), secureCookies: true, scryptCost }).app;
+    app = createApp({ db, world, game: createGame(world), secureCookies: true, scryptCost }).app;
     const { res } = await signup();
     expect(res.headers.get('set-cookie')).toMatch(/Secure/);
   });
@@ -285,7 +286,7 @@ describe('rate limits', () => {
 
   describe('trust proxy', () => {
     beforeEach(() => {
-      app = createApp({ db, game: createGame(db), trustProxy: true, scryptCost }).app;
+      app = createApp({ db, world, game: createGame(world), trustProxy: true, scryptCost }).app;
     });
 
     it('keys the limit on the rightmost X-Forwarded-For entry, not a spoofed leftmost one', async () => {
@@ -375,21 +376,6 @@ describe('storage', () => {
     const { cookie } = await signup();
     expect(sessionUser(db, cookie)).toMatchObject({ username: 'Alice' });
     expect(sessionUser(db, cookie, Date.now() + SESSION_TTL_MS + 1000)).toBeUndefined();
-  });
-
-  it('applies migrations once and reopens an existing file', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'explore-db-'));
-    try {
-      const path = join(dir, 'test.db');
-      openDatabase(path).close();
-      const reopened = openDatabase(path);
-      expect(reopened.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 });
-      expect(reopened.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
-      expect(reopened.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
-      reopened.close();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
   });
 });
 

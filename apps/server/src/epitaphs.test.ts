@@ -1,7 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
 import {
   EPITAPH_MAX,
   OVERWORLD,
@@ -14,12 +13,12 @@ import {
   type Trace,
 } from '@explore/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { openDatabase } from './db.ts';
+import { openWorldDatabase, type WorldDb } from './db.ts';
 import { cleanEpitaph, listEpitaphs, setEpitaph, type WriteText } from './epitaphs.ts';
 import { createGame } from './play.ts';
 import type { TextRequest, TextResult } from './text-gen.ts';
 import type { Player } from './presence.ts';
-import { insertUser, rowToUser, USER_COLUMNS, type UserRow } from './users.ts';
+import { userNamed } from './testing.ts';
 import { getScreen, loadWorld, savePlayerState } from './world.ts';
 
 describe('cleanEpitaph', () => {
@@ -56,7 +55,7 @@ function tempDb(): string {
 }
 
 /** The screen holding the centre of the nearest graveyard to the garden. */
-function graveyardScreen(db: DatabaseSync): ScreenCoord {
+function graveyardScreen(db: WorldDb): ScreenCoord {
   const poi = networkOf(loadWorld(db), OVERWORLD)
     .poisIn({ x0: -800, y0: -600, x1: 800, y1: 600 })
     .filter((p) => p.kind === 'graveyard' || p.kind === 'burialground')
@@ -76,8 +75,10 @@ function fakeModel() {
 
 type Inbox = ServerMessage[];
 
+const NAMES: Record<number, string> = { 1: 'alice', 2: 'bob' };
+
 function open(path: string, writeText?: WriteText) {
-  const db = openDatabase(path);
+  const db = openWorldDatabase(path);
   let clock = 0;
   const game = createGame(db, { now: () => (clock += 100), writeText });
   let stopped = false;
@@ -91,10 +92,10 @@ function open(path: string, writeText?: WriteText) {
   const players = new Map<number, Player>();
   const join = (userId: number): Inbox => {
     const inbox: Inbox = [];
-    const user = rowToUser(
-      db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(userId) as UserRow,
-    );
-    const player = game.connect(user, { send: (m) => inbox.push(m), close: () => {} });
+    const player = game.connect(userNamed(userId, NAMES[userId]!), {
+      send: (m) => inbox.push(m),
+      close: () => {},
+    });
     players.set(userId, player);
     return inbox;
   };
@@ -102,10 +103,9 @@ function open(path: string, writeText?: WriteText) {
   return { db, game, stop, join, leave };
 }
 
-/** A database whose two players, alice (1) and bob (2), stand on a graveyard's screen. */
+/** A world whose two players, alice (1) and bob (2), stand on a graveyard's screen. */
 function atGraveyard(path: string) {
-  const db = openDatabase(path);
-  for (const username of ['alice', 'bob']) insertUser(db, { username, passwordHash: 'x' });
+  const db = openWorldDatabase(path);
   const coord = graveyardScreen(db);
   for (const id of [1, 2])
     savePlayerState(db, id, { coord, pose: { x: 4, y: 4, dir: 's', moving: false } });

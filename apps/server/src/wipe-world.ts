@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { openDatabase } from './db.ts';
+import { openWorldDatabase } from './db.ts';
+import { SHARED_WORLD_ID, dataDir, worldDbPath } from './paths.ts';
 import { wipeWorld } from './wipe.ts';
 
-const dbPath = resolve(process.env.DB_PATH ?? './data/explore.db');
+const dbPath = worldDbPath(dataDir(), SHARED_WORLD_ID);
 
 if (!process.argv.includes('--yes')) {
   console.error(
@@ -13,11 +13,11 @@ if (!process.argv.includes('--yes')) {
   process.exit(1);
 }
 if (!existsSync(dbPath)) {
-  console.error(`No database at ${dbPath}. Set DB_PATH to point at it.`);
+  console.error(`No database at ${dbPath}. Set DATA_DIR to the directory holding it.`);
   process.exit(1);
 }
 
-const db = openDatabase(dbPath, { upgradeRecords: false });
+const db = openWorldDatabase(dbPath, { upgradeRecords: false });
 const { screens, players, traces } = wipeWorld(db);
 db.close();
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;

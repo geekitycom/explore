@@ -21,9 +21,9 @@ import {
 } from '@explore/core';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Chunks } from './chunks.ts';
-import { openDatabase } from './db.ts';
-import { insertUser } from './users.ts';
-import { ensureGarden, getScreen, loadWorld } from './world.ts';
+import { openWorldDatabase } from './db.ts';
+import { userNamed } from './testing.ts';
+import { getScreen, loadWorld } from './world.ts';
 
 const CHUNK_SCREENS = CHUNK_W * CHUNK_H;
 const at = (sx: number, sy: number): ScreenCoord => ({ layer: OVERWORLD, sx, sy });
@@ -37,15 +37,14 @@ afterEach(() => {
 });
 
 function setup() {
-  const db = openDatabase(':memory:');
-  ensureGarden(db);
+  const db = openWorldDatabase(':memory:');
   const generated: string[] = [];
   const chunks = new Chunks(db, (world, coord, older) => {
     generated.push(screenKey(coord));
     return generateScreen(world, coord, older);
   });
-  const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
-  const bob = insertUser(db, { username: 'bob', passwordHash: 'x' })!;
+  const alice = userNamed(1, 'alice');
+  const bob = userNamed(2, 'bob');
   stops.push(() => {
     chunks.stop();
     db.close();
@@ -179,9 +178,8 @@ it('finishes a chunk being prefetched when a player arrives, instead of starting
 });
 
 it('forgets a chunk whose generation failed, so the next approach builds it afresh', async () => {
-  const db = openDatabase(':memory:');
-  ensureGarden(db);
-  const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
+  const db = openWorldDatabase(':memory:');
+  const alice = userNamed(1, 'alice');
   let failures = 0;
   const chunks = new Chunks(db, (world, coord) => {
     if (failures === 0 && coord.sx === -3 && coord.sy === -4) {

@@ -1,4 +1,4 @@
-import type { DatabaseSync } from 'node:sqlite';
+import type { WorldDb } from './db.ts';
 import {
   kindNamed,
   kindsInOrder,
@@ -36,10 +36,10 @@ function parseRow(data: string): Trace | undefined {
 
 /** The one write path for traces: every change lands in the database and in the open room. */
 export class TraceStore {
-  readonly #db: DatabaseSync;
+  readonly #db: WorldDb;
   readonly #presence: Presence;
 
-  constructor(db: DatabaseSync, presence: Presence) {
+  constructor(db: WorldDb, presence: Presence) {
     this.#db = db;
     this.#presence = presence;
   }
@@ -175,12 +175,7 @@ export function perform(store: TraceStore, player: Player, act: Act, now: number
  * Records a player's report of someone else's words on a trace, keeping the words as they stood
  * so a later rename cannot hide them. The same report of the same words counts once.
  */
-export function reportTrace(
-  db: DatabaseSync,
-  player: Player,
-  address: TraceAddress,
-  now: number,
-): void {
+export function reportTrace(db: WorldDb, player: Player, address: TraceAddress, now: number): void {
   const { place } = player.room;
   const trace = place.traces.get(traceKey(address, address.kind));
   const said = trace && kindNamed(trace.kind).bubble?.(trace, now);
