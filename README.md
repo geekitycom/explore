@@ -91,6 +91,8 @@ Only a test that measures time belongs in `*.perf.test.ts`.
 
 The art is the CC0 [Ninja Adventure](https://pixel-boy.itch.io/ninja-adventure-asset-pack) pack by pixel-boy. See `apps/web/public/assets/ninja-adventure/SOURCES.md`. With the dev server running, `/art.html` shows every terrain transition, feature, and avatar combination.
 
+The UI font is [Pixelify Sans](https://fonts.google.com/specimen/Pixelify+Sans) under the SIL Open Font License 1.1, bundled from `@fontsource/pixelify-sans` so the game needs no connection to Google Fonts.
+
 ## Tuning world generation
 
 The preview renders a large area of the world straight from a seed as a PNG, without a server or database. Use it to check generation changes by eye before you play them.

@@ -17,6 +17,8 @@ import { h } from './ui/dom.ts';
 import { BAR_PX_H, inventoryBar } from './ui/inventory-bar.ts';
 import { soundSettings } from './ui/sound-settings.ts';
 import { wakeUp } from './ui/wake.ts';
+import '@fontsource/pixelify-sans/latin-400.css';
+import '@fontsource/pixelify-sans/latin-600.css';
 import './style.css';
 
 type Place = 'game' | 'map';
