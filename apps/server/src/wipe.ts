@@ -3,9 +3,8 @@ import { ensureGarden, reseedWorld } from './world.ts';
 
 /**
  * Throws away the generated world, its visits, its traces, every saved position and inventory,
- * keeping accounts and sessions,
- * rolls a new world seed so the next world is a different one, and puts the secret garden back
- * so the next login starts fresh there.
+ * keeping accounts and sessions. Rolls a new world seed so the next world is a different one,
+ * and puts the secret garden back so the next login starts fresh there.
  */
 export function wipeWorld(db: DatabaseSync): {
   screens: number;

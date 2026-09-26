@@ -7,6 +7,7 @@ import {
   traceSchema,
   withChanges,
   type Act,
+  type Inventory,
   type Here,
   type Place,
   type Screen,
@@ -68,9 +69,17 @@ export class TraceStore {
     return place;
   }
 
-  /** Safe for a screen nobody is on: the database changes and no room does. */
-  commit(coord: ScreenCoord, changes: readonly TraceChange[], by: number | null): void {
-    if (changes.length === 0) return;
+  /**
+   * Safe for a screen nobody is on: the database changes and no room does. An actor's new
+   * inventory lands in the same transaction, so a crash can neither duplicate nor lose an item.
+   */
+  commit(
+    coord: ScreenCoord,
+    changes: readonly TraceChange[],
+    by: number | null,
+    inventory?: Inventory,
+  ): void {
+    if (changes.length === 0 && inventory === undefined) return;
     const { layer, sx, sy } = coord;
     const put = this.#db.prepare(
       `INSERT INTO traces (layer, sx, sy, tx, ty, kind, data, updated_by, updated_at)
@@ -93,13 +102,14 @@ export class TraceStore {
           drop.run(layer, sx, sy, tx, ty, kind);
         }
       }
+      if (inventory !== undefined && by !== null) saveInventory(this.#db, by, inventory);
       this.#db.exec('COMMIT');
     } catch (error) {
       this.#db.exec('ROLLBACK');
       throw error;
     }
     const room = this.#presence.peek(coord);
-    if (!room) return;
+    if (!room || changes.length === 0) return;
     room.place = withChanges(room.place, changes);
     this.#presence.tell(room, { t: 'traces', changes: [...changes] });
   }
@@ -109,13 +119,7 @@ export class TraceStore {
  * Resolves and commits one player act. Synchronous end to end, so two players acting on one
  * tile are ordered by the event loop.
  */
-export function perform(
-  db: DatabaseSync,
-  store: TraceStore,
-  player: Player,
-  act: Act,
-  now: number,
-): void {
+export function perform(store: TraceStore, player: Player, act: Act, now: number): void {
   const { room } = player;
   const here: Here = {
     place: room.place,
@@ -131,11 +135,17 @@ export function perform(
     case 'refused':
       player.conn.send({ t: 'refused', reason: outcome.reason });
       return;
-    case 'done':
-      store.commit(room.place.screen.coord, outcome.changes, player.user.id);
-      if (outcome.inventory === player.inventory) return;
+    case 'done': {
+      const changed = outcome.inventory !== player.inventory;
+      store.commit(
+        room.place.screen.coord,
+        outcome.changes,
+        player.user.id,
+        changed ? outcome.inventory : undefined,
+      );
+      if (!changed) return;
       player.inventory = outcome.inventory;
-      saveInventory(db, player.user.id, outcome.inventory);
       player.conn.send({ t: 'inventory', stacks: [...outcome.inventory] });
+    }
   }
 }

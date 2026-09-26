@@ -171,16 +171,16 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
           travel(player, message.dir);
           break;
         case 'interact':
-          perform(db, store, player, { verb: 'interact', tile: tileOf(message) }, now());
+          perform(store, player, { verb: 'interact', tile: tileOf(message) }, now());
           break;
         case 'use': {
           const slot = slotOf(message.slot);
           if (slot !== undefined)
-            perform(db, store, player, { verb: 'use', slot, tile: tileOf(message) }, now());
+            perform(store, player, { verb: 'use', slot, tile: tileOf(message) }, now());
           break;
         }
         case 'act':
-          perform(db, store, player, { verb: 'act', ...message.action }, now());
+          perform(store, player, { verb: 'act', ...message.action }, now());
           break;
       }
     },
