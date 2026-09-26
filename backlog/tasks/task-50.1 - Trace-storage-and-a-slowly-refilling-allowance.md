@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-26 00:45'
+updated_date: '2026-09-26 01:47'
 labels: []
 milestone: m-5
 dependencies: []
@@ -52,6 +52,8 @@ Signs are no longer inventory items or a daily allowance: they come from naming 
 Design settled by an architect arena (three candidate designs, one cross-judge). Defaults chosen: traces keyed by (tile, kind) so a grave can hold an epitaph and flowers at once; a solid trace may not go on a screen-edge tile or split the walkable ground, so nobody present, absent or arriving later is ever stranded and the client checks it with no generator data; reach is the 3x3 around the tile holding the centre of the feet box; the faced tile can overlap the player's own box facing east or west and a solid placement there is refused with 'Too close. Step back.'; inventory is its own table (one JSON row per user) and a world wipe clears traces, reports and inventories; a test-only probe kind ships in the registry, nothing in play grants it.
 
 Verification on main at af77ddc: pnpm lint, lint:art, typecheck, format:check, build, test (585 tests; core walk/place/act/inventory, server play/traces/wipe, web hands/hint/state/inventory-bar) and pnpm e2e (13 specs, including e2e/traces.spec.ts: ten keyed slots, hint bar hidden through a 600 ms walk and shown after standing still, phone width without horizontal scroll, bar carved from the dune ramp when the screen is a desert). Screenshots in e2e/.results: inventory-garden.png, inventory-south.png, inventory-phone.png, inventory-desert.png. AC1: play.test.ts places a probe from one socket, the other socket receives the traces message, a restarted server on a file db sends it in the screen message. AC2: LIMITS table in packages/core/src/traces/registry.ts; the carry limit and every world rule refuse with a reason through the refused message. AC6: walk.test.ts covers every 0.5 px sub-tile position and all four facings; act.test.ts refuses the tile under the feet, another player's box, the screen edge and a corridor split. AC7: screens table untouched; wipe.test.ts shows wipeWorld clears traces, reports and inventories.
+
+Fix (2026-09-25): the bar was a full-window row of the .game grid, so it spanned the browser and floated below the stage's leftover space as a flat fill. It now sits in .stage directly under the canvas, exactly as wide as the view (contain: inline-size, so the canvas sets the column), and is part of the game frame: the renderer reserves BAR_PX_H (40 game px) under the screen when choosing its integer scale and publishes it as --scale, which sizes the bar, slots, bevels and pegs. The panel is carved from the biome ground ramp: highlight bevel in the light step, dark bevel, grain lines, four corner pegs, slots in the darkest step with a light edge. e2e/traces.spec.ts now asserts the bar's left edge and width equal the view's and its top touches the view's bottom, at 1280x720, at 360x740 and in a desert. Checked desert, tundra, forest and meadow screenshots.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
