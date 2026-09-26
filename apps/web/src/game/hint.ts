@@ -5,9 +5,12 @@ export const STILL_MS = 500;
 /** How long a message, such as a refusal, stays up. */
 export const MESSAGE_MS = 2500;
 
-export const WALK_TIP = 'Arrow keys or WASD to walk. Walk off an edge to explore.';
+export const WALK_TIP = 'Click and hold where you want to walk. Walk off an edge to explore.';
 
 export type Message = { readonly text: string; readonly at: number };
+
+/** What the hint bar shows; an actionable hint is a prompt that clicking the bar takes. */
+export type Hint = { readonly text: string; readonly actionable: boolean };
 
 export type HintInput = {
   readonly now: number;
@@ -19,10 +22,10 @@ export type HintInput = {
   readonly tip: boolean;
 };
 
-/** The hint bar's text, or undefined to hide it. */
-export function hintText({ now, stillSince, message, prompt, tip }: HintInput): string | undefined {
-  if (message && now - message.at < MESSAGE_MS) return message.text;
+/** The hint bar's content, or undefined to hide it. */
+export function hintText({ now, stillSince, message, prompt, tip }: HintInput): Hint | undefined {
+  if (message && now - message.at < MESSAGE_MS) return { text: message.text, actionable: false };
   if (stillSince === undefined || now - stillSince < STILL_MS) return undefined;
-  if (prompt) return `E  ${prompt.label}`;
-  return tip ? WALK_TIP : undefined;
+  if (prompt) return { text: prompt.label, actionable: true };
+  return tip ? { text: WALK_TIP, actionable: false } : undefined;
 }

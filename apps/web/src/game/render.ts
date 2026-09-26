@@ -2,12 +2,10 @@ import {
   SCREEN_PX_H,
   SCREEN_PX_W,
   TILE,
-  inScreen,
   type Avatar,
   type Place,
   type Pose,
   type Screen,
-  type Tile,
 } from '@explore/core';
 import type { User } from '../api.ts';
 import { avatarSheet, walkFrameRect } from '../art/avatars.ts';
@@ -179,12 +177,12 @@ export function canvasRenderer(
         ctx.fillRect(0, 0, SCREEN_PX_W, SCREEN_PX_H);
       }
     },
-    tileAt(event: MouseEvent): Tile | undefined {
+    pointAt(event: MouseEvent) {
       const box = canvas.getBoundingClientRect();
-      const x = (event.clientX - box.left - canvas.clientLeft) / scale;
-      const y = (event.clientY - box.top - canvas.clientTop) / scale;
-      const tile = { tx: Math.floor(x / TILE), ty: Math.floor(y / TILE) };
-      return inScreen(tile.tx, tile.ty) ? tile : undefined;
+      return {
+        x: (event.clientX - box.left - canvas.clientLeft) / scale,
+        y: (event.clientY - box.top - canvas.clientTop) / scale,
+      };
     },
     dispose() {
       observer.disconnect();

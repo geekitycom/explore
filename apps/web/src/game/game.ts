@@ -4,19 +4,18 @@ import {
   type BiomeCell,
   type Place,
   type Pose,
-  type Tile,
 } from '@explore/core';
 import type { User } from '../api.ts';
-import { createHands, type Aim, type Hud } from './hands.ts';
+import { createHands, type Aim, type Hud, type Point } from './hands.ts';
 import { keyboard } from './input.ts';
-import { step } from './movement.ts';
+import { steer, step } from './movement.ts';
 import { connect } from './net.ts';
 import { applyMessage, interpolate, type GameState } from './state.ts';
 
 export type Renderer = {
   draw(state: GameState, you: User, clock: number, aim: Aim | undefined): void;
-  /** The tile under a pointer event on the canvas. */
-  tileAt(event: MouseEvent): Tile | undefined;
+  /** A pointer event's position in game pixels, unclamped to the screen. */
+  pointAt(event: MouseEvent): Point;
   dispose(): void;
 };
 
@@ -43,7 +42,7 @@ export function startGame(
   const hands = createHands({
     hud,
     canvas,
-    tileAt: (event) => renderer.tileAt(event),
+    pointAt: (event) => renderer.pointAt(event),
     send: (message) => conn.send(message),
   });
   const keys = keyboard(hands.key);
@@ -69,7 +68,11 @@ export function startGame(
     previous = now;
 
     if (state.phase === 'playing') {
-      const { pose, exit } = step(state.place, state.you, keys.held, dt, keys.lastPressed());
+      const target = hands.walking();
+      const { held, facing } = target
+        ? steer(state.you, target)
+        : { held: keys.held, facing: keys.lastPressed() };
+      const { pose, exit } = step(state.place, state.you, held, dt, facing);
       state = { ...state, you: pose, others: interpolate(state.others, dt) };
       if (exit) {
         conn.send({ t: 'move', ...pose });

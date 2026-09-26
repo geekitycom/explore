@@ -60,8 +60,10 @@ test('the inventory bar and the hint bar frame the world', async ({ page }) => {
   const released = Date.now();
   await expect.poll(async () => (await hud(page)).hintHidden, { timeout: 1500 }).toBe(false);
   expect(Date.now() - released).toBeGreaterThanOrEqual(400);
-  expect((await hud(page)).hint).toBe('Arrow keys or WASD to walk. Walk off an edge to explore.');
-  await expect(page.getByRole('status').filter({ hasText: 'Arrow keys' })).toBeVisible();
+  expect((await hud(page)).hint).toBe(
+    'Click and hold where you want to walk. Walk off an edge to explore.',
+  );
+  await expect(page.getByRole('button', { name: 'Click and hold' })).toBeVisible();
   await page.screenshot({ path: 'e2e/.results/inventory-garden.png' });
 
   await page.keyboard.down('ArrowRight');

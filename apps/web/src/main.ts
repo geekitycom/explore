@@ -66,7 +66,12 @@ function gameView(user: User) {
   let avatar = user.avatar;
   const canvas = h('canvas', { class: 'game-canvas', 'aria-label': 'Game world' });
   const status = h('p', { class: 'status', role: 'status' });
-  const hint = h('p', { class: 'hint-bar', role: 'status', hidden: true });
+  const hint = h('button', {
+    type: 'button',
+    class: 'hint-bar',
+    'aria-live': 'polite',
+    hidden: true,
+  });
   const hud = { bar: inventoryBar(), hint, world: h('div', { class: 'world' }, canvas, hint) };
   const stage = h('div', { class: 'stage' }, hud.world, hud.bar.el);
   const view = h(

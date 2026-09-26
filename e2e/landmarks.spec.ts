@@ -64,7 +64,7 @@ test('the first to reach a landmark names it for everyone and the map', async ({
   ].find((t) => isWalkable(bare(screen), t.tx, t.ty) && inArea(area, t))!;
   await teleport(page, db, user, coord, stand);
 
-  await expect.poll(async () => (await hud(page)).hint).toBe('E  Name this place');
+  await expect.poll(async () => (await hud(page)).hint).toBe('Name this place');
   await page.keyboard.press('KeyE');
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading')).toHaveText(/^Name this /);
