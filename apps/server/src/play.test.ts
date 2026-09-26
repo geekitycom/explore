@@ -1190,17 +1190,27 @@ describe('visitors', () => {
     expect(arrival).toMatchObject({ arrival: 'none', you: stood, inventory: [...PROBES] });
     bob.send({ t: 'use', slot: 0, ...PROBE_TILE });
     expect(await nextOf(bob, 'traces')).toMatchObject({ t: 'traces' });
+    await nextOf(bob, 'inventory');
+    walk(bob, stood, [200, 120], [316, 120]);
+    bob.send({ t: 'travel', dir: 'e' });
+    const east = await nextOf(bob, 'screen');
+    expect(east.screen).toMatchObject({ sx: 1, sy: 0 });
     await bob.close();
 
-    expect(loadPlayerState(db, 2)).toMatchObject({ pose: stood });
+    expect(loadPlayerState(db, 2)).toMatchObject({ coord: { sx: 1, sy: 0 } });
     expect(loadInventory(db, 2)).toEqual([
       ...parseInventory([{ kind: 'probe', variant: 'probe', count: 1 }]),
     ]);
     expect(db.prepare('SELECT count(*) AS n FROM traces').get()).toEqual({ n: 1 });
+    expect((await fetchMap(base, aliceCookie)).screens).toEqual([
+      encodeScreen(secretGarden()),
+      east.screen,
+    ]);
     const home = host.open(BOB_WORLD).db;
     expect(loadPlayerState(home, 2)).toBeUndefined();
     expect(loadInventory(home, 2)).toEqual([]);
     expect(home.prepare('SELECT count(*) AS n FROM traces').get()).toEqual({ n: 0 });
+    expect((await fetchMap(base, bobCookie, BOB_WORLD)).screens).toEqual([]);
   });
 
   it('lets only the owner open, read, or close a world, and only when logged in', async () => {
