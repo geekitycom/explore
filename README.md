@@ -69,6 +69,20 @@ LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=google/gemini-3.8-flash LLM_
 | `pnpm epitaphs`                       | List every grave's epitaph. `--set sx,sy tx,ty "words"` replaces one, `--clear sx,sy tx,ty` puts back its built-in epitaph for good. Uses `DB_PATH`                                         |
 | `pnpm --filter @explore/core preview` | Render a large area of the world to a PNG for tuning generation                                                                                                                             |
 
+## Testing
+
+`pnpm test` runs the unit tests, then the timing tests in `*.perf.test.ts` on their own.
+
+Every unit test has a budget of 1000 ms. A test that takes longer fails with a message that names it, locally and in CI; `vitest.setup.ts` enforces this. Aim for under 300 ms, so a test stays inside the budget on a slower CI runner or a busy laptop. When a test is slow, make its work cheaper instead of raising its timeout:
+
+- Pass a lower scrypt cost to `createApp` (`scryptCost`) instead of hashing at the production cost.
+- Share an expensive fixture between cases, or sample seeds deterministically instead of looping over all of them.
+- Split a long loop into `test.each` cases, so each test does a small part of the work.
+- Collect the failures of a pixel or tile loop into an array and assert on it once, instead of calling `expect` for each item.
+- Poll with `vi.waitFor(check, { interval: 1 })`. The default interval is 50 ms.
+
+Only a test that measures time belongs in `*.perf.test.ts`.
+
 ## Layout
 
 - `packages/core` holds the pure game logic shared by server and client: world model, generation, collision, avatar model, and protocol schemas.
