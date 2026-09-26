@@ -18,7 +18,11 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chrome', use: { channel: 'chrome' }, testIgnore: 'touch.spec.ts' },
+    {
+      name: 'chrome',
+      use: { channel: 'chrome', launchOptions: { args: ['--mute-audio'] } },
+      testIgnore: 'touch.spec.ts',
+    },
     { name: 'ipad', use: { ...devices['iPad (gen 7)'] }, testMatch: 'touch.spec.ts' },
   ],
   webServer: {

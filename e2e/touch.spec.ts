@@ -122,6 +122,28 @@ async function wakeByTap(page: Page) {
   await expect.poll(() => phase(page), { intervals: [50] }).toBe('playing');
 }
 
+/** WebKit has no mute switch, so everything bound for the speakers goes through a silent gain. */
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const node = AudioNode.prototype as unknown as {
+      connect: (this: AudioNode, ...args: unknown[]) => unknown;
+    };
+    const connect = node.connect;
+    const silences = new WeakMap<BaseAudioContext, GainNode>();
+    node.connect = function (dest, ...rest) {
+      if (!(dest instanceof AudioDestinationNode)) return connect.call(this, dest, ...rest);
+      let silence = silences.get(this.context);
+      if (!silence) {
+        silence = this.context.createGain();
+        silence.gain.value = 0;
+        connect.call(silence, dest);
+        silences.set(this.context, silence);
+      }
+      return connect.call(this, silence, ...rest);
+    };
+  });
+});
+
 test('a player on an iPad plays by touch alone', async ({ page }) => {
   const errors: Error[] = [];
   page.on('pageerror', (error) => errors.push(error));
