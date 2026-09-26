@@ -3,7 +3,7 @@ id: doc-3
 title: World generation v2 design
 type: specification
 created_date: '2026-09-25 01:32'
-updated_date: '2026-09-25 01:33'
+updated_date: '2026-09-26 14:05'
 ---
 # World generation v2: biomes, roads, and chunks
 
@@ -68,7 +68,7 @@ Music keys on `(biome, cellId)`. The current tune keeps playing while the biome 
 
 ## Roads
 
-1. Nodes are the points of interest. The garden is a degree-4 hub, and its four existing dirt exits are fixed road ends.
+1. Nodes are the points of interest. The garden is a hub whose dirt exits are fixed road ends: east and west since task-58 (its north and south openings are grass).
 2. Edges come from a relative neighbourhood graph over the points in the surrounding 5x5 regions: keep edge ab when no third point is closer to both. The decision needs only nearby points, so any chunk computes the same graph. It contains the minimum spanning tree plus a few loops. (Locality is the researcher's reasoning, not from a source.)
 3. Route each edge with A* over a tile cost field [6]: grass and dirt 1, sand 2, forest 4, rock 6, water 30 (becomes a sand ford, later a bridge), plus a little noise so roads meander. Cost-minimising routing over terrain is the idea in Galin et al. [8]. The search is limited to the pair's bounding box plus a margin, with deterministic tie-breaks, so every chunk gets the same path.
 4. Roads are rasterised as dirt three corners wide, matching the garden paths, clearing blocking features. A chunk routes every edge whose corridor touches it and keeps its own cells. Routes are pure, so caching is only an optimisation.

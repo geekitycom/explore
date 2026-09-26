@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 import type { DatabaseSync } from 'node:sqlite';
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { TILE, type ScreenCoord, type Tile } from '../packages/core/src/index.ts';
 
 export const unique = (tag: string) =>
@@ -27,12 +27,23 @@ export async function signUp(page: Page, name: string) {
   await page.getByRole('button', { name: 'Start exploring' }).click();
 }
 
-export const playing = (page: Page) =>
-  page.waitForFunction(
-    () =>
-      (window as unknown as { exploreState?: () => { phase: string } }).exploreState?.().phase ===
-      'playing',
+const phase = (page: Page) =>
+  page.evaluate(
+    () => (window as unknown as { exploreState?: () => { phase: string } }).exploreState?.().phase,
   );
+
+/** Waits until the player can move, first waking them up when the session is a new one. */
+export async function playing(page: Page) {
+  await expect.poll(() => phase(page), { intervals: [50] }).toMatch(/^(waking|playing)$/);
+  if ((await phase(page)) === 'waking') await wakeUp(page);
+}
+
+/** Waits for the wake-up message to show in full, then presses Space to start. */
+export async function wakeUp(page: Page) {
+  await expect(page.locator('.wake-text')).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Space');
+  await expect.poll(() => phase(page), { intervals: [50] }).toBe('playing');
+}
 
 /**
  * Moves a signed-out player by rewriting their saved position, then signs them back in there.

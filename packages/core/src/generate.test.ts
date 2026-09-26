@@ -503,6 +503,19 @@ describe('secret garden', () => {
     expect(new Set(exits.map(([tx, ty]) => comp[ty * SCREEN_W + tx])).size).toBe(1);
   });
 
+  test('runs its paths out east and west, and opens north and south onto grass', () => {
+    const edge = {
+      n: Array.from({ length: LATTICE_W }, (_, x) => cornerAt(garden, x, 0)),
+      s: Array.from({ length: LATTICE_W }, (_, x) => cornerAt(garden, x, LATTICE_H - 1)),
+      w: Array.from({ length: LATTICE_H }, (_, y) => cornerAt(garden, 0, y)),
+      e: Array.from({ length: LATTICE_H }, (_, y) => cornerAt(garden, LATTICE_W - 1, y)),
+    };
+    expect(edge.n.every((t) => t === 'grass')).toBe(true);
+    expect(edge.s.every((t) => t === 'grass')).toBe(true);
+    expect(edge.w).toContain('dirt');
+    expect(edge.e).toContain('dirt');
+  });
+
   test('has a pond you cannot walk into', () => {
     expect(isTileWalkable(garden, 9, 7)).toBe(false);
   });

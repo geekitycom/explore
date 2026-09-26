@@ -64,6 +64,8 @@ export type ServerMessage =
       you: Pose;
       others: PlayerView[];
       inventory: StackRecord[];
+      /** A new session: the player wakes up in the garden. */
+      wake: boolean;
     }
   | { t: 'traces'; changes: TraceChangeRecord[] }
   | { t: 'inventory'; stacks: StackRecord[] }

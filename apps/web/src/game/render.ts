@@ -166,7 +166,7 @@ export function canvasRenderer(
           sortY: a.y + SPRITE_FOOT,
           draw: () => drawActor(a, clock),
         })),
-        !reducedMotion.matches,
+        !reducedMotion.matches && state.phase !== 'waking',
       );
       if (aim) outline(aim);
       for (const a of actors) {

@@ -33,6 +33,7 @@ export function startGame(
   hud: Hud,
   onStatus: (s: GameStatus) => void,
   onScreen: (place: Place, patch: BiomeCell) => void,
+  onWaking: () => void,
 ) {
   let user = initialUser;
   let state: GameState = { phase: 'connecting' };
@@ -49,11 +50,15 @@ export function startGame(
   Object.assign(window, { exploreState: () => state, exploreUser: () => user });
   const conn = connect({
     onMessage: (message) => {
+      const was = state.phase;
       state = applyMessage(state, message);
       if (message.t === 'refused') hands.refused(message.reason, performance.now());
       if (message.t === 'screen' || message.t === 'correct') lastSent = undefined;
-      if (message.t === 'screen' && state.phase !== 'connecting')
+      if (state.phase === 'waking') {
+        if (was !== 'waking') onWaking();
+      } else if (message.t === 'screen' && state.phase !== 'connecting') {
         onScreen(state.place, state.patch);
+      }
     },
     onStatus,
   });
@@ -88,6 +93,12 @@ export function startGame(
   });
 
   return {
+    /** Starts the session the server began with a wake-up. */
+    wake: () => {
+      if (state.phase !== 'waking') return;
+      state = { ...state, phase: 'playing' };
+      onScreen(state.place, state.patch);
+    },
     setAvatar: (avatar: Avatar) => {
       user = { ...user, avatar };
     },

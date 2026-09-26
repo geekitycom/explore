@@ -44,9 +44,9 @@ import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
 import { saveInventory } from './inventory.ts';
 import { clearName, landmarkNames } from './names.ts';
-import { createGame } from './play.ts';
+import { createGame, type Game } from './play.ts';
 import type { Conn } from './presence.ts';
-import { insertUser } from './users.ts';
+import { insertUser, type User } from './users.ts';
 import { getScreen, loadPlayerState, loadWorld, savePlayerState } from './world.ts';
 
 type Running = { db: DatabaseSync; base: string; stop: () => Promise<void> };
@@ -236,6 +236,7 @@ describe('world socket', () => {
       you: SPAWN,
       others: [],
       inventory: [],
+      wake: true,
     });
   });
 
@@ -823,6 +824,82 @@ describe('landmarks', () => {
   });
 });
 
+describe('sessions', () => {
+  const TIMEOUT = 60_000;
+  const EAST: ScreenCoord = { layer: OVERWORLD, sx: 1, sy: 0 };
+  const STOOD: Pose = { x: 162, y: 202, dir: 'e', moving: false };
+
+  function sessionsOn(db: DatabaseSync) {
+    const clock = { t: 0 };
+    const game = createGame(db, { now: () => clock.t, sessionTimeoutMs: TIMEOUT });
+    const firstScreen = (user: User) => {
+      const sent: ServerMessage[] = [];
+      const player = game.connect(user, { send: (m) => sent.push(m), close: () => {} });
+      const screen = sent.find((m) => m.t === 'screen')!;
+      return { player, screen };
+    };
+    return { clock, game, firstScreen };
+  }
+
+  function setup() {
+    const db = openDatabase(':memory:');
+    const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
+    const games: Game[] = [];
+    cleanups.push(() => {
+      for (const game of games) game.stop();
+      db.close();
+    });
+    const open = () => {
+      const opened = sessionsOn(db);
+      games.push(opened.game);
+      return opened;
+    };
+    return { db, alice, open };
+  }
+
+  it('wakes a player in the garden once their last connection is a timeout old, wherever they were', () => {
+    const { db, alice, open } = setup();
+    savePlayerState(db, alice.id, { coord: EAST, pose: STOOD }, 0);
+    const { clock, firstScreen } = open();
+    clock.t = TIMEOUT;
+    const { screen } = firstScreen(alice);
+    expect(screen.wake).toBe(true);
+    expect(screen.screen).toEqual(encodeScreen(secretGarden()));
+    expect(screen.you).toEqual(SPAWN);
+  });
+
+  it('resumes the position without waking when the player reconnects within the timeout', () => {
+    const { alice, open } = setup();
+    const { clock, game, firstScreen } = open();
+    const { player } = firstScreen(alice);
+    game.receive(player, JSON.stringify({ t: 'move', ...STOOD }));
+    clock.t = 5000;
+    game.disconnect(player);
+
+    clock.t = 5000 + TIMEOUT - 1;
+    const again = firstScreen(alice);
+    expect(again.screen.wake).toBe(false);
+    expect(again.screen.you).toEqual(STOOD);
+  });
+
+  it('keeps a connected player awake however long they idle, even across a crash', () => {
+    const { alice, open } = setup();
+    const first = open();
+    const { player } = first.firstScreen(alice);
+    first.game.receive(player, JSON.stringify({ t: 'move', ...STOOD }));
+    first.clock.t = 1000;
+    first.game.flush();
+    first.clock.t = 3 * TIMEOUT;
+    first.game.flush();
+
+    const restarted = open();
+    restarted.clock.t = 3 * TIMEOUT + 1000;
+    const { screen } = restarted.firstScreen(alice);
+    expect(screen.wake).toBe(false);
+    expect(screen.you).toEqual(STOOD);
+  });
+});
+
 describe('game', () => {
   it('ignores messages from a connection that has been replaced', () => {
     const db = openDatabase(':memory:');
@@ -858,7 +935,7 @@ describe('game', () => {
     game.receive(player, JSON.stringify({ t: 'move', x: 162, y: 202, dir: 'e', moving: true }));
 
     game.stop();
-    expect(loadPlayerState(db, alice.id)).toEqual({
+    expect(loadPlayerState(db, alice.id)).toMatchObject({
       coord: GARDEN_COORD,
       pose: { x: 162, y: 202, dir: 'e', moving: false },
     });

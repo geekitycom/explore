@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
-import { probeOutput, signUp } from './helpers.ts';
+import { playing, probeOutput, signUp } from './helpers.ts';
 
 type AudioSnapshot = {
   state: string;
@@ -82,8 +82,7 @@ test('ambience plays on the effects bus and obeys mute and the effects volume', 
   const level = await probeOutput(page);
 
   await signUp(page, `amb${Date.now().toString(36)}`);
-  await expect(page.getByLabel('Game world')).toBeVisible();
-  await page.keyboard.press('Shift');
+  await playing(page);
   await expect.poll(level, { timeout: 10_000 }).toBeGreaterThan(0.002);
 
   await page.getByRole('button', { name: 'Sound' }).click();

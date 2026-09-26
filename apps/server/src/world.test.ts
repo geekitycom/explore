@@ -95,10 +95,14 @@ it('saves and resumes the layer a player is on', () => {
   const db = openDatabase(':memory:');
   const user = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
   const pose = { x: 40, y: 50, dir: 'w' as const, moving: false };
-  savePlayerState(db, user.id, { coord: { layer: CELLAR, sx: 2, sy: -1 }, pose });
-  expect(loadPlayerState(db, user.id)).toEqual({ coord: { layer: CELLAR, sx: 2, sy: -1 }, pose });
-  savePlayerState(db, user.id, { coord: EAST, pose });
-  expect(loadPlayerState(db, user.id)).toEqual({ coord: EAST, pose });
+  savePlayerState(db, user.id, { coord: { layer: CELLAR, sx: 2, sy: -1 }, pose }, 1000);
+  expect(loadPlayerState(db, user.id)).toEqual({
+    coord: { layer: CELLAR, sx: 2, sy: -1 },
+    pose,
+    seenAt: 1000,
+  });
+  savePlayerState(db, user.id, { coord: EAST, pose }, 2000);
+  expect(loadPlayerState(db, user.id)).toEqual({ coord: EAST, pose, seenAt: 2000 });
   db.close();
 });
 
@@ -170,7 +174,7 @@ it('upgrades an old database in place: accounts, screens, and positions all stay
     { gen_version: 0 },
     { gen_version: 0 },
   ]);
-  expect(loadPlayerState(db, 1)).toEqual({
+  expect(loadPlayerState(db, 1)).toMatchObject({
     coord: EAST,
     pose: { x: 40, y: 50, dir: 'w', moving: false },
   });

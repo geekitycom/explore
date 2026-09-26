@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-26 13:51'
+updated_date: '2026-09-26 14:05'
 ---
 # Decision log
 
@@ -22,8 +22,9 @@ Unique case-insensitive username, scrypt-hashed password, cookie session. No ema
 Players choose skin, hair style, hair color, shirt color, and pants color in an avatar step right after creating their account (TASK-59; it was part of the sign-up form before). The sprite is composited from layers with a 4-direction walk animation.
 
 ## D5. Hand-built secret garden at (0,0) with openings on all four sides (product, 2026-09-24)
+Since task-58 its dirt paths run out of the east and west sides only; the north and south hedge gaps open onto grass, so roads leave the garden east and west (`GENERATOR_VERSION` 9).
 
-## D6. Returning players resume at their last position (product, 2026-09-24)
+## D6. Returning players resume at their last position (product, 2026-09-24, replaced by D24 on 2026-09-26)
 
 ## D7. The world is unbounded (product, 2026-09-24)
 
@@ -86,4 +87,11 @@ The rule every change to world generation or the stored screen format follows, s
 3. **Migrations never delete screens, visits, or positions** (D22). `pnpm world:wipe --yes` stays the only reset, and it is an admin's choice.
 4. **Arrivals read the two stored screens**: travel lands a player on a tile open on both sides of the seam (`seamOpenings`), never on tiles the current fields predict, so crossing into an older screen always works or is refused, never crashes.
 
+The garden is the one exception to "stored screens keep their cells": it is hand-built, so `ensureGarden` rewrites the stored garden with the current stamp (and the current `gen_version`) on every start, and a garden layout change needs nothing more. Its stored neighbours keep their edges, which stays walkable because a crossing needs only the two facing tiles open (rule 4). Task-58 did this when the north and south paths became grass.
+
 Tests that guard this: `upgrade.test.ts` lifts records from every past version; `generate.test.ts` stitches a block of another world's screens (standing in for an older generator) over six seeds and checks seam equality, the blend band, reachability from the garden, and pocket repair; `legacy.test.ts` and `play.test.ts` open a real v3 database dumped from the dev world (`apps/server/fixtures/world-v3.sql`), upgrade it in place, build a chunk around its screens, and walk a player from an old screen into a new one.
+
+## D24. Every session starts by waking in the secret garden (product, from Andrew, task-58, 2026-09-26)
+Replaces D6. A play session is a run of connections with no gap as long as `SESSION_TIMEOUT_MS` (10 minutes, one setting in `apps/server/src/play.ts`, overridable through the `SESSION_TIMEOUT_MS` environment variable, which the e2e server sets to 4 seconds). The server keeps no session table: `player_state.updated_at` is when the player was last known connected. It is written on every disconnect, every travel, every flush (every 5 seconds, for everyone online, idle or not), and on shutdown, so a player whose window stays open never falls asleep, and the rule gives the same answer after a restart or a crash.
+
+On connect, a saved position younger than the timeout resumes where the player stood, with no wake-up (a page reload, a dropped connection, a second tab). Anything older, or no saved position, starts a new session: the player is placed at the garden spawn whatever their last position, and the screen message carries `wake: true`. The client holds the world still (no movement, no ambient motion, no music) behind a black cover that opens like eyes from a seam across the middle in about a second (a short fade with reduced motion), then shows exactly "You wake up in a secret garden. You feel the grass between your toes. Press [space] to start." Space starts the session and the music, and is the audio unlock. There is no separate fell-asleep message; the player stays logged in.

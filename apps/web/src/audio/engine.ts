@@ -50,6 +50,8 @@ export function createAudioEngine() {
       if (buses) fn(buses);
       else waiting.push(fn);
     },
+    /** Call from a user gesture that another handler keeps from reaching the window. */
+    unlock,
     state: () => buses?.ctx.state ?? 'locked',
   };
 }

@@ -5,7 +5,7 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
-import { createGame } from './play.ts';
+import { SESSION_TIMEOUT_MS, createGame } from './play.ts';
 import { createTextGenerator, type TextGenSettings } from './text-gen.ts';
 
 const SAVE_INTERVAL_MS = 5000;
@@ -27,7 +27,10 @@ const textGen: TextGenSettings | undefined =
 console.log(
   textGen ? `text generation: ${textGen.model} at ${textGen.baseUrl}` : 'text generation off',
 );
-const game = createGame(db, { writeText: textGen && createTextGenerator(textGen) });
+const game = createGame(db, {
+  writeText: textGen && createTextGenerator(textGen),
+  sessionTimeoutMs: Number(process.env.SESSION_TIMEOUT_MS ?? SESSION_TIMEOUT_MS),
+});
 
 const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
 const { app, injectWebSocket } = createApp({

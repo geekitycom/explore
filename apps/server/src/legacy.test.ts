@@ -7,6 +7,8 @@ import {
   CHUNK_W,
   DIRS,
   DIR_DELTA,
+  GARDEN_COORD,
+  GARDEN_SPAWN,
   GENERATOR_VERSION,
   LATTICE_H,
   LATTICE_W,
@@ -23,6 +25,7 @@ import {
   neighborCoord,
   screenKey,
   seamOpenings,
+  secretGarden,
   type Screen,
   type ScreenCoord,
 } from '@explore/core';
@@ -30,7 +33,7 @@ import { afterEach, expect, it } from 'vitest';
 import { Chunks } from './chunks.ts';
 import { openDatabase } from './db.ts';
 import { wipeWorld } from './wipe.ts';
-import { getScreen, loadPlayerState } from './world.ts';
+import { ensureGarden, getScreen, loadPlayerState } from './world.ts';
 
 const FIXTURE = readFileSync(new URL('../fixtures/world-v3.sql', import.meta.url), 'utf8');
 const FIXTURE_SCREENS = 40;
@@ -152,6 +155,45 @@ it('builds new screens around the old ones that share their edges and open onto 
     Math.floor(player.pose.y / TILE),
   ];
   expect([...reachable(screens, player.coord, tile)].sort()).toEqual([...screens.keys()].sort());
+  db.close();
+});
+
+it('gives a stored garden the new layout, and the old roads north and south still lead into it', () => {
+  const db = openDatabase(legacyDbPath());
+  const before = rows(db);
+  const oldGarden = getScreen(db, GARDEN_COORD)!;
+  expect(oldGarden).not.toEqual(secretGarden());
+
+  ensureGarden(db);
+  ensureGarden(db);
+  expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
+  expect(db.prepare('SELECT gen_version FROM screens WHERE sx = 0 AND sy = 0').get()).toEqual({
+    gen_version: GENERATOR_VERSION,
+  });
+  const isGarden = (row: Row) => row.sx === 0 && row.sy === 0;
+  expect(rows(db).filter((row) => !isGarden(row))).toEqual(before.filter((row) => !isGarden(row)));
+
+  const screens = new Map(
+    rows(db).map((row) => {
+      const coord = { layer: OVERWORLD, sx: row.sx, sy: row.sy };
+      return [screenKey(coord), getScreen(db, coord)!];
+    }),
+  );
+  const garden = screens.get(screenKey(GARDEN_COORD))!;
+  for (const dir of ['n', 's'] as const) {
+    const other = screens.get(screenKey(neighborCoord(GARDEN_COORD, dir)))!;
+    const facingRow = dir === 'n' ? LATTICE_H - 1 : 0;
+    const edge = Array.from({ length: LATTICE_W }, (_, x) => cornerAt(other, x, facingRow));
+    expect(edge).toContain('dirt');
+    expect(seamOpenings(bare(garden), bare(other), dir).length).toBeGreaterThan(0);
+  }
+  const spawn: [number, number] = [
+    Math.floor(GARDEN_SPAWN.x / TILE),
+    Math.floor(GARDEN_SPAWN.y / TILE),
+  ];
+  const reached = reachable(screens, GARDEN_COORD, spawn);
+  expect(reached).toContain(screenKey({ layer: OVERWORLD, sx: 0, sy: -1 }));
+  expect(reached).toContain(screenKey({ layer: OVERWORLD, sx: 0, sy: 1 }));
   db.close();
 });
 

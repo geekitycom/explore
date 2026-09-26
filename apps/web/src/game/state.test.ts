@@ -5,6 +5,7 @@ import {
   isWalkable,
   secretGarden,
   type PlayerView,
+  type ServerMessage,
   type TraceRecord,
 } from '@explore/core';
 import { describe, expect, test } from 'vitest';
@@ -22,19 +23,19 @@ const bob: PlayerView = {
 };
 const you = { x: 160, y: 200, dir: 'n' as const, moving: false };
 
+const screenMessage = (traces: TraceRecord[] = [], wake = false): ServerMessage => ({
+  t: 'screen',
+  screen: garden,
+  traces,
+  patch: { x: 0, y: 0 },
+  you,
+  others: [bob],
+  inventory: [],
+  wake,
+});
+
 function playing(traces: TraceRecord[] = []): GameState {
-  return applyMessage(
-    { phase: 'connecting' },
-    {
-      t: 'screen',
-      screen: garden,
-      traces,
-      patch: { x: 0, y: 0 },
-      you,
-      others: [bob],
-      inventory: [],
-    },
-  );
+  return applyMessage({ phase: 'connecting' }, screenMessage(traces));
 }
 
 function place(state: GameState) {
@@ -53,6 +54,13 @@ describe('applyMessage', () => {
     expect(state.place.screen.coord).toEqual({ layer: 'overworld', sx: 0, sy: 0 });
     expect(state.you).toEqual(you);
     expect([...state.others.keys()]).toEqual([2]);
+  });
+
+  test('a new session holds still until the player wakes, even through a reconnect', () => {
+    const waking = applyMessage({ phase: 'connecting' }, screenMessage([], true));
+    expect(waking.phase).toBe('waking');
+    expect(applyMessage(waking, screenMessage()).phase).toBe('waking');
+    expect(applyMessage(playing(), screenMessage([], true)).phase).toBe('waking');
   });
 
   test('join, moved, and leave track other players', () => {

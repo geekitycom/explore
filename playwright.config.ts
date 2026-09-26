@@ -1,6 +1,7 @@
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig } from '@playwright/test';
+import { SESSION_TIMEOUT_MS } from './e2e/session.ts';
 
 const PORT = 4310;
 // Workers load this file again; the env keeps them on the server's database.
@@ -19,7 +20,12 @@ export default defineConfig({
   },
   webServer: {
     command: `pnpm --filter @explore/web build && node apps/server/src/main.ts`,
-    env: { PORT: String(PORT), DB_PATH: dbPath, TRUST_PROXY: 'true' },
+    env: {
+      PORT: String(PORT),
+      DB_PATH: dbPath,
+      TRUST_PROXY: 'true',
+      SESSION_TIMEOUT_MS: String(SESSION_TIMEOUT_MS),
+    },
     url: `http://localhost:${PORT}/api/me`,
     reuseExistingServer: false,
     stdout: 'pipe',

@@ -22,6 +22,9 @@ import { z } from 'zod';
 
 type PlayerState = { coord: ScreenCoord; pose: Pose };
 
+/** `seenAt` is when the player was last known to be connected; their session ends a timeout later. */
+type SavedPlayer = PlayerState & { seenAt: number };
+
 const playerStateRow = z.object({
   layer: layerIdSchema,
   sx: z.number().int(),
@@ -29,6 +32,7 @@ const playerStateRow = z.object({
   x: z.number(),
   y: z.number(),
   dir: z.enum(DIRS),
+  updated_at: z.number().int(),
 });
 
 /** A stored screen is never replaced: the first generator to store a coordinate wins. */
@@ -107,8 +111,24 @@ export function olderScreen(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): S
   return row && decodeScreen(JSON.parse(row.data));
 }
 
+/**
+ * Stores the hand-built garden, replacing a stored garden from an earlier layout in place. Its
+ * neighbours keep their edges; a seam crossing only needs both facing tiles walkable.
+ */
 export function ensureGarden(db: DatabaseSync): void {
-  insertScreen(db, secretGarden(), null);
+  const garden = secretGarden();
+  db.prepare(
+    `INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version)
+     VALUES (?, ?, ?, ?, NULL, ?, ?)
+     ON CONFLICT (layer, sx, sy) DO UPDATE SET data = excluded.data, gen_version = excluded.gen_version`,
+  ).run(
+    garden.coord.layer,
+    garden.coord.sx,
+    garden.coord.sy,
+    JSON.stringify(encodeScreen(garden)),
+    Date.now(),
+    GENERATOR_VERSION,
+  );
 }
 
 const worldRow = z.object({ seed: worldSeedSchema });
@@ -139,16 +159,21 @@ export function recordVisit(db: DatabaseSync, { layer, sx, sy }: ScreenCoord): v
   );
 }
 
-export function loadPlayerState(db: DatabaseSync, userId: number): PlayerState | undefined {
+export function loadPlayerState(db: DatabaseSync, userId: number): SavedPlayer | undefined {
   const row: unknown = db
-    .prepare('SELECT layer, sx, sy, x, y, dir FROM player_state WHERE user_id = ?')
+    .prepare('SELECT layer, sx, sy, x, y, dir, updated_at FROM player_state WHERE user_id = ?')
     .get(userId);
   if (row === undefined) return undefined;
-  const { layer, sx, sy, x, y, dir } = playerStateRow.parse(row);
-  return { coord: { layer, sx, sy }, pose: { x, y, dir, moving: false } };
+  const { layer, sx, sy, x, y, dir, updated_at } = playerStateRow.parse(row);
+  return { coord: { layer, sx, sy }, pose: { x, y, dir, moving: false }, seenAt: updated_at };
 }
 
-export function savePlayerState(db: DatabaseSync, userId: number, state: PlayerState): void {
+export function savePlayerState(
+  db: DatabaseSync,
+  userId: number,
+  state: PlayerState,
+  seenAt = Date.now(),
+): void {
   db.prepare(
     `INSERT INTO player_state (user_id, layer, sx, sy, x, y, dir, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -163,6 +188,6 @@ export function savePlayerState(db: DatabaseSync, userId: number, state: PlayerS
     state.pose.x,
     state.pose.y,
     state.pose.dir,
-    Date.now(),
+    seenAt,
   );
 }

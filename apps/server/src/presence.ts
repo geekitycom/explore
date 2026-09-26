@@ -24,7 +24,6 @@ export type Player = {
   /** The last accepted pose; every correction sends the player back here. */
   pose: Pose;
   acceptedAt: number;
-  dirty: boolean;
   inventory: Inventory;
 };
 

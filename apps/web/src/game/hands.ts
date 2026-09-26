@@ -198,7 +198,7 @@ export function createHands({ hud, canvas, tileAt, send }: Options) {
     refused,
     /** Call once per animation frame with the frame's clock. */
     frame(state: GameState, user: User, now: number): { aim: Aim | undefined } {
-      if (state.phase === 'connecting') {
+      if (state.phase === 'connecting' || state.phase === 'waking') {
         here = undefined;
         stillSince = undefined;
         showHint(undefined);

@@ -3,7 +3,7 @@ id: doc-1
 title: Architecture
 type: specification
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 16:46'
+updated_date: '2026-09-26 14:05'
 ---
 # Architecture
 
@@ -33,7 +33,7 @@ pnpm workspace, TypeScript everywhere, Node 24.
 Every tile is a pure function of the world seed, the layer, and its global position (decision-19). The seed lives in a one-row `world` table and a wipe rolls a new one. `generateScreen(world, coord, older)` assembles a screen from per-point functions, so shared lattice points agree whatever order screens are generated in. `older` finds stored neighbours an earlier generator made (`screens.gen_version` below `GENERATOR_VERSION`); the new screen copies every lattice point such a neighbour holds and blends into it (step 7).
 
 1. **Biomes.** `biomeField` in `biome.ts` puts one jittered site in each cell of a grid eight screens square. A site's biome comes from temperature, moisture, and elevation sampled there (meadow, forest, lakeland, scrubland, desert, highlands, taiga, tundra). A hot site with a cold site within two cells turns temperate, so snow never meets desert. A point belongs to the site nearest its domain-warped position, and its `BiomeParams` blend every site almost as near, so borders wander and blend over about a screen. The garden's cell is pinned to a meadow site. `biomeAt(world, layer, gx, gy)` returns the biome, its patch (cell), and the blended params; each screen records the biome at its centre.
-2. **Stamps.** Inside a stamp's footprint (the secret garden at overworld 0,0, boundary included) the functions return the hand-built cells. A clearing weight fades from the footprint to 1.5 screens out, thinning blocking features and suppressing dirt, and dirt trails continue the garden's exits into the meadow.
+2. **Stamps.** Inside a stamp's footprint (the secret garden at overworld 0,0, boundary included) the functions return the hand-built cells. A clearing weight fades from the footprint to 1.5 screens out, thinning blocking features and suppressing dirt, and dirt trails continue the garden's east and west exits into the meadow; its north and south hedge gaps open onto grass.
 3. **Terrain.** Lakes are disjoint star-shaped blobs, at most one per cell of the lake grid, sized so no screen is all water and never touching each other or the garden clearing, so land stays connected by construction. Lake chance and size follow the biome params. The ground takes sand, dirt, snow, then darkgrass by comparing a noise field per terrain against the blended share, so blended borders dither; the rest is grass. All noise is hash-based fBm seeded per purpose, never a shared random stream.
 4. **Features.** A low-frequency forest field and the biome's woods share set tree chance, clumped by a finer field so forests have glades; bushes ring tree stands, rocks favour dirt, flowers and tall grass grow on grass and darkgrass. Densities come from the blended biome params.
 5. **Crossings.** Each seam's crossing tiles are a pure function of the seam, so both screens agree. Both sides clear blocking features on them.
@@ -55,7 +55,7 @@ Transition tiles are derived at render time from the corner lattice, not stored.
 - SQLite tables: `users`, `sessions`, `screens`, `player_state`, with migrations keyed on `PRAGMA user_version`.
 - Passwords hashed with `node:crypto` scrypt and a per-user salt. Sessions use a random token in an httpOnly SameSite=Lax cookie; only its SHA-256 hash is stored.
 - `getOrCreateScreen` is synchronous (single process, synchronous SQLite): select, else generate from neighbors and `INSERT OR IGNORE`, then select. Two players arriving at a new screen together get the same screen.
-- Presence lives in memory: a map from screen key to connected players. Movement and join/leave events are broadcast only to sockets on the same screen. Last position is saved on disconnect and periodically, and a returning player resumes there.
+- Presence lives in memory: a map from screen key to connected players. Movement and join/leave events are broadcast only to sockets on the same screen. Last position is saved on disconnect and periodically for everyone online. Reconnecting within the session timeout resumes there; after it, the player wakes up in the garden (D24).
 
 ## Protocol
 

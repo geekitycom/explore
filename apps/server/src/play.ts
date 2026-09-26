@@ -34,6 +34,8 @@ const DISTANCE_SLACK_PX = 4;
 /** Caps the move budget so an idle player cannot bank time and jump across walls. */
 const MAX_ELAPSED_S = 1;
 const EDGE_REACH_PX = 12;
+/** A player with no connection for this long has fallen asleep: their next session starts in the garden. */
+export const SESSION_TIMEOUT_MS = 10 * 60_000;
 
 const AT_EDGE: Record<Dir, (p: Pose) => boolean> = {
   n: (p) => p.y <= EDGE_REACH_PX,
@@ -59,7 +61,11 @@ export type Game = ReturnType<typeof createGame>;
 
 export function createGame(
   db: DatabaseSync,
-  { now = Date.now, writeText }: { now?: () => number; writeText?: WriteText | undefined } = {},
+  {
+    now = Date.now,
+    writeText,
+    sessionTimeoutMs = SESSION_TIMEOUT_MS,
+  }: { now?: () => number; writeText?: WriteText | undefined; sessionTimeoutMs?: number } = {},
 ) {
   ensureGarden(db);
   const chunks = new Chunks(db);
@@ -76,17 +82,17 @@ export function createGame(
       return place;
     });
 
-  const save = (player: Player) => {
-    savePlayerState(db, player.user.id, {
-      coord: player.room.place.screen.coord,
-      pose: player.pose,
-    });
-    player.dirty = false;
-  };
+  const save = (player: Player) =>
+    savePlayerState(
+      db,
+      player.user.id,
+      { coord: player.room.place.screen.coord, pose: player.pose },
+      now(),
+    );
 
   const isLive = (player: Player) => online.get(player.user.id) === player;
 
-  const sendScreen = (player: Player) => {
+  const sendScreen = (player: Player, wake = false) => {
     const { screen } = player.room.place;
     recordVisit(db, screen.coord);
     const others = presence.enter(player);
@@ -98,6 +104,7 @@ export function createGame(
       you: player.pose,
       others,
       inventory: [...player.inventory],
+      wake,
     });
     chunks.prefetchAround(screen.coord, player.user.id);
   };
@@ -115,7 +122,6 @@ export function createGame(
     }
     player.pose = pose;
     player.acceptedAt = now();
-    player.dirty = true;
     presence.broadcast(player, { t: 'moved', id: player.user.id, ...pose });
   }
 
@@ -155,17 +161,17 @@ export function createGame(
         previous.conn.close(REPLACED_CLOSE_CODE, 'replaced');
       }
       const saved = loadPlayerState(db, user.id);
+      const resumed = saved && now() - saved.seenAt < sessionTimeoutMs ? saved : undefined;
       const player: Player = {
         user,
         conn,
-        room: roomAt(saved?.coord ?? GARDEN_COORD, user.id),
-        pose: saved?.pose ?? { ...GARDEN_SPAWN, moving: false },
+        room: roomAt(resumed?.coord ?? GARDEN_COORD, user.id),
+        pose: resumed?.pose ?? { ...GARDEN_SPAWN, moving: false },
         acceptedAt: now(),
-        dirty: false,
         inventory: loadInventory(db, user.id),
       };
       online.set(user.id, player);
-      sendScreen(player);
+      sendScreen(player, !resumed);
       return player;
     },
 
@@ -207,8 +213,9 @@ export function createGame(
       presence.broadcast(player, { t: 'avatar', id: user.id, avatar: user.avatar });
     },
 
+    /** Saves everyone connected, which also keeps them awake across a crash. */
     flush(): void {
-      for (const player of online.values()) if (player.dirty) save(player);
+      for (const player of online.values()) save(player);
     },
 
     /**

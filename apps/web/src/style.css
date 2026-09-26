@@ -284,6 +284,78 @@ legend {
   display: none;
 }
 
+.wake {
+  position: absolute;
+  inset: 3px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.lid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50.5%;
+  background: #000;
+  animation: lid-open 1s cubic-bezier(0.3, 0, 0.2, 1) 0.4s forwards;
+}
+
+.lid-top {
+  top: 0;
+  transform-origin: top;
+}
+
+.lid-bottom {
+  bottom: 0;
+  transform-origin: bottom;
+}
+
+.wake-text {
+  position: relative;
+  max-width: 22rem;
+  margin: 0 16px;
+  padding: 0.8rem 1rem;
+  background: #141b1bd9;
+  border: 3px solid var(--ink);
+  color: var(--paper);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0;
+  animation: wake-text 0.5s ease-out 1.4s forwards;
+}
+
+@keyframes lid-open {
+  to {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes wake-text {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lid-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lid {
+    animation: lid-fade 0.4s ease-out forwards;
+  }
+
+  .wake-text {
+    animation-duration: 0.2s;
+    animation-delay: 0.4s;
+  }
+}
+
 .bubbles {
   position: absolute;
   inset: 3px;

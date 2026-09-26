@@ -16,6 +16,7 @@ import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
 import { BAR_PX_H, inventoryBar } from './ui/inventory-bar.ts';
 import { soundSettings } from './ui/sound-settings.ts';
+import { wakeUp } from './ui/wake.ts';
 import './style.css';
 
 type Place = 'game' | 'map';
@@ -120,6 +121,7 @@ function gameView(user: User) {
       })),
     }),
   });
+  let wake: ReturnType<typeof wakeUp> | undefined;
   const game = startGame(
     user,
     canvasRenderer(canvas, stage, art, BAR_PX_H),
@@ -131,6 +133,15 @@ function gameView(user: User) {
     ({ screen }, patch) => {
       music.play(tuneFor(screen.biome, patch));
       ambience.set(ambientMix(screen));
+    },
+    () => {
+      music.stop();
+      wake?.dispose();
+      wake = wakeUp(() => {
+        audio.unlock();
+        game.wake();
+      });
+      hud.world.append(wake.el);
     },
   );
 
@@ -182,6 +193,7 @@ function gameView(user: User) {
     window.removeEventListener('popstate', syncMap);
     window.removeEventListener('keydown', mapKeys);
     closeMap();
+    wake?.dispose();
     game.stop();
     music.stop();
     ambience.stop();

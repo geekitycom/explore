@@ -166,18 +166,26 @@ describe.each(SEEDS)('the road network of seed %i', (seed) => {
   });
 });
 
-test.each([1, 2, 3, 4, 5, 6, 7, 8])('roads leave all four garden exits in seed %i', (seed) => {
-  const network = networkOf(worldOf(seed), OVERWORLD);
-  const hub = network.poisIn(screenBox(GARDEN_COORD)).find((p) => p.kind === 'hub')!;
-  expect(hub.ports).toHaveLength(4);
-  const roads = network.roadsIn(screenBox(GARDEN_COORD)).filter((r) => r.a === hub || r.b === hub);
-  expect([...new Set(roads.map((r) => portIndex(hub, r)))].sort()).toEqual([0, 1, 2, 3]);
-  for (const road of roads) {
-    const other = road.a === hub ? road.b : road.a;
-    const end = road.a === hub ? road.path[road.path.length - 1]! : road.path[0]!;
-    expect([end.x, end.y]).toEqual([other.x, other.y]);
-  }
-});
+test.each([1, 2, 3, 4, 5, 6, 7, 8])(
+  'roads leave the garden east and west only in seed %i',
+  (seed) => {
+    const network = networkOf(worldOf(seed), OVERWORLD);
+    const hub = network.poisIn(screenBox(GARDEN_COORD)).find((p) => p.kind === 'hub')!;
+    expect(hub.ports.map((p) => p.out)).toEqual([
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+    ]);
+    const roads = network
+      .roadsIn(screenBox(GARDEN_COORD))
+      .filter((r) => r.a === hub || r.b === hub);
+    expect([...new Set(roads.map((r) => portIndex(hub, r)))].sort()).toEqual([0, 1]);
+    for (const road of roads) {
+      const other = road.a === hub ? road.b : road.a;
+      const end = road.a === hub ? road.path[road.path.length - 1]! : road.path[0]!;
+      expect([end.x, end.y]).toEqual([other.x, other.y]);
+    }
+  },
+);
 
 describe('across a river', () => {
   /** Meadow everywhere, with water from x = 60 to 68 except where `gap` says. */

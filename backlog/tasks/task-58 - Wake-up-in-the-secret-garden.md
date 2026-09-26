@@ -1,10 +1,11 @@
 ---
 id: TASK-58
 title: Wake up in the secret garden
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-26 13:16'
-updated_date: '2026-09-26 13:45'
+updated_date: '2026-09-26 14:05'
 labels: []
 dependencies: []
 priority: high
@@ -31,10 +32,22 @@ Every play session starts with the player waking up in the secret garden, as in 
 - [ ] #10 Existing worlds keep working: the stored garden takes the new layout, and stored screens north and south of the garden whose roads led to the old exits stay walkable
 <!-- AC:END -->
 
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Garden: north/south corner columns become grass (hedge gaps stay); ports derive from edge dirt, so roads leave east/west only. Bump GENERATOR_VERSION to 9.
+2. Stored garden: ensureGarden upserts the stamp (data + gen_version) on every start; stored neighbours keep their edges and stay walkable (seamOpenings needs only both facing tiles open). Legacy-fixture test.
+3. Session model: no session table. player_state.updated_at = last known connected (seenAt), written on disconnect, travel, stop, and every flush for all online players. Connect resumes when now - seenAt < SESSION_TIMEOUT_MS (10 min, env override), else garden spawn with screen.wake = true.
+4. Web: GameState phase 'waking' (sticky until Space); frame loop and hands idle, ambient motion frozen, no music. ui/wake.ts overlay: black lids open from a middle seam in ~1 s (fade under reduced motion), then the exact message; Space (capture listener) unlocks audio and calls game.wake(), which starts music.
+5. Decision D24 (decision-24) replaces D6; docs updated. E2e with SESSION_TIMEOUT_MS=4000: wake start, reload resume, return after timeout, reduced motion. Screenshots.
+<!-- SECTION:PLAN:END -->
+
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
 User direction 2026-09-26: idle with the window open keeps the player awake for now; no fell-asleep wording, the wake-up message covers it; add an eyes-opening reveal. Default chosen: the reveal plays first, then the message appears, and Space starts the session and music.
 
 User direction 2026-09-26: paths only east and west; north and south are grass openings.
+
+Default chosen: a reconnect during the wake-up screen (before Space) keeps the wake-up up; a wake flag arriving mid-play (connection lost longer than the timeout) shows the wake-up again and stops the music. Default chosen: the wake-up holds ambient animation still too, since the AC says nothing moves before Space. E2e server uses SESSION_TIMEOUT_MS=4000 (e2e/session.ts); the playing() helper presses Space when a session starts with the wake-up.
 <!-- SECTION:NOTES:END -->

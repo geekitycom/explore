@@ -19,10 +19,11 @@ import {
 /** Another player as drawn: their last reported pose plus where we are currently drawing them. */
 type Remote = PlayerView & { drawX: number; drawY: number };
 
+/** `waking` shows the world held still until the player starts the session. */
 export type GameState =
   | { phase: 'connecting' }
   | {
-      phase: 'playing' | 'travelling';
+      phase: 'waking' | 'playing' | 'travelling';
       place: Place;
       inventory: Inventory;
       patch: BiomeCell;
@@ -35,7 +36,7 @@ const remote = (player: PlayerView): Remote => ({ ...player, drawX: player.x, dr
 export function applyMessage(state: GameState, message: ServerMessage): GameState {
   if (message.t === 'screen') {
     return {
-      phase: 'playing',
+      phase: message.wake || state.phase === 'waking' ? 'waking' : 'playing',
       place: placeOf(decodeScreen(message.screen), parseTraces(message.traces)),
       inventory: parseInventory(message.inventory),
       patch: message.patch,
