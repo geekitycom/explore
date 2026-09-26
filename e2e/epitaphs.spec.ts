@@ -30,7 +30,42 @@ const screenOnPage = (page: Page) =>
         .place.screen,
   ) as Promise<Screen>;
 
-test('a grave shows its epitaph in a bubble to a player who walks up to it', async ({ page }) => {
+const TILE = 16;
+
+/** Holds an arrow key until the player faces that way; a grave in the way keeps them still. */
+async function face(page: Page, key: string, dir: string) {
+  await page.keyboard.down(key);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (window as unknown as { exploreState: () => { you: { dir: string } } }).exploreState()
+              .you.dir,
+        ),
+      { intervals: [10] },
+    )
+    .toBe(dir);
+  await page.keyboard.up(key);
+}
+
+/** The bubble sits on the given side of the grave's tile, spanning the tile's centre. */
+async function expectBeside(page: Page, grave: { tx: number; ty: number }, side: string) {
+  const bubble = page.getByRole('note');
+  await expect(bubble).toHaveClass(new RegExp(`bubble-${side}`));
+  const world = (await page.locator('canvas').boundingBox())!;
+  const scale = world.width / (SCREEN_W * TILE);
+  const box = (await bubble.boundingBox())!;
+  const centre = world.x + (grave.tx + 0.5) * TILE * scale;
+  expect(box.x).toBeLessThan(centre);
+  expect(box.x + box.width).toBeGreaterThan(centre);
+  const edge = world.y + (side === 'above' ? grave.ty : grave.ty + 1) * TILE * scale;
+  const gap = side === 'above' ? edge - (box.y + box.height) : box.y - edge;
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(TILE * scale);
+}
+
+test('a grave speaks to a player facing it, its bubble beside it', async ({ page }) => {
   const db = new DatabaseSync(process.env['E2E_DB_PATH']!);
   const user = unique('mourner');
   await signUp(page, user);
@@ -41,19 +76,42 @@ test('a grave shows its epitaph in a bubble to a player who walks up to it', asy
   const coord = graveyardScreen(seed);
   await teleport(page, db, user, coord, { tx: 10, ty: 7 });
   const screen = await screenOnPage(page);
-  const graves = [];
-  for (let ty = 1; ty < SCREEN_H - 1; ty++) {
-    for (let tx = 1; tx < SCREEN_W - 1; tx++) {
-      if (featureAt(screen, tx, ty) === 'grave' && isWalkable(bare(screen), tx, ty + 1))
-        graves.push({ tx, ty });
-    }
-  }
-  const grave = graves[0]!;
-  await teleport(page, db, user, coord, { tx: grave.tx, ty: grave.ty + 1 });
-
+  const open = (tx: number, ty: number) => isWalkable(bare(screen), tx, ty);
+  const grave = (() => {
+    for (let ty = 3; ty < SCREEN_H - 3; ty++)
+      for (let tx = 2; tx < SCREEN_W - 2; tx++)
+        if (
+          featureAt(screen, tx, ty) === 'grave' &&
+          open(tx, ty - 1) &&
+          open(tx, ty + 1) &&
+          open(tx - 1, ty) &&
+          featureAt(screen, tx - 1, ty - 1) !== 'grave'
+        )
+          return { tx, ty };
+    throw new Error('no grave open above, below and to its left');
+  })();
+  const words = seedEpitaph({ seed }, coord, grave);
   const bubble = page.getByRole('note');
-  await expect(bubble).toHaveText(seedEpitaph({ seed }, coord, grave));
+
+  await teleport(page, db, user, coord, { tx: grave.tx - 1, ty: grave.ty });
+  await expect(bubble).toHaveCount(0);
+  await face(page, 'ArrowRight', 'e');
+  await expect(bubble).toHaveText(words);
+  await expectBeside(page, grave, 'below');
   await page.waitForTimeout(700);
-  await page.screenshot({ path: 'e2e/.results/epitaph-bubble.png' });
+  await page.screenshot({ path: 'e2e/.results/epitaph-beside.png' });
+
+  await teleport(page, db, user, coord, { tx: grave.tx, ty: grave.ty + 1 });
+  await expect(bubble).toHaveText(words);
+  await expectBeside(page, grave, 'above');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'e2e/.results/epitaph-below.png' });
+
+  await teleport(page, db, user, coord, { tx: grave.tx, ty: grave.ty - 1 });
+  await face(page, 'ArrowDown', 's');
+  await expect(bubble).toHaveText(words);
+  await expectBeside(page, grave, 'below');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'e2e/.results/epitaph-above.png' });
   db.close();
 });

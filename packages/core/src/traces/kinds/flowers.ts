@@ -32,6 +32,7 @@ export const flowers: TraceKind<'flowers', typeof fields, string, never> = trace
   },
   bubble: (trace, now) =>
     graveBunch(trace.at, now) ? { text: `${trace.species}, left by ${trace.by.name}` } : undefined,
+  readAt: 'faced',
   carry: {
     variant: species,
     full: 'You cannot carry any more flowers.',

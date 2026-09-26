@@ -162,15 +162,20 @@ export function promptAt(here: Here): Prompt | undefined {
 export type Said = { readonly tile: Tile; readonly kind: TraceKindName; readonly bubble: Bubble };
 
 /**
- * The bubbles of traces on tiles in reach, one per tile: the first kind's in registry order, with
- * the words of any other kind on that tile as its second line. So a grave reads its epitaph and
- * then who left flowers on it.
+ * The bubbles of traces the reader can read, in reach or faced as their kind asks, one per tile:
+ * the first kind's in registry order, with the words of any other kind on that tile as its second
+ * line. So a grave reads its epitaph and then who left flowers on it.
  */
 export function bubblesAt(here: Here): Said[] {
   const byTile = new Map<string, Said>();
+  const faced = facedTile(here.me.pose);
+  const readable = (kind: AnyKind, tile: Tile) =>
+    kind.readAt === 'faced'
+      ? tile.tx === faced?.tx && tile.ty === faced.ty
+      : inReach(here.me.pose, tile);
   for (const kind of kindsInOrder()) {
     for (const trace of here.place.traces.values()) {
-      if (trace.kind !== kind.kind || !inReach(here.me.pose, trace)) continue;
+      if (trace.kind !== kind.kind || !readable(kind, trace)) continue;
       const bubble = kind.bubble?.(trace, here.now);
       if (!bubble) continue;
       const key = `${trace.tx},${trace.ty}`;

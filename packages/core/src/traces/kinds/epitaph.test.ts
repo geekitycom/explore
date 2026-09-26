@@ -106,6 +106,35 @@ describe('a grave bubble', () => {
       { tile: { tx: 11, ty: 7 }, kind: 'epitaph', bubble: { text: 'Gone fishing' } },
     ]);
   });
+
+  test('speaks only to a player facing it, among graves on every side', () => {
+    const graves: Trace[] = [];
+    for (let ty = 5; ty <= 9; ty++)
+      for (let tx = 9; tx <= 13; tx++)
+        if (tx !== 11 || ty !== 7)
+          graves.push({ kind: 'epitaph', tx, ty, text: `${tx},${ty}`, source: 'model' });
+    graves.push({
+      kind: 'flowers',
+      tx: 10,
+      ty: 7,
+      species: 'Cornflower',
+      by: { id: 2, name: 'bob' },
+      at: T0,
+    });
+    const place = placeOf(uniformScreen(), graves);
+    const read = (dir: Pose['dir']) =>
+      bubblesAt({
+        place,
+        me: { id: 1, name: 'ann', pose: { x: 11.5 * 16, y: 8 * 16 - 2, dir, moving: false } },
+        others: [],
+        inventory: EMPTY_INVENTORY,
+        now: T0,
+      }).map((s) => [s.bubble.text, s.bubble.line]);
+    expect(read('n')).toEqual([['11,6', undefined]]);
+    expect(read('s')).toEqual([['11,8', undefined]]);
+    expect(read('e')).toEqual([['12,7', undefined]]);
+    expect(read('w')).toEqual([['10,7', 'Cornflower, left by bob']]);
+  });
 });
 
 test('a generated grave lies in the graveyard, burial ground or ruin around it', () => {

@@ -317,6 +317,17 @@ legend {
   transform: translateX(-50%) rotate(45deg);
 }
 
+.bubble-below {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+.bubble-below::after {
+  top: -9px;
+  bottom: auto;
+  border-width: 3px 0 0 3px;
+}
+
 .bubble p {
   margin: 0;
   overflow-wrap: anywhere;

@@ -91,6 +91,7 @@ export const epitaph: TraceKind<'epitaph', typeof fields, never, never> = traceK
   solid: () => false,
   look: () => ({ hidesFeature: false, recipe: undefined }),
   bubble: ({ text }) => ({ text }),
+  readAt: 'faced',
   settle: (place, world) => {
     const { coord } = place.screen;
     const puts = [];

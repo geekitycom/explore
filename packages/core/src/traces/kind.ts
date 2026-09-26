@@ -114,6 +114,8 @@ export type TraceKindSpec<K extends string, S extends z.ZodRawShape, V, I> = {
   solid(trace: TraceOf<K, S>): boolean;
   look(trace: TraceOf<K, S>, ground: Ground, now: number): Look;
   bubble?(trace: TraceOf<K, S>, now: number): Bubble | undefined;
+  /** Read from any tile in reach (the default), or only while facing it, as graves in rows are. */
+  readonly readAt?: 'reach' | 'faced';
   /** E or Space on the faced tile; undefined means the tile is not this kind's business. */
   interact?(here: Here, spot: Spot<TraceOf<K, S>>): Verdict<TraceOf<K, S>> | undefined;
   /** A screen-wide idle prompt not tied to the faced tile. */
