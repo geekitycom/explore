@@ -178,6 +178,9 @@ export function edgeDistance(
   reach: number,
 ): Float32Array {
   const offsets = offsetsWithin(reach);
+  const r = Math.ceil(reach);
+  const shifts = Int32Array.from(offsets, ([dx, dy]) => dy * w + dx);
+  const dists = Float64Array.from(offsets, ([, , d]) => d);
   const out = new Float32Array(w * h).fill(Infinity);
   const edgePixel = (i: number, x: number, y: number) =>
     (x > 0 && region[i - 1] !== region[i]) ||
@@ -189,6 +192,13 @@ export function edgeDistance(
       const i = y * w + x;
       if (!edgePixel(i, x, y)) continue;
       const v = region[i];
+      if (x > r && y > r && x < w - 1 - r && y < h - 1 - r) {
+        for (let k = 0; k < shifts.length; k++) {
+          const j = i + shifts[k]!;
+          if (region[j] !== v && dists[k]! < out[j]!) out[j] = dists[k]!;
+        }
+        continue;
+      }
       for (const [dx, dy, dist] of offsets) {
         const nx = x + dx;
         const ny = y + dy;

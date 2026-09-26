@@ -111,34 +111,35 @@ describe('composeTerrain', () => {
     expect(decorated).toBeGreaterThan(0);
   });
 
-  it('joins path, darkgrass, and snow to every other terrain with the higher edge band', () => {
-    const pairs = TERRAINS.flatMap((upper, i) =>
-      TERRAINS.slice(0, i).map((lower) => [upper, lower] as const),
-    ).filter((pair) => pair.some((t) => t === 'path' || t === 'darkgrass' || t === 'snow'));
-    for (const [upper, lower] of pairs) {
-      const pair = `${upper} over ${lower}`;
-      const pixels = composeTerrain(
-        screenOf((cx) => (cx <= 9 ? upper : lower)),
-        textures,
-      );
-      const y = 7 * TILE + 3;
-      const row = Array.from({ length: SCREEN_PX_W }, (_, x) => hexAt(pixels, x, y));
-      const own = (t: Terrain) => (hex: string) => hex === PLAIN[t] || hex === DECOR;
-      expect(row.slice(0, 8 * TILE).every(own(upper)), pair).toBe(true);
-      expect(row.slice(12 * TILE).every(own(lower)), pair).toBe(true);
-      for (const band of TERRAIN_ART[upper].inner) expect(row, pair).toContain(toHex(band.color));
-      for (let x = 0; x < SCREEN_PX_W; x++) {
-        expect(pixels[(y * SCREEN_PX_W + x) * 4 + 3], pair).toBe(255);
-      }
-    }
-  }, 20_000);
+  const BANDED_PAIRS = TERRAINS.flatMap((upper, i) =>
+    TERRAINS.slice(0, i).map((lower) => [upper, lower] as const),
+  ).filter((pair) => pair.some((t) => t === 'path' || t === 'darkgrass' || t === 'snow'));
 
-  it('draws the same pixels on both sides of every seam, for every terrain', () => {
-    const mix = (salt: number) => (cx: number, cy: number) =>
-      TERRAINS[
-        Math.floor(Math.abs(Math.sin(cx * 12.9898 + cy * 78.233 + salt)) * 97) % TERRAINS.length
-      ]!;
-    for (const salt of [1, 2]) {
+  it.each(BANDED_PAIRS)('joins %s over %s with the higher edge band', (upper, lower) => {
+    const pixels = composeTerrain(
+      screenOf((cx) => (cx <= 9 ? upper : lower)),
+      textures,
+    );
+    const y = 7 * TILE + 3;
+    const row = Array.from({ length: SCREEN_PX_W }, (_, x) => hexAt(pixels, x, y));
+    const own = (t: Terrain) => (hex: string) => hex === PLAIN[t] || hex === DECOR;
+    expect(row.slice(0, 8 * TILE).every(own(upper))).toBe(true);
+    expect(row.slice(12 * TILE).every(own(lower))).toBe(true);
+    for (const band of TERRAIN_ART[upper].inner) expect(row).toContain(toHex(band.color));
+    const alpha = Array.from(
+      { length: SCREEN_PX_W },
+      (_, x) => pixels[(y * SCREEN_PX_W + x) * 4 + 3],
+    );
+    expect(alpha.filter((a) => a !== 255)).toEqual([]);
+  });
+
+  it.each([1, 2])(
+    'draws the same pixels on both sides of every seam, for every terrain (mix %i)',
+    (salt) => {
+      const mix = (salt: number) => (cx: number, cy: number) =>
+        TERRAINS[
+          Math.floor(Math.abs(Math.sin(cx * 12.9898 + cy * 78.233 + salt)) * 97) % TERRAINS.length
+        ]!;
       const here = screenOf(mix(salt));
       const east = screenOf((cx, cy) =>
         cx === 0 ? mix(salt)(LATTICE_W - 1, cy) : mix(salt + 9)(cx, cy),
@@ -147,16 +148,17 @@ describe('composeTerrain', () => {
         cy === 0 ? mix(salt)(cx, LATTICE_H - 1) : mix(salt + 5)(cx, cy),
       );
       const [a, b, c] = [here, east, south].map((s) => composeTerrain(s, plainTextures));
-      for (let y = 0; y < SCREEN_PX_H; y++)
-        expect(hexAt(a!, SCREEN_PX_W - 1, y), `east seam row ${y}`).toBe(hexAt(b!, 0, y));
-      for (let x = 0; x < SCREEN_PX_W; x++)
-        expect(hexAt(a!, x, SCREEN_PX_H - 1), `south seam column ${x}`).toBe(hexAt(c!, x, 0));
-    }
-  }, 20_000);
+      const rows = Array.from({ length: SCREEN_PX_H }, (_, y) => y);
+      const columns = Array.from({ length: SCREEN_PX_W }, (_, x) => x);
+      expect(rows.filter((y) => hexAt(a!, SCREEN_PX_W - 1, y) !== hexAt(b!, 0, y))).toEqual([]);
+      expect(columns.filter((x) => hexAt(a!, x, SCREEN_PX_H - 1) !== hexAt(c!, x, 0))).toEqual([]);
+    },
+  );
 
   it('is deterministic for a screen', () => {
     const screen = screenOf((cx, cy) => TERRAINS[(cx * 3 + cy * 5) % TERRAINS.length]!);
-    expect(composeTerrain(screen, textures)).toEqual(composeTerrain(screen, textures));
+    const [a, b] = [composeTerrain(screen, textures), composeTerrain(screen, textures)];
+    expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
   });
 });
 

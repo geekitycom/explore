@@ -51,6 +51,7 @@ describe('water twinkle', () => {
 
 describe('butterflies', () => {
   test('stay on screen, flap, and are capped', () => {
+    const offScreen: string[] = [];
     for (const screen of [secretGarden(), ...screens]) {
       const list = butterflies(screen);
       expect(list.length).toBeLessThanOrEqual(3);
@@ -58,15 +59,13 @@ describe('butterflies', () => {
         const frames = new Set<number>();
         for (const t of times) {
           const { x, y, frame } = butterflyAt(bf, t);
-          expect(x).toBeGreaterThanOrEqual(0);
-          expect(x).toBeLessThanOrEqual(SCREEN_PX_W);
-          expect(y).toBeGreaterThanOrEqual(0);
-          expect(y).toBeLessThanOrEqual(SCREEN_PX_H);
+          if (x < 0 || x > SCREEN_PX_W || y < 0 || y > SCREEN_PX_H) offScreen.push(`${x},${y}`);
           frames.add(frame);
         }
         expect(frames).toEqual(new Set([0, 1]));
       }
     }
+    expect(offScreen).toEqual([]);
   });
 
   test('need flowers', () => {
@@ -98,7 +97,8 @@ describe('fish', () => {
   test('appear only sometimes and at most two per screen', () => {
     const lake = uniformScreen('water');
     expect(fishes(lake).length).toBe(2);
-    const visible = times.filter((t) => fishAt(fishes(lake)[0]!, t)).length;
+    const fish = fishes(lake)[0]!;
+    const visible = times.filter((t) => fishAt(fish, t)).length;
     expect(visible).toBeGreaterThan(times.length * 0.3);
     expect(visible).toBeLessThan(times.length * 0.8);
     expect(fishes(uniformScreen('grass'))).toEqual([]);

@@ -29,8 +29,10 @@ const depths = (region: Uint8Array) =>
   });
 
 describe('layerRegion', () => {
-  it('covers the pixel at each corner of every tile exactly when that corner is in the layer', () => {
-    for (const [name, fringes] of Object.entries(fringeSets))
+  it.each(Object.entries(fringeSets))(
+    'covers the pixel at each corner of every tile exactly when that corner is in the layer, with %s fringes',
+    (name, fringes) => {
+      const wrong: string[] = [];
       for (const lattice of randomLattices)
         for (let layer = 1; layer <= 3; layer++) {
           const region = layerRegion(lattice, W, H, layer, fringes);
@@ -44,13 +46,17 @@ describe('layerRegion', () => {
                 [cx * TILE, cy * TILE],
               ] as const) {
                 if (x < 0 || y < 0 || x >= PX_W || y >= PX_H) continue;
-                expect(region[y * PX_W + x], `${name} layer ${layer} at ${x},${y}`).toBe(inside);
+                if (region[y * PX_W + x] !== inside)
+                  wrong.push(`${name} layer ${layer} at ${x},${y}`);
               }
             }
         }
-  });
+      expect(wrong).toEqual([]);
+    },
+  );
 
   it('draws nothing in a tile whose corners are all below the layer', () => {
+    const drawn: string[] = [];
     for (const [name, fringes] of Object.entries(fringeSets))
       for (const lattice of randomLattices) {
         const region = layerRegion(lattice, W, H, 2, fringes);
@@ -65,9 +71,11 @@ describe('layerRegion', () => {
             if (cornerMask(corners, 2) !== 0) continue;
             for (let y = 0; y < TILE; y++)
               for (let x = 0; x < TILE; x++)
-                expect(region[(ty * TILE + y) * PX_W + tx * TILE + x], name).toBe(0);
+                if (region[(ty * TILE + y) * PX_W + tx * TILE + x] !== 0)
+                  drawn.push(`${name} tile ${tx},${ty} at ${x},${y}`);
           }
       }
+    expect(drawn).toEqual([]);
   });
 
   it('has no speckle: every pixel shares a side with a pixel of its own kind', () => {
@@ -129,8 +137,10 @@ describe('layerRegion', () => {
     expect(layerRegion(lattice, W, H, 2, fringes)).toEqual(layerRegion(lattice, W, H, 3, fringes));
   });
 
-  it('draws the same pixels on both sides of a screen seam', () => {
-    for (const [name, fringes] of Object.entries(fringeSets))
+  it.each(Object.entries(fringeSets))(
+    'draws the same pixels on both sides of a screen seam, with %s fringes',
+    (name, fringes) => {
+      const differ: string[] = [];
       for (let n = 0; n < 20; n++) {
         const left = randomLattices[n]!;
         const other = randomLattices[n + 20]!;
@@ -142,11 +152,13 @@ describe('layerRegion', () => {
         const da = edgeDistance(a, PX_W, PX_H, 5);
         const db = edgeDistance(b, PX_W, PX_H, 5);
         for (let y = 0; y < PX_H; y++) {
-          expect(a[y * PX_W + PX_W - 1], `${name} row ${y}`).toBe(b[y * PX_W]);
-          expect(da[y * PX_W + PX_W - 1], `${name} row ${y}`).toBe(db[y * PX_W]);
+          if (a[y * PX_W + PX_W - 1] !== b[y * PX_W]) differ.push(`${name} ${n} region row ${y}`);
+          if (da[y * PX_W + PX_W - 1] !== db[y * PX_W]) differ.push(`${name} ${n} band row ${y}`);
         }
       }
-  });
+      expect(differ).toEqual([]);
+    },
+  );
 });
 
 describe('cornerMask', () => {
