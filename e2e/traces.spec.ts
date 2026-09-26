@@ -66,3 +66,25 @@ test('the inventory bar and the hint bar frame the world', async ({ page }) => {
   await expect(page.locator('.slot').last()).toBeInViewport();
   await page.screenshot({ path: 'e2e/.results/inventory-phone.png' });
 });
+
+test('the inventory bar takes its colours from the biome', async ({ page }) => {
+  // The garden is grass; rewriting the screen's biome shows the bar carved from desert dune.
+  await page.routeWebSocket('**/ws', (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      const parsed = JSON.parse(String(message)) as { t: string; screen?: { biome: string } };
+      if (parsed.t === 'screen' && parsed.screen) parsed.screen.biome = 'desert';
+      ws.send(JSON.stringify(parsed));
+    });
+  });
+  await signUp(page, unique('dune'));
+  await playing(page);
+
+  const bar = page.getByRole('navigation', { name: 'Inventory' });
+  await expect
+    .poll(() => bar.evaluate((el) => getComputedStyle(el).getPropertyValue('--bar-face').trim()))
+    .toBe('#EF914F');
+  await expect(bar).toHaveCSS('background-color', 'rgb(239, 145, 79)');
+  await page.screenshot({ path: 'e2e/.results/inventory-desert.png' });
+});
