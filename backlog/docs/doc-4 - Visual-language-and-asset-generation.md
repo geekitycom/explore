@@ -3,15 +3,17 @@ id: doc-4
 title: Visual language and asset generation
 type: specification
 created_date: '2026-09-25 01:37'
-updated_date: '2026-09-25 01:48'
+updated_date: '2026-09-26 20:29'
 ---
 # Visual language and asset generation
 
-Status: proposed (2026-09-24). Andrew asked for a visual language of our own and a way to generate new assets, possibly grounded in the real world, instead of relying only on Ninja Adventure. Eight biomes (meadow, forest, lakeland, scrubland, desert, highlands, taiga, tundra) need flora, rocks, and ground the pack does not cover.
+Status: adopted as D21, with the adjustments recorded there. This doc is the proposal as written on 2026-09-24 and is kept as history. The rules now live in doc-5 (Style guide), which `pnpm lint:art` checks in CI, and the species each biome's recipes draw on are in `FLORA` (`packages/core/src/flora.ts`), which differs from the catalogue below. No scenery comes from the pack's nature sheet any more.
+
+Andrew asked for a visual language of our own and a way to generate new assets, possibly grounded in the real world, instead of relying only on Ninja Adventure. Eight biomes (meadow, forest, lakeland, scrubland, desert, highlands, taiga, tundra) need flora, rocks, and ground the pack does not cover.
 
 ## What we have
 
-Ninja Adventure gives the current look: 16px tiles, a dark selective outline (#141B1B), light from the top left, chunky clusters, and short colour ramps. The pack ships a 53-colour master palette (`Palette.png`), but its own sheets do not follow it strictly: the nature sheet uses 70 colours, 35 of them outside that palette; the floor sheet uses 27 with 3 outside; the Boy walk sheet 8 with 2 outside. So today the "style" is a feel, not a rule anything checks.
+Ninja Adventure gives the current look: 16px tiles, a dark selective outline (#141B1B), light from the top left, chunky clusters, and short colour ramps. The pack ships a 53-colour master palette (`Palette.png`), but its own sheets do not follow it strictly: the nature sheet uses 70 colours, 35 of them outside that palette; the floor sheet uses 27 with 3 outside; the Boy walk sheet 8 with 2 outside. So at the time, the "style" was a feel, not a rule anything checked.
 
 ## Proposal
 

@@ -3,11 +3,11 @@ id: doc-3
 title: World generation v2 design
 type: specification
 created_date: '2026-09-25 01:32'
-updated_date: '2026-09-26 14:05'
+updated_date: '2026-09-26 20:29'
 ---
 # World generation v2: biomes, roads, and chunks
 
-Status: proposed (2026-09-24). Replaces the neighbour-constrained generator (decision-10) once implemented. Research by a subagent from the sources listed at the end; layer support added from Andrew's note that houses, caves, and towns come later as separate layers.
+Status: implemented, starting with task-26 (D19). This doc is the design as proposed on 2026-09-24 and is kept as history. Where the build differs, the code, doc-1 (Architecture), and decisions D22 and D23 describe the world as it is. The main differences: there is no `chunks` table, and `gen_version` is a column on `screens`; the screen record is at `v: 4`; connectivity repair runs per screen; roads are `path` terrain, a seventh terrain, with their own cost table in `roads.ts`; new screens stitch to stored screens of an older generator (D23) instead of old chunks staying as they are or the world being wiped; the point-of-interest kinds include graveyards, burial grounds, village greens, and cave mouths; and music is keyed by biome and patch, with no separate mood names. Research by a subagent from the sources listed at the end; layer support added from Andrew's note that houses, caves, and towns come later as separate layers.
 
 ## Goal
 
