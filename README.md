@@ -16,7 +16,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` runs the server on port 3000 and the Vite dev server, which proxies `/api` and `/ws` to it. Open the URL Vite prints.
+`pnpm dev` runs the server on port 3000 and the Vite dev server, which proxies `/api` and `/ws` to it. Open the URL Vite prints. Vite also listens on your local network, so another device can play at the Network URL it prints, such as `http://192.168.4.33:5173/`.
 
 For a production-style run, build the client and start the server, which serves the built client:
 
