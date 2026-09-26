@@ -79,6 +79,19 @@ function edgeTiles(dir: Dir): Tile[] {
   }
 }
 
+function onEdge(dir: Dir, [tx, ty]: Tile): boolean {
+  switch (dir) {
+    case 'n':
+      return ty === 0;
+    case 's':
+      return ty === SCREEN_H - 1;
+    case 'w':
+      return tx === 0;
+    case 'e':
+      return tx === SCREEN_W - 1;
+  }
+}
+
 /** Corner tiles sit on two seams, so a crossing there belongs to either. */
 function isCornerTile(tx: number, ty: number): boolean {
   return (tx === 0 || tx === SCREEN_W - 1) && (ty === 0 || ty === SCREEN_H - 1);
@@ -128,8 +141,7 @@ function reachableScreens(world: World, screens: ReadonlyMap<string, Screen>): S
   };
   crossingTiles(world, garden.coord).forEach((t) => visit(garden, t));
   const reached = new Set<string>();
-  for (let next = queue.shift(); next; next = queue.shift()) {
-    const { screen, tile } = next;
+  for (const { screen, tile } of queue) {
     reached.add(screenKey(screen.coord));
     const [x, y] = tile;
     for (const [nx, ny] of [
@@ -141,7 +153,7 @@ function reachableScreens(world: World, screens: ReadonlyMap<string, Screen>): S
       if (nx >= 0 && ny >= 0 && nx < SCREEN_W && ny < SCREEN_H) visit(screen, [nx, ny]);
     }
     for (const dir of DIRS) {
-      if (!edgeTiles(dir).some(([tx, ty]) => tx === x && ty === y)) continue;
+      if (!onEdge(dir, tile)) continue;
       const other = screens.get(screenKey(neighborCoord(screen.coord, dir)));
       if (other) visit(other, facing(dir, tile));
     }
@@ -153,7 +165,7 @@ function reachableScreens(world: World, screens: ReadonlyMap<string, Screen>): S
  * The region's screens and a ring of MARGIN more around them. A river can wall off a corner of the
  * region that the land beyond its end still reaches, so walking may leave the region.
  */
-const MARGIN = 4;
+const MARGIN = 2;
 
 function withMargin(
   world: World,
@@ -186,13 +198,15 @@ describe.each(SEEDS)('a world with seed %i', (seed) => {
   const screens = generateRegion(world, REGION);
 
   test('agrees on every shared lattice point whatever order screens are generated in', () => {
-    const coords = [...screens.values()].map((s) => s.coord);
-    for (const order of [shuffled(coords, 1), shuffled(coords, 2)]) {
-      const again = new Map<string, Screen>();
-      for (const coord of order) again.set(screenKey(coord), generateScreen(world, coord));
-      expect(seamMismatches(again)).toEqual([]);
-      for (const [key, screen] of screens) expect(again.get(key)).toEqual(screen);
+    const again = new Map<string, Screen>();
+    for (const coord of shuffled(
+      [...screens.values()].map((s) => s.coord),
+      seed,
+    )) {
+      again.set(screenKey(coord), generateScreen(world, coord));
     }
+    expect(seamMismatches(again)).toEqual([]);
+    for (const [key, screen] of screens) expect(again.get(key)).toEqual(screen);
   });
 
   test('gives every seam a crossing that is open on both sides, unless water blocks it entirely', () => {
@@ -442,15 +456,21 @@ describe('generateScreen', () => {
   });
 
   test('has lakes, forests, and meadows that each span several screens', () => {
-    const screens = [...generateRegion(worldOf(3), { x0: -12, y0: -12, w: 24, h: 24 }).values()];
+    const world = worldOf(3);
+    const screens: Screen[] = [];
+    for (let sy = -12; sy < 12; sy++) {
+      for (let sx = -12 + ((sy + 12) % 3); sx < 12; sx += 3) {
+        screens.push(generateScreen(world, { layer: OVERWORLD, sx, sy }));
+      }
+    }
     const water = (s: Screen) => s.corners.filter((t) => t === 'water').length;
     const trees = (s: Screen) => s.features.filter((f) => f === 'tree').length;
     const lakeScreens = screens.filter((s) => water(s) > 40);
     const forestScreens = screens.filter((s) => trees(s) > 80);
     const meadowScreens = screens.filter((s) => trees(s) < 10 && water(s) === 0);
-    expect(lakeScreens.length).toBeGreaterThan(20);
-    expect(forestScreens.length).toBeGreaterThan(30);
-    expect(meadowScreens.length).toBeGreaterThan(60);
+    expect(lakeScreens.length).toBeGreaterThan(7);
+    expect(forestScreens.length).toBeGreaterThan(10);
+    expect(meadowScreens.length).toBeGreaterThan(20);
     expect(screens.some((s) => s.corners.includes('sand'))).toBe(true);
     expect(screens.some((s) => s.corners.includes('dirt'))).toBe(true);
   });

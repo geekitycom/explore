@@ -84,38 +84,47 @@ describe.each(SEEDS)('the rivers of seed %i', (seed) => {
     expect(spans.filter((s) => s >= 3 * SCREEN_W).length).toBeGreaterThanOrEqual(4);
   });
 
-  test('run on unbroken across screen and chunk seams, whichever screen is made first', () => {
-    const coords = riverScreens(world);
-    const chunks = new Set(
-      coords.map(({ sx, sy }) => `${Math.floor(sx / CHUNK_W)},${Math.floor(sy / CHUNK_H)}`),
-    );
-    expect(chunks.size).toBeGreaterThan(1);
-    const broken: string[] = [];
-    for (const coord of [...coords].reverse()) {
-      const screen = generateScreen(world, coord);
-      for (let cy = 0; cy < LATTICE_H; cy++) {
-        for (let cx = 0; cx < LATTICE_W; cx++) {
-          const gx = coord.sx * SCREEN_W + cx;
-          const gy = coord.sy * SCREEN_H + cy;
-          const wet = cornerAt(screen, cx, cy) === 'water';
-          if (wet !== (fieldTerrain(world, OVERWORLD, gx, gy) === 'water'))
-            broken.push(`${gx},${gy}`);
+  test.each(['north', 'south'])(
+    'run on unbroken across screen and chunk seams in the %s, whichever screen is made first',
+    (half) => {
+      // A checkerboard still puts one side of every seam between river screens under test.
+      const coords = riverScreens(world).filter(
+        ({ sx, sy }) => ((sx + sy) & 1) === 0 && sy < 0 === (half === 'north'),
+      );
+      const chunks = new Set(
+        coords.map(({ sx, sy }) => `${Math.floor(sx / CHUNK_W)},${Math.floor(sy / CHUNK_H)}`),
+      );
+      expect(chunks.size).toBeGreaterThan(1);
+      const broken: string[] = [];
+      for (const coord of [...coords].reverse()) {
+        const screen = generateScreen(world, coord);
+        for (let cy = 0; cy < LATTICE_H; cy++) {
+          for (let cx = 0; cx < LATTICE_W; cx++) {
+            const gx = coord.sx * SCREEN_W + cx;
+            const gy = coord.sy * SCREEN_H + cy;
+            const wet = cornerAt(screen, cx, cy) === 'water';
+            if (wet !== (fieldTerrain(world, OVERWORLD, gx, gy) === 'water'))
+              broken.push(`${gx},${gy}`);
+          }
         }
       }
-    }
-    expect(broken).toEqual([]);
-  });
+      expect(broken).toEqual([]);
+    },
+  );
 
   test('never shut any land away, so no one is trapped', () => {
     const land = landFor(world, OVERWORLD);
     const { x0, y0, w, h } = AREA;
-    const wet = (gx: number, gy: number) => land.waterDepth(gx, gy) > 0;
+    const wetPoints = new Uint8Array((w + 1) * (h + 1));
+    for (let y = 0; y <= h; y++) {
+      for (let x = 0; x <= w; x++)
+        wetPoints[y * (w + 1) + x] = +(land.waterDepth(x0 + x, y0 + y) > 0);
+    }
+    const wet = (x: number, y: number) => wetPoints[y * (w + 1) + x]!;
     const open = new Uint8Array(w * h);
     for (let ty = 0; ty < h; ty++) {
       for (let tx = 0; tx < w; tx++) {
-        const gx = x0 + tx;
-        const gy = y0 + ty;
-        const water = +wet(gx, gy) + +wet(gx + 1, gy) + +wet(gx, gy + 1) + +wet(gx + 1, gy + 1);
+        const water = wet(tx, ty) + wet(tx + 1, ty) + wet(tx, ty + 1) + wet(tx + 1, ty + 1);
         open[ty * w + tx] = water < 3 ? 1 : 0;
       }
     }

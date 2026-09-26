@@ -67,13 +67,14 @@ describe('photo palette tool', () => {
     expect(() => parseSources([{ ...photo, licence: 'CC BY-SA 4.0' }])).toThrow(/not PD or CC0/);
   });
 
-  test('the committed biome palettes match a fresh run over the committed photos', () => {
-    for (const biome of PALETTE_BIOMES) {
+  test.each(PALETTE_BIOMES)(
+    'the committed %s palette matches a fresh run over the committed photos',
+    (biome) => {
       const photos = sources.filter((s) => s.biome === biome);
       const jpegs = photos.map((s) => readFileSync(resolve(PHOTOS, s.file)));
-      expect(biomePalette(photos, jpegs), biome).toEqual(BIOME_PHOTO_PALETTES[biome]);
-    }
-  });
+      expect(biomePalette(photos, jpegs)).toEqual(BIOME_PHOTO_PALETTES[biome]);
+    },
+  );
 
   test('every committed snap and proposal names the master palette', () => {
     for (const { clusters, ramps } of Object.values(BIOME_PHOTO_PALETTES)) {

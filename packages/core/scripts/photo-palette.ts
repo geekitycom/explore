@@ -66,8 +66,13 @@ function distance(p: Lab, q: Lab): number {
 
 function nearest(point: Lab, centres: readonly Lab[]): number {
   let best = 0;
+  let bestDistance = distance(point, centres[0]!);
   for (let i = 1; i < centres.length; i++) {
-    if (distance(point, centres[i]!) < distance(point, centres[best]!)) best = i;
+    const d = distance(point, centres[i]!);
+    if (d < bestDistance) {
+      best = i;
+      bestDistance = d;
+    }
   }
   return best;
 }

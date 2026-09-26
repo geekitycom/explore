@@ -1,8 +1,15 @@
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { SCREEN_H, SCREEN_W } from '../src/world.ts';
+import {
+  LATTICE_H,
+  LATTICE_W,
+  SCREEN_H,
+  SCREEN_W,
+  type Feature,
+  type Terrain,
+} from '../src/world.ts';
 import { BIOME_RGB, TERRAIN_RGB, renderPreview, type PreviewOptions } from './render-preview.ts';
-import { fieldsSource } from './world-source.ts';
+import { fieldsSource, type WorldSource } from './world-source.ts';
 
 const options: PreviewOptions = {
   area: { x0: -1, y0: -1, w: 3, h: 3 },
@@ -38,23 +45,40 @@ describe('world preview', () => {
   });
 
   it('colours tiles by biome in biome mode', () => {
-    const area = { x0: -8, y0: -8, w: 16, h: 16 };
-    const { png, stats } = renderPreview(fieldsSource(1), {
+    const biomes = ['garden', 'desert', 'taiga', 'tundra'];
+    const source: WorldSource = {
+      name: 'one biome per screen',
+      screen: (sx, sy) => ({
+        corners: Array<Terrain>(LATTICE_W * LATTICE_H).fill('grass'),
+        features: Array<Feature>(SCREEN_W * SCREEN_H).fill('none'),
+        biomes: Array<string>(SCREEN_W * SCREEN_H).fill(biomes[sx + 2 * sy]!),
+      }),
+    };
+    const { png, stats } = renderPreview(source, {
       ...options,
-      area,
+      area: { x0: 0, y0: 0, w: 2, h: 2 },
       mode: 'biome',
       overlays: new Set(),
     });
     expect(stats.screensWithoutBiome).toBe(0);
-    const at = (sx: number, sy: number) =>
-      pixelAt(png, (sx - area.x0) * SCREEN_W + 3, (sy - area.y0) * SCREEN_H + 3).join();
-    expect(at(0, 0)).toBe(BIOME_RGB.garden!.join());
-    const palette = new Set(Object.values(BIOME_RGB).map((rgb) => rgb.join()));
-    const seen = new Set<string>();
-    for (let sy = area.y0; sy < area.y0 + area.h; sy += 2) {
-      for (let sx = area.x0; sx < area.x0 + area.w; sx += 2) seen.add(at(sx, sy));
+    for (const [i, biome] of biomes.entries()) {
+      const [sx, sy] = [i % 2, Math.floor(i / 2)];
+      expect(pixelAt(png, sx * SCREEN_W + 3, sy * SCREEN_H + 3)).toEqual(BIOME_RGB[biome]);
     }
-    expect([...seen].every((rgb) => palette.has(rgb))).toBe(true);
+  });
+
+  it('gives every tile of the seeded fields a biome, several across the world', () => {
+    const source = fieldsSource(1);
+    expect(new Set(source.screen(0, 0).biomes)).toEqual(new Set(['garden']));
+    const seen = new Set<string>();
+    for (let sy = -8; sy < 8; sy += 2) {
+      for (let sx = -8; sx < 8; sx += 2) {
+        const { biomes = [] } = source.screen(sx, sy);
+        expect(biomes).toHaveLength(SCREEN_W * SCREEN_H);
+        for (const biome of biomes) seen.add(biome);
+      }
+    }
+    expect([...seen].filter((biome) => !(biome in BIOME_RGB))).toEqual([]);
     expect(seen.size).toBeGreaterThanOrEqual(4);
   });
 

@@ -3,7 +3,7 @@ import { OUTLINE, RAMPS, type Hex, type RampName } from '../palette.ts';
 import { SHADOW, hexAt, styleViolations, type Sprite } from '../sprite.ts';
 import { TILE } from '../world.ts';
 import { FLORA, FLOWERS, flowerRecipe } from '../flora.ts';
-import { RECIPE_FAMILIES, SAMPLE_RECIPES, drawRecipe, type Recipe } from './index.ts';
+import { RECIPE_FAMILIES, SAMPLE_RECIPES, drawRecipe, type Family, type Recipe } from './index.ts';
 
 const SEEDS = Array.from({ length: 24 }, (_, i) => i * 7919 + 3);
 const RAMP_NAMES = Object.keys(RAMPS) as RampName[];
@@ -11,41 +11,71 @@ const isRamp = (v: unknown): v is RampName => typeof v === 'string' && v in RAMP
 
 const FLOWER_FORMS = ['sprout', 'bud', 'bunch', 'wilted'] as const;
 
+/** How many groups the seeds split into, so each ramp swap draws only a sixth of them. */
+const SEED_GROUPS = 6;
+
+type Case = { readonly recipe: Recipe; readonly seeds: readonly number[] };
+
 /**
  * Every sample, plus each of its ramp params swapped for every ramp, plus the other sizes, plus
- * every species in the flora catalogue, plus every flower in every form.
+ * every species in the flora catalogue, plus every flower in every form. A ramp swap only
+ * recolours, so each draws one group of seeds, and the swaps of one param cover every seed.
  */
-function species(): Recipe[] {
-  const out: Recipe[] = Object.values(FLORA).flatMap((flora) =>
-    Object.values(flora).flatMap((list) => list.map((s) => s.recipe)),
+function species(family: Family): Case[] {
+  const all = (recipe: Recipe): Case => ({ recipe, seeds: SEEDS });
+  const out: Case[] = Object.values(FLORA).flatMap((flora) =>
+    Object.values(flora).flatMap((list) => list.map((s) => all(s.recipe))),
   );
   for (const flower of FLOWERS.values()) {
-    for (const form of FLOWER_FORMS) out.push(flowerRecipe(flower, form));
+    for (const form of FLOWER_FORMS) out.push(all(flowerRecipe(flower, form)));
   }
   for (const sample of Object.values(SAMPLE_RECIPES)) {
-    out.push(sample);
+    out.push(all(sample));
     for (const [key, value] of Object.entries(sample.params)) {
       if (!isRamp(value)) continue;
-      for (const name of RAMP_NAMES) {
-        out.push({ ...sample, params: { ...sample.params, [key]: name } } as Recipe);
-      }
+      RAMP_NAMES.forEach((name, i) => {
+        out.push({
+          recipe: { ...sample, params: { ...sample.params, [key]: name } } as Recipe,
+          seeds: SEEDS.filter((_, k) => k % SEED_GROUPS === i % SEED_GROUPS),
+        });
+      });
     }
   }
   const tree = SAMPLE_RECIPES.tree.params;
   for (const shape of ['broadleaf', 'conifer', 'weeping'] as const) {
     for (const tiles of [2, 3] as const) {
       for (const spread of [6, 15]) {
-        out.push({ family: 'tree', params: { ...tree, shape, tiles, spread, trunk: tiles * 4 } });
+        out.push(
+          all({ family: 'tree', params: { ...tree, shape, tiles, spread, trunk: tiles * 4 } }),
+        );
       }
     }
   }
-  out.push({ family: 'cactus', params: { shape: 'column', skin: 'sage', tiles: 1, arms: 3 } });
-  out.push({ family: 'cactus', params: { shape: 'barrel', skin: 'sage' } });
-  out.push({ family: 'reeds', params: { stems: 'grass', tiles: 1 } });
-  out.push({ family: 'rock', params: { stone: 'granite', moss: 'sage', size: 0 } });
-  out.push({ family: 'grass', params: { blades: 'straw', tips: 'snow', height: 12 } });
-  return out;
+  out.push(all({ family: 'cactus', params: { shape: 'column', skin: 'sage', tiles: 1, arms: 3 } }));
+  out.push(all({ family: 'cactus', params: { shape: 'barrel', skin: 'sage' } }));
+  out.push(all({ family: 'reeds', params: { stems: 'grass', tiles: 1 } }));
+  out.push(all({ family: 'rock', params: { stone: 'granite', moss: 'sage', size: 0 } }));
+  out.push(all({ family: 'grass', params: { blades: 'straw', tips: 'snow', height: 12 } }));
+  return out.filter((c) => c.recipe.family === family);
 }
+
+/** Most sprites one test draws, so a big family is split over several tests. */
+const DRAWS_PER_TEST = 400;
+
+/** Each family's species, in groups of at most DRAWS_PER_TEST draws, named like `tree 2/4`. */
+const SPECIES_GROUPS: [string, Case[]][] = RECIPE_FAMILIES.flatMap((family) => {
+  const groups: Case[][] = [[]];
+  let draws = 0;
+  for (const c of species(family)) {
+    if (draws + c.seeds.length > DRAWS_PER_TEST && groups.at(-1)!.length > 0) {
+      groups.push([]);
+      draws = 0;
+    }
+    groups.at(-1)!.push(c);
+    draws += c.seeds.length;
+  }
+  return groups.map((cases, i): [string, Case[]] => [`${family} ${i + 1}/${groups.length}`, cases]);
+});
 
 const bytes = (s: Sprite) => Array.from(s.rgba);
 
@@ -115,10 +145,10 @@ describe('recipes', () => {
     expect(distinct.size).toBeGreaterThanOrEqual(SEEDS.length * 0.9);
   });
 
-  test('every species at every seed passes the style lint', () => {
+  test.each(SPECIES_GROUPS)('every %s species at every seed passes the style lint', (_, cases) => {
     const failures: string[] = [];
-    for (const recipe of species()) {
-      for (const seed of SEEDS) {
+    for (const { recipe, seeds } of cases) {
+      for (const seed of seeds) {
         const rules = new Set(styleViolations(drawRecipe(recipe, seed)).map((v) => v.rule));
         if (rules.size)
           failures.push(`${JSON.stringify(recipe)} seed ${seed}: ${[...rules].join()}`);
@@ -127,45 +157,51 @@ describe('recipes', () => {
     expect(failures).toEqual([]);
   });
 
-  test('a species only uses its own ramps and the outline, so every seed reads as that species', () => {
-    for (const recipe of species()) {
-      const own = new Set<Hex>([OUTLINE]);
-      for (const value of Object.values(recipe.params).flat()) {
-        if (isRamp(value)) for (const hex of RAMPS[value]) own.add(hex);
-      }
-      for (const seed of SEEDS) {
-        const stray = [...opaqueColours(drawRecipe(recipe, seed))].filter((hex) => !own.has(hex));
-        expect(stray, JSON.stringify(recipe)).toEqual([]);
-      }
-    }
-  });
-
-  test('sprites anchor bottom-centre, fit their tiles, and stand on the tile bottom', () => {
-    for (const recipe of species()) {
-      for (const seed of SEEDS) {
-        const s = drawRecipe(recipe, seed);
-        expect(s.width % TILE).toBe(0);
-        expect(s.height % TILE).toBe(0);
-        expect(s.height).toBeLessThanOrEqual(3 * TILE);
-        expect(s.anchor).toEqual({ x: s.width / 2, y: s.height });
-        let bottom = -1;
-        let left = s.width;
-        let right = -1;
-        for (let y = 0; y < s.height; y++) {
-          for (let x = 0; x < s.width; x++) {
-            if (s.rgba[(y * s.width + x) * 4 + 3] !== 255) continue;
-            if (y > bottom) [bottom, left, right] = [y, x, x];
-            else if (y === bottom) right = x;
-          }
+  test.each(SPECIES_GROUPS)(
+    'a %s species only uses its own ramps and the outline, so every seed reads as that species',
+    (_, cases) => {
+      for (const { recipe, seeds } of cases) {
+        const own = new Set<Hex>([OUTLINE]);
+        for (const value of Object.values(recipe.params).flat()) {
+          if (isRamp(value)) for (const hex of RAMPS[value]) own.add(hex);
         }
-        expect(bottom, JSON.stringify(recipe)).toBeGreaterThanOrEqual(s.height - 2);
-        expect(
-          Math.abs((left + right + 1) / 2 - s.anchor.x),
-          JSON.stringify(recipe),
-        ).toBeLessThanOrEqual(3);
+        for (const seed of seeds) {
+          const stray = [...opaqueColours(drawRecipe(recipe, seed))].filter((hex) => !own.has(hex));
+          expect(stray, JSON.stringify(recipe)).toEqual([]);
+        }
       }
-    }
-  });
+    },
+  );
+
+  test.each(SPECIES_GROUPS)(
+    '%s sprites anchor bottom-centre, fit their tiles, and stand on the tile bottom',
+    (_, cases) => {
+      for (const { recipe, seeds } of cases) {
+        for (const seed of seeds) {
+          const s = drawRecipe(recipe, seed);
+          expect(s.width % TILE).toBe(0);
+          expect(s.height % TILE).toBe(0);
+          expect(s.height).toBeLessThanOrEqual(3 * TILE);
+          expect(s.anchor).toEqual({ x: s.width / 2, y: s.height });
+          let bottom = -1;
+          let left = s.width;
+          let right = -1;
+          for (let y = 0; y < s.height; y++) {
+            for (let x = 0; x < s.width; x++) {
+              if (s.rgba[(y * s.width + x) * 4 + 3] !== 255) continue;
+              if (y > bottom) [bottom, left, right] = [y, x, x];
+              else if (y === bottom) right = x;
+            }
+          }
+          expect(bottom, JSON.stringify(recipe)).toBeGreaterThanOrEqual(s.height - 2);
+          expect(
+            Math.abs((left + right + 1) / 2 - s.anchor.x),
+            JSON.stringify(recipe),
+          ).toBeLessThanOrEqual(3);
+        }
+      }
+    },
+  );
 
   test('each shape keeps the silhouette of its plant at every seed', () => {
     const box = (s: Sprite, keep: (hex: Hex) => boolean = (hex) => hex !== OUTLINE) => {

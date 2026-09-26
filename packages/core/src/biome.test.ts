@@ -64,9 +64,10 @@ describe('biomes', () => {
     }
   });
 
-  test('blend their params across a border instead of stepping at a line', () => {
-    let borders = 0;
-    for (const seed of SEEDS) {
+  test.each(SEEDS)(
+    'blend their params across a border in seed %i instead of stepping at a line',
+    (seed) => {
+      let borders = 0;
       for (let y = -600; y <= 600; y += 97) {
         let previous = biomeAt(worldOf(seed), OVERWORLD, -1200, y);
         for (let x = -1199; x <= 1200; x++) {
@@ -85,36 +86,35 @@ describe('biomes', () => {
           previous = here;
         }
       }
-    }
-    expect(borders).toBeGreaterThan(50);
-  });
+      expect(borders).toBeGreaterThan(8);
+    },
+  );
 
-  test('never blend snow with sand, so snow never borders desert', () => {
-    const problems: string[] = [];
-    for (const seed of SEEDS) {
+  test.each(SEEDS)(
+    'never blend snow with sand in seed %i, so snow never borders desert',
+    (seed) => {
+      const problems: string[] = [];
       for (let y = -4000; y <= 4000; y += 37) {
         for (let x = -5000; x <= 5000; x += 37) {
           const { snow, sand } = paramsAt(seed, x, y);
           if (snow > 0.01 && sand > 0.01) problems.push(`seed ${seed} at ${x},${y}`);
         }
       }
-    }
-    expect(problems).toEqual([]);
-  });
+      expect(problems).toEqual([]);
+    },
+  );
 
-  test('put the garden in a meadow', () => {
-    for (const seed of SEEDS) {
-      for (const [dx, dy] of [
-        [0, 0],
-        [-1, -1],
-        [1, 1],
-        [-1, 1],
-        [1, -1],
-      ] as const) {
-        expect(generateScreen(worldOf(seed), { ...GARDEN_COORD, sx: dx, sy: dy }).biome).toBe(
-          dx === 0 && dy === 0 ? 'garden' : 'meadow',
-        );
-      }
+  test.each(SEEDS)('put the garden in a meadow in seed %i', (seed) => {
+    for (const [dx, dy] of [
+      [0, 0],
+      [-1, -1],
+      [1, 1],
+      [-1, 1],
+      [1, -1],
+    ] as const) {
+      expect(generateScreen(worldOf(seed), { ...GARDEN_COORD, sx: dx, sy: dy }).biome).toBe(
+        dx === 0 && dy === 0 ? 'garden' : 'meadow',
+      );
     }
   });
 

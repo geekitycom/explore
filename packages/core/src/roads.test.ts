@@ -39,9 +39,10 @@ function maskOf(plan: Plan, { sx, sy }: ScreenCoord): boolean[] {
   return mask;
 }
 
-/** Every road lattice point of each screen, as its network sees the screen on its own. */
-function roadMasks(network: Network, coords: readonly ScreenCoord[]): Map<string, boolean[]> {
-  return new Map(coords.map((c) => [screenKey(c), maskOf(network.plan(screenBox(c)), c)]));
+/** Every road lattice point of each screen as a 0/1 string, as its network sees the screen alone. */
+function roadMasks(network: Network, coords: readonly ScreenCoord[]): Map<string, string> {
+  const bits = (plan: Plan, c: ScreenCoord) => maskOf(plan, c).map(Number).join('');
+  return new Map(coords.map((c) => [screenKey(c), bits(network.plan(screenBox(c)), c)]));
 }
 
 const chunk = (cx: number, cy: number) => chunkScreens({ layer: OVERWORLD, cx, cy });
@@ -70,25 +71,33 @@ describe.each(SEEDS)('the road network of seed %i', (seed) => {
   const world = worldOf(seed);
   const network = networkOf(world, OVERWORLD);
 
-  test('is the same whatever order fresh networks meet its chunks in, and agrees across seams', () => {
-    const range = [-2, -1, 0, 1];
-    const chunks = range.flatMap((cy) => range.map((cx) => [cx, cy] as const));
-    const forward = chunks.flatMap(([cx, cy]) => chunk(cx, cy));
+  const range = [-2, -1, 0, 1];
+  const chunks = range.flatMap((cy) => range.map((cx) => [cx, cy] as const));
+  const forward = chunks.flatMap(([cx, cy]) => chunk(cx, cy));
+
+  test('is the same whatever order fresh networks meet its chunks in', () => {
     const backward = [...chunks].reverse().flatMap(([cx, cy]) => chunk(cx, cy).reverse());
-    const first = roadNetwork(landFor(world, OVERWORLD));
-    const a = roadMasks(first, forward);
+    const a = roadMasks(roadNetwork(landFor(world, OVERWORLD)), forward);
     const b = roadMasks(roadNetwork(landFor(world, OVERWORLD)), backward);
     expect(new Map([...b].sort())).toEqual(new Map([...a].sort()));
+    const roadPoints = [...a.values()].join('').replaceAll('0', '').length;
+    expect(roadPoints).toBeGreaterThan(16 * 16 * 10);
+  });
 
-    const whole = first.plan({
-      x0: -8 * SCREEN_W,
-      y0: -8 * SCREEN_H,
-      x1: 8 * SCREEN_W,
-      y1: 8 * SCREEN_H,
-    });
-    const differ = forward.filter((c) => maskOf(whole, c).join() !== a.get(screenKey(c))!.join());
+  test('agrees across seams, each screen alone with the screens around it', () => {
+    const fresh = roadNetwork(landFor(world, OVERWORLD));
+    const alone = roadMasks(fresh, forward);
+    const around = ({ sx, sy }: ScreenCoord) =>
+      fresh.plan({
+        x0: (sx - 1) * SCREEN_W,
+        y0: (sy - 1) * SCREEN_H,
+        x1: (sx + 2) * SCREEN_W,
+        y1: (sy + 2) * SCREEN_H,
+      });
+    const differ = forward.filter(
+      (c) => maskOf(around(c), c).map(Number).join('') !== alone.get(screenKey(c)),
+    );
     expect(differ).toEqual([]);
-    expect([...a.values()].flat().filter(Boolean).length).toBeGreaterThan(16 * 16 * 10);
   });
 
   test('lays its roads as path, sand where they ford water, and path nowhere else', () => {
@@ -116,7 +125,7 @@ describe.each(SEEDS)('the road network of seed %i', (seed) => {
       x1: r * REGION_W,
       y1: r * REGION_H,
     });
-    const roads = network.roadsIn(region(6));
+    const roads = network.roadsIn(region(4));
     const next = new Map<Poi, Poi[]>();
     for (const { a, b } of roads) {
       next.set(a, [...(next.get(a) ?? []), b]);

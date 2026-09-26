@@ -110,7 +110,8 @@ describe('fence pieces', () => {
         const draw = (broken: boolean) =>
           drawRecipe({ family: 'fence', params: { style: fence, material, links, broken } }, seed)
             .rgba;
-        if (draw(true).every((v, i) => v === draw(false)[i])) same.push(`${links}/${seed}`);
+        const [broken, whole] = [draw(true), draw(false)];
+        if (broken.every((v, i) => v === whole[i])) same.push(`${links}/${seed}`);
       }
     }
     expect(same).toEqual([]);
