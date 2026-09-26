@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-26 14:05'
+updated_date: '2026-09-26 15:53'
 ---
 # Decision log
 
@@ -12,7 +12,7 @@ One entry per decision. Product calls came from Andrew on 2026-09-24. Technical 
 ## D1. Art comes from CC0 packs (product, 2026-09-24)
 Use openly licensed CC0 pixel art for terrain, features, and characters. License files are kept in the repo next to the assets. Transition tiles are generated from base textures with corner masks when a pack lacks them.
 
-## D2. SQLite on a single node (product, 2026-09-24)
+## D2. SQLite on a single node (product, 2026-09-24, amended by D25 on 2026-09-26)
 One Node process with a SQLite file. Presence is in memory. Screen creation needs no locking because SQLite access is synchronous in one process.
 
 ## D3. Username and password accounts (product, 2026-09-24)
@@ -95,3 +95,16 @@ Tests that guard this: `upgrade.test.ts` lifts records from every past version; 
 Replaces D6. A play session is a run of connections with no gap as long as `SESSION_TIMEOUT_MS` (10 minutes, one setting in `apps/server/src/play.ts`, overridable through the `SESSION_TIMEOUT_MS` environment variable, which the e2e server sets to 4 seconds). The server keeps no session table: `player_state.updated_at` is when the player was last known connected. It is written on every disconnect, every travel, every flush (every 5 seconds, for everyone online, idle or not), and on shutdown, so a player whose window stays open never falls asleep, and the rule gives the same answer after a restart or a crash.
 
 On connect, a saved position younger than the timeout resumes where the player stood, with no wake-up (a page reload, a dropped connection, a second tab). Anything older, or no saved position, starts a new session: the player is placed at the garden spawn whatever their last position, and the screen message carries `wake: true`. The client holds the world still (no movement, no ambient motion, no music) behind a black cover that opens like eyes from a seam across the middle in about a second (a short fade with reduced motion), then shows exactly "You wake up in a secret garden. You feel the grass between your toes. Press [space] to start." Space starts the session and the music, and is the audio unlock. There is no separate fell-asleep message; the player stays logged in.
+
+## D25. A main database for accounts, one SQLite file per world (product, from Andrew, 2026-09-26)
+Amends D2. Single player is the default: creating an account creates that player's own world. The server keeps one main SQLite database for deployment-wide data (users, sessions, the world registry, and who may enter which world) and one SQLite file per world for everything in it (seed, screens, visits, traces, reports, positions, inventories). A world has its own id, separate from its owner's user id. The registry records its owner and the host that serves it, which today is always this one.
+
+Why: a world is a single file, so later it can be moved to another API server when one is overloaded, and the client asks the main API where a world lives before connecting. None of that routing is built now. The rule for now is that nothing on the server assumes there is only one world, and the client always says which world it is joining.
+
+Playing together is by invitation only, and the server never matches strangers. A world is closed to visitors by default. Its owner can open it for visitors, which shows a short code; anyone logged in with the code can join while it stays open, so a kid can share it with a friend beside them or in a group chat. Visitors can only be in a world while its host is there and it is open. It closes to visitors when the owner closes it, logs out, their session ends (D24), or they go to visit another world; every visitor is then sent back to their own world, and opening it again gives a new code. Visitors arrive in the host's secret garden, on a tile no other player is standing on. A visitor is stored in the host's world file: their position, traces, and inventory there belong to that world, and they go home without its items.
+
+Consequences:
+- No foreign keys cross files. World files hold user ids as plain integers, and `users.id` is never reused (AUTOINCREMENT), so an id in any world file always means the same person.
+- Two migration lists: one for the main database, one for world files. A world file migrates when it is opened, as the single database does today.
+- The switch is a one-time reset, chosen by Andrew: the only copy is the local dev world, so its accounts and world are wiped rather than migrated. D22 and D23 apply to each world file from then on.
+- Admin scripts (`world:wipe`, epitaph admin, names) name the world they act on.
