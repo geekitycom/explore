@@ -41,3 +41,28 @@ jobs:
         with:
           name: e2e-results
           path: e2e/.results
+
+  # Builds the image the way scripts/docker-build-push.sh does, for linux/amd64
+  # only and without pushing it, then boots it and plays it through a restart.
+  # Node and pnpm are not installed: the build happens inside the Dockerfile,
+  # and the script needs only bash, curl and docker.
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the image for linux/amd64 without pushing it
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          tags: explore-smoke:ci
+          load: true
+          push: false
+          provenance: false
+          cache-from: type=gha,scope=docker-smoke
+          cache-to: type=gha,mode=max,scope=docker-smoke
+      - name: Sign up, play, stop, restart and log in again
+        shell: bash
+        run: bash scripts/docker-smoke.sh explore-smoke:ci
