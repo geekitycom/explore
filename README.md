@@ -1,8 +1,28 @@
 # Geekity Explore
 
-A shared top-down pixel-art world. Sign up, design an avatar, and start in the secret garden. The world is a grid of screens that do not exist until someone walks onto them. Every screen is a pure function of the world's seed and its position, so it matches its neighbours whatever order they appear in, and it is saved for everyone once generated. Players on the same screen see each other move.
+A top-down pixel-art world that you explore on your own, and with friends when you invite them. Sign up, design an avatar, and you get a world of your own. Every session starts with you waking up in its secret garden. The world is a grid of screens that do not exist until someone walks onto them. Each screen is a pure function of your world's seed and its position, so it matches its neighbours whatever order they appear in, and your world keeps it once it is generated.
 
-![Two players in the secret garden](docs/screenshots/garden-two-players.png)
+![Waking up in the secret garden: "You wake up in a secret garden. You feel the grass between your toes. Click to start."](docs/screenshots/wake-up.png)
+
+## How it plays
+
+When you sign up, you choose a username to log in with and a display name, which is what other players see. The display name does not need to be unique. You can change it and your avatar at any time from **Name & avatar** in the game bar.
+
+A session starts with the world held still behind a black cover that opens like eyes. Click, or press Space, to start. A new session starts after you have had no connection for ten minutes. A reload or a dropped connection inside that time puts you back where you stood.
+
+Walk off any edge of the garden to explore. The screens beyond it are generated as you arrive: meadows, woods, lakes, snow, and roads that link places.
+
+![A screen north of the garden with a lake, a wood, and a road](docs/screenshots/beyond-the-garden.png)
+
+### Play with friends
+
+Your world is closed to visitors until you open it. Click **Friends** in the game bar, then **Open for visitors**, and share the five-letter code it shows. Your friend opens **Friends**, types the code under **Their code**, and clicks **Go**. They arrive in your garden through a portal.
+
+![A friend arriving through a portal in the secret garden](docs/screenshots/portal-arrival.png)
+
+A visitor can walk anywhere in your world. What they leave there, and the items they pick up there, stay in your world. They go home through a portal when they click **Go home**, or when your world closes to visitors. It closes when you click **Close to visitors**, log out, go to visit someone else, or have no connection for ten minutes. The next time you open it, you get a new code.
+
+![Two friends in the secret garden](docs/screenshots/friends-in-the-garden.png)
 
 ## Requirements
 
@@ -25,11 +45,21 @@ pnpm build
 pnpm start
 ```
 
-The server and its admin scripts read settings from environment variables, and also from a `.env` file in the repository root when one exists. Variables already set in the shell take precedence. Copy `.env.example` to `.env` to start; it lists every setting with its default.
+### Settings
 
-Data lives under `DATA_DIR` (default `apps/server/data`): `main.db` holds accounts and sessions, and `worlds/<id>.db` holds one world each, its seed, screens, traces, positions, and inventories. Every account owns a world, created at signup, and a connection names the world it joins (`/ws/worlds/<id>`); a world with nobody in it for five minutes is closed and reopens on the next visit (D25 in the decision log).
+The server and its admin scripts read settings from environment variables, and also from a `.env` file in the repository root when one exists. Variables already set in the shell take precedence. Copy `.env.example` to `.env` to start. It lists every setting with its default.
 
-Behind a reverse proxy, set `TRUST_PROXY=true` so login and signup rate limits key on the client address the proxy reports in `X-Forwarded-For` (the rightmost entry, the one the proxy itself appended) instead of the proxy's own address. Leave it unset when the server is reachable directly.
+| Variable             | Default  | What it sets                                                                                                                                                                                                                                                            |
+| -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`               | `3000`   | HTTP port of the server. In development, Vite proxies to it                                                                                                                                                                                                             |
+| `DATA_DIR`           | `./data` | Where accounts and worlds are stored, relative to the directory the server starts in. `pnpm dev` and `pnpm start` start it in `apps/server`, so the default is `apps/server/data`                                                                                       |
+| `SESSION_TIMEOUT_MS` | `600000` | How long a player can have no connection before their next visit starts a new session in the garden. It also closes their world to visitors                                                                                                                             |
+| `TRUST_PROXY`        | unset    | Set to `true` behind a reverse proxy. Rate limits then key on the client address the proxy reports in `X-Forwarded-For` (the rightmost entry, which the proxy itself appended) instead of the proxy's own address. Leave it unset when the server is reachable directly |
+| `NODE_ENV`           | unset    | Set to `production` to mark the session cookie `Secure`, so browsers send it only over HTTPS                                                                                                                                                                            |
+
+The `LLM_` settings are under [Text generation](#text-generation).
+
+`DATA_DIR` holds `main.db`, with the accounts, sessions, and the list of worlds, and `worlds/<id>.db`, one file per world with its seed, screens, traces, positions, and inventories. Every account owns a world, created at signup. A connection names the world it joins (`/ws/worlds/<id>`). A world with nobody in it for five minutes is closed and reopens on the next visit (D25 in the decision log).
 
 ## Text generation
 
@@ -63,16 +93,20 @@ LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=google/gemini-3.8-flash LLM_
 | `pnpm build`                               | Build every package that has a build step                                                                                                                                                                       |
 | `pnpm start`                               | Start the server                                                                                                                                                                                                |
 | `pnpm lint`                                | ESLint with type-aware rules                                                                                                                                                                                    |
+| `pnpm lint:art`                            | Check the shipped art against the style guide (doc-5). `--fix` remaps off-palette colours                                                                                                                       |
 | `pnpm format` / `pnpm format:check`        | Prettier write or check                                                                                                                                                                                         |
 | `pnpm typecheck`                           | `tsc` in every package                                                                                                                                                                                          |
 | `pnpm test`                                | Vitest across all packages                                                                                                                                                                                      |
+| `pnpm test:watch`                          | Vitest in watch mode                                                                                                                                                                                            |
 | `pnpm e2e`                                 | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                                                                     |
+| `pnpm screenshots`                         | Retake the README screenshots in `docs/screenshots` from the built app, with its own server and data directory                                                                                                  |
 | `pnpm docker:build-push [TAG]`             | Run the quality gates, then build the Docker image for amd64 and arm64 and push it to ghcr.io. See [Deploying with Docker](#deploying-with-docker)                                                              |
 | `pnpm docker:dry-run [TAG]`                | Print the image, version, and tags `docker:build-push` would push, and do nothing else                                                                                                                          |
 | `pnpm docker:smoke [IMAGE]`                | Build the image for amd64 (or take `IMAGE`), boot it, sign up, play, restart it, and log in again                                                                                                               |
 | `pnpm world:wipe --yes --owner <username>` | Delete one world's generated screens, traces, saved positions, and inventories (accounts stay), roll it a new seed, and restore its garden. Stop the server first. `--world <id>` names the world file directly |
 | `pnpm epitaphs`                            | List every grave's epitaph in one world, named with `--owner <username>` or `--world <id>`. `--set sx,sy tx,ty "words"` replaces one, `--clear sx,sy tx,ty` puts back its built-in epitaph for good             |
 | `pnpm names`                               | List every named landmark in one world (`--owner` or `--world`) with its reports. `--clear sx,sy` takes the name off a landmark                                                                                 |
+| `pnpm palettes`                            | Rebuild the biome palettes in `packages/core/src/biome-photo-palettes.ts` from the reference photos                                                                                                             |
 | `pnpm --filter @explore/core preview`      | Render a large area of the world to a PNG for tuning generation                                                                                                                                                 |
 
 ## Testing
@@ -88,6 +122,10 @@ Every unit test has a budget of 1000 ms. A test that takes longer fails with a m
 - Poll with `vi.waitFor(check, { interval: 1 })`. The default interval is 50 ms.
 
 Only a test that measures time belongs in `*.perf.test.ts`.
+
+### Screenshots
+
+`pnpm screenshots` builds the client, starts the server on port 4320 with an empty data directory, and runs `screenshots/readme.spec.ts` in Chrome with the sound muted. It writes every image the README shows to `docs/screenshots`. Run it after a change to how the game looks, look at each image, and commit them. The browser clock stops at fixed times for each shot, so `wake-up.png` and `beyond-the-garden.png` come out the same on every run. The server picks a random free garden tile for a visitor's portal, so the friend in the two visitor shots stands in a different place each time.
 
 ## Layout
 
