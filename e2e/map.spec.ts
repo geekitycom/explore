@@ -1,7 +1,29 @@
+import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
-import { playing, probeOutput, signUp } from './helpers.ts';
+import {
+  OVERWORLD,
+  encodeScreen,
+  generateScreen,
+  type WorldSeed,
+} from '../packages/core/src/index.ts';
+import { playing, probeOutput, signUp, unique } from './helpers.ts';
 
 type Coord = { sx: number; sy: number };
+type Rect = { x: number; y: number; w: number; h: number };
+type MapState = {
+  tilePixels: number;
+  canvas: { w: number; h: number };
+  you: Rect;
+  drawn: number;
+  screens: Coord[];
+};
+
+const mapState = (page: Page) =>
+  page.evaluate(() => (window as unknown as { exploreMap: () => MapState }).exploreMap());
+
+const centred = ({ you, canvas }: MapState) =>
+  Math.abs(you.x + you.w / 2 - canvas.w / 2) <= 1 &&
+  Math.abs(you.y + you.h / 2 - canvas.h / 2) <= 1;
 
 const mapScreens = (page: Page) =>
   page.evaluate(() =>
@@ -113,4 +135,81 @@ test('the map opens over the game, keeping the music and the connection', async 
   await page.keyboard.up('ArrowDown');
   expect(await level()).toBeGreaterThan(0.002);
   expect(sockets).toBe(1);
+});
+
+test('the map opens on you at one size however much is discovered, and shows more in a bigger window', async ({
+  page,
+}) => {
+  const db = new DatabaseSync(process.env['E2E_DB_PATH']!);
+  const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
+  await page.setViewportSize({ width: 960, height: 600 });
+  await signUp(page, unique('mapsize'));
+  await playing(page);
+  await page.waitForTimeout(300);
+
+  await page.keyboard.press('m');
+  await page.waitForFunction(() => 'exploreMap' in window);
+  await expect.poll(async () => (await mapState(page)).drawn).toBeGreaterThan(0);
+  const few = await mapState(page);
+  expect(few.tilePixels).toBe(3);
+  expect(few.you).toMatchObject({ w: 60, h: 45 });
+  expect(centred(few)).toBe(true);
+  await page.keyboard.press('Escape');
+
+  // A world of 500 discovered screens around the garden, generated as the server would.
+  const known = new Set(few.screens.map(({ sx, sy }) => `${sx},${sy}`));
+  const many = Array.from({ length: 500 }, (_, i) => ({
+    sx: (i % 25) - 12,
+    sy: Math.floor(i / 25) - 10,
+  }))
+    .filter(({ sx, sy }) => !known.has(`${sx},${sy}`))
+    .map((c) => encodeScreen(generateScreen({ seed }, { layer: OVERWORLD, ...c })));
+  await page.route('/api/map', async (route) => {
+    const real = (await (await route.fetch()).json()) as { screens: unknown[] };
+    await route.fulfill({ json: { ...real, screens: [...real.screens, ...many] } });
+  });
+
+  await page.keyboard.press('m');
+  await expect
+    .poll(async () => (await mapState(page)).screens.length)
+    .toBe(few.screens.length + many.length);
+  const big = await mapState(page);
+  expect(big.screens.length).toBeGreaterThanOrEqual(500);
+  expect(big.tilePixels).toBe(few.tilePixels);
+  expect(big.you).toEqual(few.you);
+  expect(big.drawn).toBeGreaterThan(few.drawn);
+  await page.screenshot({ path: 'e2e/.results/map-overlay-960.png' });
+
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await expect.poll(async () => (await mapState(page)).canvas.w).toBeGreaterThan(few.canvas.w);
+  const wide = await mapState(page);
+  expect(wide.tilePixels).toBe(few.tilePixels);
+  expect(wide.drawn).toBeGreaterThan(big.drawn);
+  expect(centred(wide)).toBe(true);
+  await page.screenshot({ path: 'e2e/.results/map-overlay-1600.png' });
+
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft');
+  expect(centred(await mapState(page))).toBe(false);
+  await page.keyboard.press('c');
+  expect(centred(await mapState(page))).toBe(true);
+  await page.keyboard.press('-');
+  expect((await mapState(page)).tilePixels).toBe(2);
+  await page.getByRole('button', { name: 'Centre on me' }).click();
+  const back = await mapState(page);
+  expect(centred(back)).toBe(true);
+  expect(back.tilePixels).toBe(2);
+
+  await page.goto('/map');
+  await page.waitForFunction(() => 'exploreMap' in window);
+  await expect.poll(async () => (await mapState(page)).drawn).toBeGreaterThan(0);
+  const standalone = await mapState(page);
+  expect(standalone.tilePixels).toBe(3);
+  expect(centred(standalone)).toBe(true);
+  await page.screenshot({ path: 'e2e/.results/map-standalone-1600.png' });
+  await page.setViewportSize({ width: 960, height: 600 });
+  await expect.poll(async () => (await mapState(page)).canvas.w).toBeLessThan(standalone.canvas.w);
+  const narrow = await mapState(page);
+  expect(narrow.drawn).toBeLessThan(standalone.drawn);
+  expect(centred(narrow)).toBe(true);
+  await page.screenshot({ path: 'e2e/.results/map-standalone-960.png' });
 });
