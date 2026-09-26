@@ -280,7 +280,10 @@ export type MapLabel = {
   h: number;
 };
 
-/** Where each map label goes: You, then the garden, then landmark names. */
+/**
+ * Where each map label goes. Labels claim their spot in order (You, the garden, then landmark
+ * names), and one that would touch a label already placed rises above it.
+ */
 export function mapLabels(
   data: Pick<WorldMap, 'you' | 'garden' | 'names'>,
   scale: number,
@@ -307,10 +310,12 @@ export function mapLabels(
     })),
   ];
   const stroke = LABEL_STROKE * dpr;
-  return wanted.map(({ text, color, size, cx, bottom }) => {
+  const gap = Math.round(dpr);
+  const placed: MapLabel[] = [];
+  for (const { text, color, size, cx, bottom } of wanted) {
     const w = Math.ceil(measure(text, size) + stroke);
     const h = Math.ceil(size + stroke);
-    return {
+    const label = {
       text,
       color,
       size,
@@ -319,8 +324,18 @@ export function mapLabels(
       w,
       h,
     };
-  });
+    // Rising past a label means never meeting it again, so this ends within placed.length steps.
+    for (let hit = placed.find((p) => overlaps(p, label, gap)); hit;) {
+      label.y = hit.y - gap - h;
+      hit = placed.find((p) => overlaps(p, label, gap));
+    }
+    placed.push(label);
+  }
+  return placed;
 }
+
+const overlaps = (a: MapLabel, b: MapLabel, gap: number) =>
+  a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
 
 function rasterise(screen: Screen): HTMLCanvasElement {
   const c = document.createElement('canvas');
