@@ -1,10 +1,11 @@
 ---
 id: TASK-50.1
 title: 'Trace storage, the inventory bar, and interaction'
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-25 23:32'
+updated_date: '2026-09-26 00:07'
 labels: []
 milestone: m-5
 dependencies: []
@@ -29,6 +30,17 @@ The foundation for every kind of trace. Store traces per screen position, separa
 - [ ] #6 The faced tile is computed from the centre of the player's collision box, and nothing is placed on a tile that overlaps the player or would leave them no walkable route off the screen, tested over every sub-tile position and facing
 - [ ] #7 Stored generator output is unchanged (D23), and a world wipe also clears traces
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Ground: read play/presence/world/db/wipe (server), game/state/render/main/input/movement (web), walk/travel/codec/protocol/palette/recipes (core).
+2. Architect arena (3 runners, cross-judge): synthesized design in the session scratchpad. Shape: Place = screen + traces with derived per-tile walkability; traces keyed by (tile, kind); a traceKind() registry in packages/core/src/traces (fields schema, solid, look, bubble, interact, carry, action, offer, settle, limits); one pure resolve() both server and client run; world rules (reach, box overlap, edge, no-split) applied after the kind; Inventory as ordered stacks with per-kind carry limits from LIMITS; messages interact/use/act and screen(+traces,+inventory)/traces/inventory/refused; tables traces, trace_reports, inventories in one migration; wipe clears them.
+3. Core unit: place.ts, walk.ts rules (boxCentre, facedTile, inReach, wayIfSolid), traces/*, probe test kind, protocol, tileHash to core; tests incl. every sub-tile position and facing.
+4. Server unit: TraceStore, perform, inventory, presence.tell, play.ts cases, migration, wipe; play.test.ts end to end via the probe kind.
+5. Web unit: state reducer, hands (selection, cursor, outline), hint bar timing, inventory bar (carved biome panel, 10 slots), render outline and bubbles, input keys.
+6. Verify: lint, typecheck, test, format:check, e2e with a new traces spec and screenshots in two biomes; land on main; confirm CI.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
