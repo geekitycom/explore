@@ -4,9 +4,11 @@ title: 'Bring the README, screenshots, and Backlog docs up to date'
 status: To Do
 assignee: []
 created_date: '2026-09-26 15:51'
+updated_date: '2026-09-26 17:17'
 labels: []
 dependencies:
   - TASK-64
+  - TASK-68
 ordinal: 5000
 ---
 
