@@ -23,7 +23,7 @@ import {
 import { Chunks } from './chunks.ts';
 import { loadInventory } from './inventory.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
-import { TraceStore, perform } from './traces.ts';
+import { TraceStore, perform, reportTrace } from './traces.ts';
 import type { User } from './users.ts';
 import { ensureGarden, loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 
@@ -181,6 +181,9 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
         }
         case 'act':
           perform(store, player, { verb: 'act', ...message.action }, now());
+          break;
+        case 'report':
+          reportTrace(db, player, message, now());
           break;
       }
     },

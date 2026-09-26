@@ -20,6 +20,7 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "world:wipe": "pnpm --filter @explore/server world:wipe",
+    "names": "pnpm --filter @explore/server names",
     "palettes": "pnpm --filter @explore/core palettes"
   },
   "devDependencies": {

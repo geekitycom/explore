@@ -1,4 +1,5 @@
 import {
+  bubblesAt,
   facedTile,
   promptAt,
   resolve,
@@ -11,10 +12,13 @@ import {
   type Item,
   type Slot,
   type Tile,
+  type TraceKindName,
 } from '@explore/core';
 import type { User } from '../api.ts';
 import { itemIcon } from '../art/traces.ts';
+import { bubbleLayer, bubbleViews, namePoint } from '../ui/bubbles.ts';
 import type { InventoryBar } from '../ui/inventory-bar.ts';
+import { namingDialog, type Composer } from '../ui/naming-dialog.ts';
 import { hintText, type Message } from './hint.ts';
 import type { KeyAction } from './input.ts';
 import type { GameState } from './state.ts';
@@ -24,7 +28,12 @@ export type Playing = Exclude<GameState, { phase: 'connecting' }>;
 /** The tile a selected item would land on, and whether the world rules allow it. */
 export type Aim = { readonly tile: Tile; readonly valid: boolean };
 
-export type Hud = { readonly bar: InventoryBar; readonly hint: HTMLElement };
+export type Hud = {
+  readonly bar: InventoryBar;
+  readonly hint: HTMLElement;
+  /** Holds the canvas; bubbles and dialogs go in it too. */
+  readonly world: HTMLElement;
+};
 
 export function hereOf(state: Playing, user: User, now: number): Here {
   return {
@@ -111,9 +120,26 @@ export function createHands({ hud, canvas, tileAt, send }: Options) {
     canvas.style.cursor = item ? cursorFor(item) : '';
   };
 
+  const say = (text: string, now: number) => {
+    message = { text, at: now };
+    showHint(text);
+  };
+
+  const composers: Partial<Record<TraceKindName, Composer>> = {
+    landmark: namingDialog(() => here, send),
+  };
+  const bubbles = bubbleLayer({
+    report: ({ tile, kind }) => {
+      send({ t: 'report', ...tile, kind });
+      say('Reported. Thank you.', performance.now());
+    },
+    edit: ({ kind }) => composers[kind]?.open(),
+  });
+  hud.world.append(bubbles.el, ...Object.values(composers).map((c) => c.el));
+
+  /** A refusal of a save a dialog is waiting on shows there, where the player is looking. */
   const refused = (reason: string, now: number) => {
-    message = { text: reason, at: now };
-    showHint(reason);
+    if (!Object.values(composers).some((c) => c.refused(reason))) say(reason, now);
   };
 
   /** Sends the act when the prediction allows it; a predicted refusal shows without a round trip. */
@@ -131,7 +157,10 @@ export function createHands({ hud, canvas, tileAt, send }: Options) {
 
   const key = (action: KeyAction) => {
     if (action.kind === 'cancel') return select(undefined);
-    const tile = here && facedTile(here.me.pose);
+    if (!here) return;
+    const prompt = action.kind === 'interact' ? promptAt(here) : undefined;
+    if (prompt?.kind === 'offer') return composers[prompt.compose]?.open();
+    const tile = facedTile(here.me.pose);
     if (!tile) return;
     if (action.kind === 'interact') attempt({ verb: 'interact', tile });
     else attempt({ verb: 'use', slot: action.slot, tile });
@@ -173,9 +202,22 @@ export function createHands({ hud, canvas, tileAt, send }: Options) {
         here = undefined;
         stillSince = undefined;
         showHint(undefined);
+        bubbles.update([]);
         return { aim: undefined };
       }
       here = hereOf(state, user, Date.now());
+      for (const composer of Object.values(composers)) composer.sync(here);
+      bubbles.update(
+        bubbleViews(bubblesAt(here), {
+          id: user.id,
+          pose: state.you,
+          names: [
+            namePoint(state.you.x, state.you.y),
+            ...[...state.others.values()].map((p) => namePoint(p.drawX, p.drawY)),
+          ],
+          editable: (kind) => kind in composers,
+        }),
+      );
       const playing = state.phase === 'playing';
       if (!playing) tip = false;
       stillSince = playing && !state.you.moving ? (stillSince ?? now) : undefined;
@@ -195,6 +237,8 @@ export function createHands({ hud, canvas, tileAt, send }: Options) {
       canvas.removeEventListener('pointerleave', leave);
       unlisten();
       select(undefined);
+      bubbles.el.remove();
+      for (const composer of Object.values(composers)) composer.el.remove();
     },
   };
 }

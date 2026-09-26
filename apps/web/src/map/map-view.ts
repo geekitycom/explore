@@ -13,6 +13,8 @@ import { screenPixels } from './colors.ts';
 const MIN_SCALE = 1;
 const MAX_SCALE = 24;
 const PAN_STEP = 40;
+/** Mirrors --paper in style.css. */
+const PAPER = '#fff4dd';
 
 type View = { scale: number; cx: number; cy: number };
 
@@ -119,6 +121,21 @@ export function mapView(data: WorldMap) {
       ctx.fillStyle = color;
       ctx.fillText(label, x + w / 2, y - pad - 3 * dpr);
     };
+    ctx.font = `${11 * dpr}px 'Pixelify Sans', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    for (const { x, y, name } of data.names) {
+      const px = ox + x * s;
+      const py = oy + y * s;
+      ctx.fillStyle = '#141b1b';
+      ctx.fillRect(px - 2.5 * dpr, py - 2.5 * dpr, 5 * dpr, 5 * dpr);
+      ctx.fillStyle = PAPER;
+      ctx.fillRect(px - 1.5 * dpr, py - 1.5 * dpr, 3 * dpr, 3 * dpr);
+      ctx.lineWidth = 3 * dpr;
+      ctx.strokeStyle = '#141b1b';
+      ctx.strokeText(name, px, py - 4 * dpr);
+      ctx.fillText(name, px, py - 4 * dpr);
+    }
     if (data.garden) marker(data.garden.sx, data.garden.sy, '#e3c16f', 'Garden');
     marker(data.you.sx, data.you.sy, '#e07aa8', 'You');
   };
@@ -211,8 +228,8 @@ export function mapView(data: WorldMap) {
       canvas.focus();
     },
     dispose: () => observer.disconnect(),
-    /** Test hook: the world-pixel scale and which screens were drawn. */
-    state: () => ({ ...view, screens: screens.map((s) => s.coord) }),
+    /** Test hook: the world-pixel scale, which screens were drawn, and the names on them. */
+    state: () => ({ ...view, screens: screens.map((s) => s.coord), names: data.names }),
   };
 }
 

@@ -7,7 +7,8 @@
     "dev": "node --watch src/main.ts --dev",
     "start": "node src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "world:wipe": "node src/wipe-world.ts"
+    "world:wipe": "node src/wipe-world.ts",
+    "names": "node src/landmark-names.ts"
   },
   "dependencies": {
     "@explore/core": "workspace:*",

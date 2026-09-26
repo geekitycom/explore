@@ -24,7 +24,7 @@ export const probe: TraceKind<'probe', typeof fields, string, z.output<typeof re
       hidesFeature: trace.hides ?? false,
       recipe: { family: 'rock', params: { stone: 'granite', size: 0.6 } },
     }),
-    bubble: (trace) => trace.label,
+    bubble: (trace) => (trace.label ? { text: trace.label } : undefined),
     interact: (_here, spot) =>
       spot.mine
         ? {

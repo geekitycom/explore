@@ -20,6 +20,7 @@ import {
 } from './props.ts';
 import { rock, type RockParams } from './rock.ts';
 import { rosette, type RosetteParams } from './rosette.ts';
+import { signpost, type SignpostParams } from './signpost.ts';
 import { tree, type TreeParams } from './tree.ts';
 
 export { CAIRN_MAX } from './cairn.ts';
@@ -40,6 +41,7 @@ export type {
   ReedsParams,
   RockParams,
   RosetteParams,
+  SignpostParams,
   TreeParams,
 };
 
@@ -57,6 +59,7 @@ type FamilyParams = {
   bones: BonesParams;
   grave: GraveParams;
   cairn: CairnParams;
+  signpost: SignpostParams;
 };
 
 export type Family = keyof FamilyParams;
@@ -80,6 +83,7 @@ const FAMILIES: { [F in Family]: (params: FamilyParams[F], rng: Rng) => Sprite }
   bones,
   grave,
   cairn,
+  signpost,
 };
 
 export const RECIPE_FAMILIES = Object.keys(FAMILIES) as Family[];
@@ -117,4 +121,5 @@ export const SAMPLE_RECIPES: { [F in Family]: Recipe & { family: F } } = {
     params: { form: 'headstone', material: 'stone', earth: 'grass', moss: 'sage' },
   },
   cairn: { family: 'cairn', params: { stones: ['stone', 'granite', 'stone', 'sand', 'stone'] } },
+  signpost: { family: 'signpost', params: { wood: 'bark' } },
 };

@@ -2,7 +2,6 @@ import {
   SCREEN_PX_H,
   SCREEN_PX_W,
   TILE,
-  bubblesAt,
   inScreen,
   type Avatar,
   type Place,
@@ -16,7 +15,8 @@ import type { Art } from '../art/load.ts';
 import { buildScene, drawScene, type Scene } from '../art/scene.ts';
 import { bakeTerrain } from '../art/terrain.ts';
 import type { Renderer } from './game.ts';
-import { hereOf, type Aim } from './hands.ts';
+import { namePoint } from '../ui/bubbles.ts';
+import type { Aim } from './hands.ts';
 import type { GameState } from './state.ts';
 
 const FRAME_MS = 140;
@@ -153,9 +153,10 @@ export function canvasRenderer(canvas: HTMLCanvasElement, bounds: HTMLElement, a
         !reducedMotion.matches,
       );
       if (aim) outline(aim);
-      for (const a of actors) label(a.name, a.x, a.y - TILE);
-      for (const { tile, text } of bubblesAt(hereOf(state, you, Date.now())))
-        label(text, (tile.tx + 0.5) * TILE, tile.ty * TILE);
+      for (const a of actors) {
+        const at = namePoint(a.x, a.y);
+        label(a.name, at.x, at.y);
+      }
 
       if (state.phase === 'travelling') {
         ctx.fillStyle = 'rgba(20, 27, 27, 0.35)';

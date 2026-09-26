@@ -272,6 +272,83 @@ legend {
   display: none;
 }
 
+.bubbles {
+  position: absolute;
+  inset: 3px;
+  container-type: size;
+  pointer-events: none;
+}
+
+.bubble {
+  --tail: 50%;
+  position: absolute;
+  width: max-content;
+  max-width: min(15rem, 70cqw);
+  margin-bottom: 6px;
+  padding: 0.35rem 0.6rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  box-shadow: 0 3px 0 var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.25;
+  pointer-events: auto;
+  transform: translateX(calc(-1 * var(--tail)));
+}
+
+.bubble-start {
+  --tail: 14px;
+}
+
+.bubble-end {
+  --tail: calc(100% - 14px);
+}
+
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: var(--tail);
+  bottom: -9px;
+  width: 8px;
+  height: 8px;
+  background: var(--paper);
+  border: solid var(--ink);
+  border-width: 0 3px 3px 0;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.bubble p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bubble-text {
+  font-size: 1.05rem;
+}
+
+.bubble-line {
+  font-style: italic;
+}
+
+.bubble .bubble-by {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 0.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.bubble-by span {
+  overflow-wrap: anywhere;
+}
+
+.bubble-by .link {
+  flex: none;
+  font-size: 0.8rem;
+}
+
 .inventory-bar {
   --bar-dark: #345a52;
   --bar-face: #74a334;
@@ -436,6 +513,41 @@ legend {
 .avatar-form h2 {
   margin: 0;
   font-size: 1.2rem;
+}
+
+.naming-dialog {
+  width: min(28rem, calc(100vw - 32px));
+  padding: 1rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink-soft);
+}
+
+.naming-dialog::backdrop {
+  background: #141b1bb3;
+}
+
+.naming-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.naming-form h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.naming-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.naming-form .count {
+  justify-self: end;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
 }
 
 .dialog-actions {

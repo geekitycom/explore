@@ -173,7 +173,9 @@ describe('promptAt', () => {
 describe('bubblesAt', () => {
   test("shows a labelled trace's text in reach and nothing out of reach", () => {
     const place = placeOf(uniformScreen(), [probeAt(11, 8, 'hello'), probeAt(13, 7, 'far off')]);
-    expect(bubblesAt(here(place))).toEqual([{ tile: { tx: 11, ty: 8 }, text: 'hello' }]);
+    expect(bubblesAt(here(place))).toEqual([
+      { tile: { tx: 11, ty: 8 }, kind: 'probe', bubble: { text: 'hello' } },
+    ]);
     expect(bubblesAt(here(placeOf(uniformScreen(), [probeAt(11, 8)])))).toEqual([]);
   });
 });

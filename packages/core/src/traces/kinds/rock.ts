@@ -61,7 +61,7 @@ export const rock: TraceKind<'rock', typeof fields, RampName, never> = traceKind
     const n = trace.stack.length;
     if (n < 2) return undefined;
     const counts = `${plural(n, 'stone', 'stones')}, ${plural(builders(trace.stack), 'builder', 'builders')}`;
-    return n === CAIRN_MAX ? `Complete cairn: ${counts}` : `Cairn: ${counts}`;
+    return { text: n === CAIRN_MAX ? `Complete cairn: ${counts}` : `Cairn: ${counts}` };
   },
   interact: (_here, spot) => {
     const stack = stackOn(spot);

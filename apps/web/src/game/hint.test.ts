@@ -22,9 +22,9 @@ describe('hintText', () => {
     expect(hintText({ ...base, stillSince: base.now - 500 })).toBe('E  Pick up the probe');
   });
 
-  test('an offer shows its label as is', () => {
-    const offer: Prompt = { kind: 'offer', label: 'Name this place', compose: 'probe' };
-    expect(hintText({ ...base, stillSince: 0, prompt: offer })).toBe('Name this place');
+  test('an offer is taken with the same key as an act', () => {
+    const offer: Prompt = { kind: 'offer', label: 'Name this place', compose: 'landmark' };
+    expect(hintText({ ...base, stillSince: 0, prompt: offer })).toBe('E  Name this place');
   });
 
   test('without a prompt the walking tip shows only while it is due', () => {

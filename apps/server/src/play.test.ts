@@ -14,19 +14,28 @@ import {
   SCREEN_H,
   SCREEN_PX_W,
   SCREEN_RECORD_VERSION,
+  TILE,
   bare,
   canOccupy,
   decodeScreen,
   encodeScreen,
+  inArea,
+  isWalkable,
+  landmarkOn,
   parseInventory,
+  parseTraces,
+  placeOf,
   REASONS,
   seamOpenings,
   secretGarden,
+  siteOf,
   type Avatar,
   type LayerId,
   type Pose,
+  type ScreenCoord,
   type ScreenRecord,
   type ServerMessage,
+  type Tile,
 } from '@explore/core';
 import { serve } from '@hono/node-server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -34,10 +43,11 @@ import WebSocket from 'ws';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
 import { saveInventory } from './inventory.ts';
+import { clearName, landmarkNames } from './names.ts';
 import { createGame } from './play.ts';
 import type { Conn } from './presence.ts';
 import { insertUser } from './users.ts';
-import { getScreen, loadPlayerState, savePlayerState } from './world.ts';
+import { getScreen, loadPlayerState, loadWorld, savePlayerState } from './world.ts';
 
 type Running = { db: DatabaseSync; base: string; stop: () => Promise<void> };
 
@@ -154,6 +164,7 @@ type WorldMap = {
   layer: string;
   you: { sx: number; sy: number };
   garden: { sx: number; sy: number } | null;
+  names: { x: number; y: number; name: string }[];
   screens: ScreenRecord[];
 };
 
@@ -672,6 +683,140 @@ describe('traces', () => {
       { kind: 'probe' },
       { kind: 'sign' },
     ]);
+  });
+});
+
+/** The first screen out from the garden that holds a landmark's centre. */
+function landmarkScreen(db: DatabaseSync): ScreenCoord {
+  const world = loadWorld(db);
+  for (let r = 1; r < 20; r++) {
+    for (let sy = -r; sy <= r; sy++) {
+      for (let sx = -r; sx <= r; sx++) {
+        const coord = { layer: OVERWORLD, sx, sy };
+        if (Math.max(Math.abs(sx), Math.abs(sy)) === r && landmarkOn(world, coord)) return coord;
+      }
+    }
+  }
+  throw new Error('no landmark near the garden');
+}
+
+/** Standing on `tile`, facing north. */
+const poseOn = ({ tx, ty }: Tile): Pose => ({
+  x: (tx + 0.5) * TILE,
+  y: (ty + 1) * TILE - 2,
+  dir: 'n',
+  moving: false,
+});
+
+/**
+ * Alice and Bob beside a landmark's signpost spot. Alice first stands anywhere on the screen,
+ * which opens it and settles the landmark there, then both come back beside the spot.
+ */
+async function atLandmark() {
+  const running = await start();
+  const { base, db } = running;
+  const aliceCookie = await signup(base, 'alice');
+  const bobCookie = await signup(base, 'bob');
+  const coord = landmarkScreen(db);
+  savePlayerState(db, 1, { coord, pose: SPAWN });
+  const scout = await connect(base, aliceCookie);
+  const seen = await nextOf(scout, 'screen');
+  await scout.close();
+  const place = placeOf(decodeScreen(seen.screen), parseTraces(seen.traces));
+  const site = siteOf({ place })!;
+  const stand = [
+    { tx: site.tx, ty: site.ty + 1 },
+    { tx: site.tx, ty: site.ty - 1 },
+    { tx: site.tx + 1, ty: site.ty },
+    { tx: site.tx - 1, ty: site.ty },
+  ].find((t) => isWalkable(place, t.tx, t.ty) && inArea(site.area, t))!;
+  savePlayerState(db, 1, { coord, pose: poseOn(stand) });
+  savePlayerState(db, 2, { coord, pose: poseOn(stand) });
+  const alice = await connect(base, aliceCookie);
+  await nextOf(alice, 'screen');
+  const bob = await connect(base, bobCookie);
+  await nextOf(bob, 'screen');
+  await nextOf(alice, 'join');
+  return { ...running, alice, bob, coord, site };
+}
+
+const nameIt = (name: string, line = '') => ({
+  t: 'act',
+  action: { kind: 'landmark', input: { op: 'name', name, line } },
+});
+
+describe('landmarks', () => {
+  it('lets the first to save name a landmark, and tells the second who did', async () => {
+    const { alice, bob, site } = await atLandmark();
+    alice.send(nameIt('Old Stones', 'Where the hares run'));
+    bob.send(nameIt('Bob Town'));
+
+    const named = {
+      t: 'traces',
+      changes: [
+        {
+          put: {
+            ...site,
+            named: {
+              name: 'Old Stones',
+              line: 'Where the hares run',
+              by: { id: 1, name: 'alice' },
+              at: expect.any(Number) as unknown,
+            },
+          },
+        },
+      ],
+    };
+    expect(await alice.next()).toEqual(named);
+    expect(await bob.next()).toEqual(named);
+    expect(await bob.next()).toEqual({ t: 'refused', reason: 'alice named this place first.' });
+    await expectNothingPending(alice);
+  });
+
+  it('records a report of the words as they stood, once per reporter', async () => {
+    const { alice, bob, db, site } = await atLandmark();
+    alice.send(nameIt('Rude Word'));
+    await nextOf(alice, 'traces');
+    await nextOf(bob, 'traces');
+
+    const report = { t: 'report', tx: site.tx, ty: site.ty, kind: 'landmark' };
+    bob.send(report);
+    bob.send(report);
+    alice.send(report);
+    alice.send(nameIt('Nice Word'));
+    await nextOf(alice, 'traces');
+    await nextOf(bob, 'traces');
+
+    const rows = db.prepare('SELECT kind, reporter, snapshot FROM trace_reports').all() as {
+      kind: string;
+      reporter: number;
+      snapshot: string;
+    }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: 'landmark', reporter: 2 });
+    expect(JSON.parse(rows[0]!.snapshot)).toMatchObject({ named: { name: 'Rude Word' } });
+  });
+
+  it('shows names on the map until the namer or an admin clears them', async () => {
+    const { alice, bob, base, db, coord, site } = await atLandmark();
+    const cookie = await signup(base, 'carol');
+    const onMap = { x: coord.sx * 20 + site.tx + 0.5, y: coord.sy * 15 + site.ty + 0.5 };
+    alice.send(nameIt('Old Stones'));
+    await nextOf(alice, 'traces');
+    expect((await fetchMap(base, cookie)).names).toEqual([{ ...onMap, name: 'Old Stones' }]);
+
+    alice.send({ t: 'act', action: { kind: 'landmark', input: { op: 'clear' } } });
+    expect((await nextOf(alice, 'traces')).changes).toEqual([{ put: site }]);
+    expect((await fetchMap(base, cookie)).names).toEqual([]);
+
+    await nextOf(bob, 'traces');
+    await nextOf(bob, 'traces');
+    bob.send(nameIt('Bob Town'));
+    await nextOf(bob, 'traces');
+    expect(landmarkNames(db)).toMatchObject([{ coord, name: 'Bob Town', by: 'bob' }]);
+    expect(clearName(db, coord)).toBe('Bob Town');
+    expect(landmarkNames(db)).toEqual([]);
+    expect((await fetchMap(base, cookie)).names).toEqual([]);
   });
 });
 

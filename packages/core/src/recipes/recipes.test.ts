@@ -60,7 +60,7 @@ function opaqueColours(s: Sprite): Set<Hex> {
 }
 
 describe('recipes', () => {
-  test('cover the thirteen families', () => {
+  test('cover the fourteen families', () => {
     expect(RECIPE_FAMILIES.sort()).toEqual(
       [
         'bones',
@@ -75,6 +75,7 @@ describe('recipes', () => {
         'reeds',
         'rock',
         'rosette',
+        'signpost',
         'tree',
       ].sort(),
     );

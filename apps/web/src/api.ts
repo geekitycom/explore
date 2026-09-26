@@ -61,6 +61,8 @@ export type WorldMap = {
   layer: string;
   you: { layer: string; sx: number; sy: number };
   garden: { layer: string; sx: number; sy: number } | null;
+  /** Named landmarks, at their signposts, in world tiles. */
+  names: { x: number; y: number; name: string }[];
   screens: unknown[];
 };
 

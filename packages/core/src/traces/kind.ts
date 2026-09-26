@@ -81,6 +81,15 @@ export type Look = {
   readonly recipe: Recipe | undefined;
 };
 
+/** What a trace says to a player standing by it: the words, a second line, and who left them. */
+export type Bubble = {
+  readonly text: string;
+  readonly line?: string;
+  readonly by?: { readonly id: number; readonly name: string };
+  /** What comes before the author's name; 'by' when absent. */
+  readonly credit?: string;
+};
+
 export type Limits = { readonly carry?: number } & Readonly<Record<string, number>>;
 
 export type Carry<V, T> = {
@@ -104,7 +113,7 @@ export type TraceKindSpec<K extends string, S extends z.ZodRawShape, V, I> = {
   readonly limits?: Limits;
   solid(trace: TraceOf<K, S>): boolean;
   look(trace: TraceOf<K, S>, ground: Ground, now: number): Look;
-  bubble?(trace: TraceOf<K, S>, now: number): string | undefined;
+  bubble?(trace: TraceOf<K, S>, now: number): Bubble | undefined;
   /** E or Space on the faced tile; undefined means the tile is not this kind's business. */
   interact?(here: Here, spot: Spot<TraceOf<K, S>>): Verdict<TraceOf<K, S>> | undefined;
   /** A screen-wide idle prompt not tied to the faced tile. */

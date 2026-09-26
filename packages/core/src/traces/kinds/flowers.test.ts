@@ -200,7 +200,7 @@ describe('flowers on a grave', () => {
 
   test('say who left them while they are there', () => {
     const left = withChanges(grave, done(leave(grave, T0, poppies)).changes);
-    const bubbles = (d: number) => bubblesAt(here(left, days(d))).map((b) => b.text);
+    const bubbles = (d: number) => bubblesAt(here(left, days(d))).map((b) => b.bubble.text);
     expect(bubbles(0)).toEqual(['Common poppy, left by wren']);
     expect(bubbles(4)).toEqual(['Common poppy, left by wren']);
     expect(bubbles(5)).toEqual([]);

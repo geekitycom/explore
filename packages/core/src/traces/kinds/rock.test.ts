@@ -168,7 +168,7 @@ test('a cairn up close shows its stones and builders, and says when it is comple
     { stone: 'granite' },
     ...Array.from({ length: CAIRN_MAX - 1 }, (_, i) => ({ stone: 'sand' as const, by: i % 4 })),
   ]);
-  const text = (trace: Trace) => bubblesAt(here(placeOf(uniformScreen(), [trace])))[0]?.text;
+  const text = (trace: Trace) => bubblesAt(here(placeOf(uniformScreen(), [trace])))[0]?.bubble.text;
   expect(text(growing)).toBe('Cairn: 3 stones, 1 builder');
   expect(text(full)).toBe(`Complete cairn: ${CAIRN_MAX} stones, 4 builders`);
   expect(text(cairnOf([{ stone: 'sand', by: 3 }]))).toBeUndefined();

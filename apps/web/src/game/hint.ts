@@ -23,6 +23,6 @@ export type HintInput = {
 export function hintText({ now, stillSince, message, prompt, tip }: HintInput): string | undefined {
   if (message && now - message.at < MESSAGE_MS) return message.text;
   if (stillSince === undefined || now - stillSince < STILL_MS) return undefined;
-  if (prompt) return prompt.kind === 'act' ? `E  ${prompt.label}` : prompt.label;
+  if (prompt) return `E  ${prompt.label}`;
   return tip ? WALK_TIP : undefined;
 }

@@ -4,7 +4,7 @@ import type { BiomeCell } from './biome.ts';
 import type { ScreenRecord } from './codec.ts';
 import { tileX, tileY } from './traces/fields.ts';
 import { SLOTS, type inventorySchema } from './traces/inventory.ts';
-import { actionSchema, type traceSchema } from './traces/registry.ts';
+import { TRACE_KIND_NAMES, actionSchema, type traceSchema } from './traces/registry.ts';
 import { DIRS, SCREEN_PX_H, SCREEN_PX_W, type Pose } from './world.ts';
 
 /** Walking speed in screen pixels per second. */
@@ -43,6 +43,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
     ty: tileY,
   }),
   z.object({ t: z.literal('act'), action: actionSchema }),
+  z.object({ t: z.literal('report'), tx: tileX, ty: tileY, kind: z.enum(TRACE_KIND_NAMES) }),
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;

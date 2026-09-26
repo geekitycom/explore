@@ -1,9 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite';
 import {
+  kindNamed,
   kindsInOrder,
   placeOf,
   resolve,
   screenKey,
+  traceKey,
   traceSchema,
   withChanges,
   type Act,
@@ -13,6 +15,7 @@ import {
   type Screen,
   type ScreenCoord,
   type Trace,
+  type TraceAddress,
   type TraceChange,
   type World,
 } from '@explore/core';
@@ -148,4 +151,39 @@ export function perform(store: TraceStore, player: Player, act: Act, now: number
       player.conn.send({ t: 'inventory', stacks: [...outcome.inventory] });
     }
   }
+}
+
+/**
+ * Records a player's report of someone else's words on a trace, keeping the words as they stood
+ * so a later rename cannot hide them. The same report of the same words counts once.
+ */
+export function reportTrace(
+  db: DatabaseSync,
+  player: Player,
+  address: TraceAddress,
+  now: number,
+): void {
+  const { place } = player.room;
+  const trace = place.traces.get(traceKey(address, address.kind));
+  const said = trace && kindNamed(trace.kind).bubble?.(trace, now);
+  if (!trace || !said?.by || said.by.id === player.user.id) return;
+  const { layer, sx, sy } = place.screen.coord;
+  const row = [
+    layer,
+    sx,
+    sy,
+    trace.tx,
+    trace.ty,
+    trace.kind,
+    player.user.id,
+    JSON.stringify(trace),
+  ];
+  db.prepare(
+    `INSERT INTO trace_reports (layer, sx, sy, tx, ty, kind, reporter, snapshot, created_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+     WHERE NOT EXISTS (
+       SELECT 1 FROM trace_reports WHERE layer = ? AND sx = ? AND sy = ? AND tx = ? AND ty = ?
+         AND kind = ? AND reporter = ? AND snapshot = ?
+     )`,
+  ).run(...row, now, ...row);
 }

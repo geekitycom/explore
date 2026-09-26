@@ -30,7 +30,8 @@ export const flowers: TraceKind<'flowers', typeof fields, string, never> = trace
     const form = graveBunch(trace.at, now);
     return { hidesFeature: false, recipe: form && recipeOf(trace.species, form) };
   },
-  bubble: (trace, now) => graveBunch(trace.at, now) && `${trace.species}, left by ${trace.by.name}`,
+  bubble: (trace, now) =>
+    graveBunch(trace.at, now) ? { text: `${trace.species}, left by ${trace.by.name}` } : undefined,
   carry: {
     variant: species,
     full: 'You cannot carry any more flowers.',

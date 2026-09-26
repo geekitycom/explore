@@ -87,6 +87,7 @@ test('LIMITS is the one table of per-kind limits', () => {
         "freshDays": 3,
         "goneDays": 5,
       },
+      "landmark": {},
       "picked": {
         "regrowDays": 2,
       },

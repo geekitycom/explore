@@ -7,6 +7,7 @@ import {
   refuse,
   traceKey,
   type AnyKind,
+  type Bubble,
   type Here,
   type Plan,
   type Refusal,
@@ -158,13 +159,15 @@ export function promptAt(here: Here): Prompt | undefined {
   return undefined;
 }
 
-/** Bubble text of traces on tiles in reach. */
-export function bubblesAt(here: Here): { tile: Tile; text: string }[] {
-  const bubbles: { tile: Tile; text: string }[] = [];
+export type Said = { readonly tile: Tile; readonly kind: TraceKindName; readonly bubble: Bubble };
+
+/** The bubbles of traces on tiles in reach. */
+export function bubblesAt(here: Here): Said[] {
+  const said: Said[] = [];
   for (const trace of here.place.traces.values()) {
     if (!inReach(here.me.pose, trace)) continue;
-    const text = kindNamed(trace.kind).bubble?.(trace, here.now);
-    if (text) bubbles.push({ tile: { tx: trace.tx, ty: trace.ty }, text });
+    const bubble = kindNamed(trace.kind).bubble?.(trace, here.now);
+    if (bubble) said.push({ tile: { tx: trace.tx, ty: trace.ty }, kind: trace.kind, bubble });
   }
-  return bubbles;
+  return said;
 }
