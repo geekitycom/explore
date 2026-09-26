@@ -78,6 +78,36 @@ const migrations: readonly string[] = [
     PRIMARY KEY (layer, sx, sy)
   ) WITHOUT ROWID;
   INSERT OR IGNORE INTO visits (layer, sx, sy) SELECT layer, sx, sy FROM player_state;`,
+  `CREATE TABLE traces (
+    layer TEXT NOT NULL,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    tx INTEGER NOT NULL,
+    ty INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (layer, sx, sy, tx, ty, kind)
+  ) WITHOUT ROWID;
+  CREATE INDEX traces_kind ON traces(kind);
+  CREATE TABLE trace_reports (
+    id INTEGER PRIMARY KEY,
+    layer TEXT NOT NULL,
+    sx INTEGER NOT NULL,
+    sy INTEGER NOT NULL,
+    tx INTEGER NOT NULL,
+    ty INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    reporter INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    snapshot TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE inventories (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    items TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );`,
 ];
 
 /**

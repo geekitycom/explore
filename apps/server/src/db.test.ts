@@ -31,7 +31,10 @@ test('upgrading a world from before visits maps only the screens players are sta
   const { user_version: version } = db.prepare('PRAGMA user_version').get() as {
     user_version: number;
   };
-  db.exec(`DROP TABLE visits; PRAGMA user_version = ${version - 1}`);
+  db.exec(
+    `DROP TABLE inventories; DROP TABLE trace_reports; DROP TABLE traces; DROP TABLE visits;
+     PRAGMA user_version = ${version - 2}`,
+  );
   db.close();
 
   db = openDatabase(path);

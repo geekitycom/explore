@@ -166,7 +166,7 @@ it('wipes a world whose records cannot be lifted, so the reset always stays avai
 
   const db = openDatabase(path, { upgradeRecords: false });
   expect(rows(db).every((row) => (JSON.parse(row.data) as { v: number }).v === 3)).toBe(true);
-  expect(wipeWorld(db)).toEqual({ screens: FIXTURE_SCREENS, players: 1 });
+  expect(wipeWorld(db)).toEqual({ screens: FIXTURE_SCREENS, players: 1, traces: 0 });
   expect(rows(db)).toHaveLength(1);
   db.close();
 });

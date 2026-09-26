@@ -6,21 +6,24 @@ import {
   SCREEN_PX_H,
   SCREEN_PX_W,
   WALK_SPEED,
+  allTraces,
   arrivalPose,
-  bare,
   canOccupy,
   clientMessageSchema,
   encodeScreen,
   neighborCoord,
   screenBiome,
   seamOpenings,
+  slotOf,
   type ClientMessage,
   type Dir,
   type Pose,
   type ScreenCoord,
 } from '@explore/core';
 import { Chunks } from './chunks.ts';
+import { loadInventory } from './inventory.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
+import { TraceStore, perform } from './traces.ts';
 import type { User } from './users.ts';
 import { ensureGarden, loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 
@@ -49,37 +52,44 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
   return result.success ? result.data : undefined;
 }
 
+const tileOf = ({ tx, ty }: { tx: number; ty: number }) => ({ tx, ty });
+
 export type Game = ReturnType<typeof createGame>;
 
 export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => number } = {}) {
   ensureGarden(db);
   const chunks = new Chunks(db);
   const presence = new Presence();
+  const store = new TraceStore(db, presence);
   const online = new Map<number, Player>();
 
   const roomAt = (coord: ScreenCoord, userId: number) =>
-    presence.room(coord, () => chunks.screenAt(coord, userId));
+    presence.room(coord, () => store.open(coord, chunks.screenAt(coord, userId), loadWorld(db)));
 
   const save = (player: Player) => {
-    savePlayerState(db, player.user.id, { coord: player.room.screen.coord, pose: player.pose });
+    savePlayerState(db, player.user.id, {
+      coord: player.room.place.screen.coord,
+      pose: player.pose,
+    });
     player.dirty = false;
   };
 
   const isLive = (player: Player) => online.get(player.user.id) === player;
 
   const sendScreen = (player: Player) => {
-    recordVisit(db, player.room.screen.coord);
+    const { screen } = player.room.place;
+    recordVisit(db, screen.coord);
     const others = presence.enter(player);
     player.conn.send({
       t: 'screen',
-      screen: encodeScreen(player.room.screen),
-      traces: [],
-      patch: screenBiome(loadWorld(db), player.room.screen.coord).cell,
+      screen: encodeScreen(screen),
+      traces: allTraces(player.room.place),
+      patch: screenBiome(loadWorld(db), screen.coord).cell,
       you: player.pose,
       others,
-      inventory: [],
+      inventory: [...player.inventory],
     });
-    chunks.prefetchAround(player.room.screen.coord, player.user.id);
+    chunks.prefetchAround(screen.coord, player.user.id);
   };
 
   const correct = (player: Player) =>
@@ -89,7 +99,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
     const elapsed = Math.min((now() - player.acceptedAt) / 1000, MAX_ELAPSED_S);
     const budget = WALK_SPEED * elapsed * SPEED_SLACK + DISTANCE_SLACK_PX;
     const distance = Math.hypot(pose.x - player.pose.x, pose.y - player.pose.y);
-    if (distance > budget || !canOccupy(bare(player.room.screen), pose.x, pose.y)) {
+    if (distance > budget || !canOccupy(player.room.place, pose.x, pose.y)) {
       correct(player);
       return;
     }
@@ -104,14 +114,14 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
       correct(player);
       return;
     }
-    const coord = neighborCoord(player.room.screen.coord, dir);
+    const coord = neighborCoord(player.room.place.screen.coord, dir);
     const room = roomAt(coord, player.user.id);
-    const openings = seamOpenings(bare(player.room.screen), bare(room.screen), dir);
+    const openings = seamOpenings(player.room.place, room.place, dir);
     if (openings.length === 0) {
       correct(player);
       return;
     }
-    const pose = arrivalPose(bare(room.screen), dir, player.pose, openings);
+    const pose = arrivalPose(room.place, dir, player.pose, openings);
     presence.exit(player);
     player.room = room;
     player.pose = pose;
@@ -142,6 +152,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
         pose: saved?.pose ?? { ...GARDEN_SPAWN, moving: false },
         acceptedAt: now(),
         dirty: false,
+        inventory: loadInventory(db, user.id),
       };
       online.set(user.id, player);
       sendScreen(player);
@@ -160,8 +171,16 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
           travel(player, message.dir);
           break;
         case 'interact':
-        case 'use':
+          perform(db, store, player, { verb: 'interact', tile: tileOf(message) }, now());
+          break;
+        case 'use': {
+          const slot = slotOf(message.slot);
+          if (slot !== undefined)
+            perform(db, store, player, { verb: 'use', slot, tile: tileOf(message) }, now());
+          break;
+        }
         case 'act':
+          perform(db, store, player, { verb: 'act', ...message.action }, now());
           break;
       }
     },

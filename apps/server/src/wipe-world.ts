@@ -7,7 +7,7 @@ const dbPath = resolve(process.env.DB_PATH ?? './data/explore.db');
 
 if (!process.argv.includes('--yes')) {
   console.error(
-    `This deletes every generated screen and saved position in ${dbPath}.\n` +
+    `This deletes every generated screen, trace, saved position, and inventory in ${dbPath}.\n` +
       'Accounts are kept. Stop the server first, then run:\n\n  pnpm world:wipe --yes\n',
   );
   process.exit(1);
@@ -18,9 +18,9 @@ if (!existsSync(dbPath)) {
 }
 
 const db = openDatabase(dbPath, { upgradeRecords: false });
-const { screens, players } = wipeWorld(db);
+const { screens, players, traces } = wipeWorld(db);
 db.close();
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 console.log(
-  `Wiped ${dbPath}: removed ${plural(screens, 'screen')} and ${plural(players, 'saved position')}. The secret garden is back.`,
+  `Wiped ${dbPath}: removed ${plural(screens, 'screen')}, ${plural(traces, 'trace')}, and ${plural(players, 'saved position')}. The secret garden is back.`,
 );

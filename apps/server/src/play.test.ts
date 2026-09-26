@@ -18,6 +18,8 @@ import {
   canOccupy,
   decodeScreen,
   encodeScreen,
+  parseInventory,
+  REASONS,
   seamOpenings,
   secretGarden,
   type Avatar,
@@ -27,10 +29,11 @@ import {
   type ServerMessage,
 } from '@explore/core';
 import { serve } from '@hono/node-server';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
+import { saveInventory } from './inventory.ts';
 import { createGame } from './play.ts';
 import type { Conn } from './presence.ts';
 import { insertUser } from './users.ts';
@@ -196,6 +199,12 @@ const TO_EAST_EDGE: [number, number][] = [
 async function expectNothingPending(client: Client) {
   client.send({ t: 'move', x: 0, y: 0, dir: 'n', moving: true });
   expect((await client.next()).t).toBe('correct');
+}
+
+/** Like expectNothingPending, for a client that is watching someone walk. */
+async function expectOnlyMovesPending(client: Client) {
+  client.send({ t: 'move', x: 0, y: 0, dir: 'n', moving: true });
+  expect((await nextAfterMoves(client)).t).toBe('correct');
 }
 
 async function travelEast(client: Client) {
@@ -542,6 +551,127 @@ describe('world socket', () => {
 
     second.send({ t: 'move', x: 162, y: 202, dir: 'e', moving: true });
     expect(await bob.next()).toMatchObject({ t: 'moved', id: 1, x: 162 });
+  });
+});
+
+/** Two probes, as nothing in play grants one yet. */
+const PROBES = parseInventory([{ kind: 'probe', variant: 'probe', count: 2 }]);
+const PROBE_STAND = { x: 200, y: 202 };
+/** East of PROBE_STAND, where a probe blocks nobody's way. */
+const PROBE_TILE = { tx: 13, ty: 12 };
+
+/** Alice (id 1, holding two probes) walks east of the spawn; Bob (id 2) stays at the spawn. */
+async function probeGarden(dbPath?: string) {
+  const running = await start(dbPath);
+  const aliceCookie = await signup(running.base, 'alice');
+  const bobCookie = await signup(running.base, 'bob');
+  saveInventory(running.db, 1, PROBES);
+  const alice = await connect(running.base, aliceCookie);
+  expect((await nextOf(alice, 'screen')).inventory).toEqual([...PROBES]);
+  const bob = await connect(running.base, bobCookie);
+  await nextOf(bob, 'screen');
+  await nextOf(alice, 'join');
+  walk(alice, SPAWN, [PROBE_STAND.x, PROBE_STAND.y]);
+  return { ...running, alice, bob, aliceCookie };
+}
+
+describe('traces', () => {
+  it('shows a placed probe to everyone on the screen and spends it, not only to the placer', async () => {
+    const { alice, bob } = await probeGarden();
+    alice.send({ t: 'use', slot: 0, ...PROBE_TILE });
+
+    const placed = { t: 'traces', changes: [{ put: { kind: 'probe', ...PROBE_TILE, by: 1 } }] };
+    expect(await nextAfterMoves(bob)).toEqual(placed);
+    expect(await alice.next()).toEqual(placed);
+    expect(await alice.next()).toEqual({
+      t: 'inventory',
+      stacks: [{ kind: 'probe', variant: 'probe', count: 1 }],
+    });
+  });
+
+  it('refuses a use out of reach instead of placing a probe across the screen', async () => {
+    const { alice, bob } = await probeGarden();
+    alice.send({ t: 'use', slot: 0, tx: 5, ty: 5 });
+    expect(await alice.next()).toEqual({ t: 'refused', reason: 'Too far away. Walk closer.' });
+    await expectNothingPending(alice);
+    await expectOnlyMovesPending(bob);
+  });
+
+  it('refuses a probe on the tile under someone else instead of trapping them', async () => {
+    const { alice, bob } = await probeGarden();
+    walk(alice, PROBE_STAND, [184, 202]);
+    alice.send({ t: 'use', slot: 0, tx: 10, ty: 12 });
+    expect(await alice.next()).toEqual({ t: 'refused', reason: REASONS.someone });
+    await expectOnlyMovesPending(bob);
+  });
+
+  it('picks a probe back up for everyone and returns it to the hand that took it', async () => {
+    const { alice, bob } = await probeGarden();
+    alice.send({ t: 'use', slot: 0, ...PROBE_TILE });
+    await nextOf(alice, 'traces');
+    await nextOf(alice, 'inventory');
+    expect((await nextAfterMoves(bob)).t).toBe('traces');
+
+    alice.send({ t: 'interact', ...PROBE_TILE });
+    const taken = { t: 'traces', changes: [{ drop: { ...PROBE_TILE, kind: 'probe' } }] };
+    expect(await bob.next()).toEqual(taken);
+    expect(await alice.next()).toEqual(taken);
+    expect(await alice.next()).toEqual({ t: 'inventory', stacks: [...PROBES] });
+  });
+
+  it('drops an act whose payload does not parse, yet routes a valid one to its kind', async () => {
+    const { alice, bob } = await probeGarden();
+    alice.send({ t: 'act', action: { kind: 'probe', input: { tx: 99, ty: 0, label: 'x' } } });
+    alice.send({ t: 'act', action: { kind: 'sign', input: {} } });
+    alice.send({ t: 'act' });
+    await expectNothingPending(alice);
+
+    alice.send({ t: 'act', action: { kind: 'probe', input: { ...PROBE_TILE, label: 'hi' } } });
+    expect(await alice.next()).toEqual({ t: 'refused', reason: 'No probe there.' });
+    await expectOnlyMovesPending(bob);
+  });
+
+  it('keeps a placed probe and the spent inventory across a restart on a file database', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'explore-play-'));
+    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+    const path = join(dir, 'explore.db');
+
+    const first = await probeGarden(path);
+    first.alice.send({ t: 'use', slot: 0, ...PROBE_TILE });
+    await nextOf(first.alice, 'traces');
+    await nextOf(first.alice, 'inventory');
+    await first.alice.close();
+    await first.bob.close();
+    await first.stop();
+
+    const second = await start(path);
+    const again = await connect(second.base, first.aliceCookie);
+    const resumed = await nextOf(again, 'screen');
+    expect(resumed.traces).toEqual([{ kind: 'probe', ...PROBE_TILE, by: 1 }]);
+    expect(resumed.inventory).toEqual([{ kind: 'probe', variant: 'probe', count: 1 }]);
+  });
+
+  it('skips a stored trace it cannot parse without deleting it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    cleanups.push(() => warn.mockRestore());
+    const { base, db } = await start();
+    const cookie = await signup(base, 'alice');
+    const insert = db.prepare(
+      `INSERT INTO traces (layer, sx, sy, tx, ty, kind, data, updated_by, updated_at)
+       VALUES ('overworld', 0, 0, ?, ?, ?, ?, NULL, 0)`,
+    );
+    insert.run(3, 3, 'sign', JSON.stringify({ kind: 'sign', tx: 3, ty: 3 }));
+    insert.run(4, 3, 'probe', JSON.stringify({ kind: 'probe', tx: 4, ty: 3, by: 1 }));
+
+    const alice = await connect(base, cookie);
+    expect((await nextOf(alice, 'screen')).traces).toEqual([
+      { kind: 'probe', tx: 4, ty: 3, by: 1 },
+    ]);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(db.prepare('SELECT kind FROM traces ORDER BY kind').all()).toEqual([
+      { kind: 'probe' },
+      { kind: 'sign' },
+    ]);
   });
 });
 

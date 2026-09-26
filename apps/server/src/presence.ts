@@ -1,8 +1,9 @@
 import {
   screenKey,
+  type Inventory,
+  type Place,
   type PlayerView,
   type Pose,
-  type Screen,
   type ScreenCoord,
   type ServerMessage,
 } from '@explore/core';
@@ -13,7 +14,8 @@ export type Conn = {
   close(code: number, reason: string): void;
 };
 
-type Room = { readonly screen: Screen; readonly players: Set<Player> };
+/** `place` is replaced whenever a trace on the screen changes. */
+export type Room = { place: Place; readonly players: Set<Player> };
 
 export type Player = {
   user: User;
@@ -23,6 +25,7 @@ export type Player = {
   pose: Pose;
   acceptedAt: number;
   dirty: boolean;
+  inventory: Inventory;
 };
 
 function viewOf({ user, pose }: Player): PlayerView {
@@ -33,15 +36,19 @@ function viewOf({ user, pose }: Player): PlayerView {
 export class Presence {
   readonly #rooms = new Map<string, Room>();
 
-  /** The room at `coord`, loading its screen only when nobody is there yet. */
-  room(coord: ScreenCoord, load: () => Screen): Room {
+  /** The room at `coord`, loading its place only when nobody is there yet. */
+  room(coord: ScreenCoord, load: () => Place): Room {
     const key = screenKey(coord);
     let room = this.#rooms.get(key);
     if (!room) {
-      room = { screen: load(), players: new Set() };
+      room = { place: load(), players: new Set() };
       this.#rooms.set(key, room);
     }
     return room;
+  }
+
+  peek(coord: ScreenCoord): Room | undefined {
+    return this.#rooms.get(screenKey(coord));
   }
 
   /** Adds the player to `player.room` and returns everyone who was already there. */
@@ -56,10 +63,15 @@ export class Presence {
     const { room } = player;
     room.players.delete(player);
     this.broadcast(player, { t: 'leave', id: player.user.id });
-    if (room.players.size === 0) this.#rooms.delete(screenKey(room.screen.coord));
+    if (room.players.size === 0) this.#rooms.delete(screenKey(room.place.screen.coord));
   }
 
   broadcast(from: Player, message: ServerMessage): void {
     for (const other of from.room.players) if (other !== from) other.conn.send(message);
+  }
+
+  /** Everyone in the room, the sender included. */
+  tell(room: Room, message: ServerMessage): void {
+    for (const player of room.players) player.conn.send(message);
   }
 }
