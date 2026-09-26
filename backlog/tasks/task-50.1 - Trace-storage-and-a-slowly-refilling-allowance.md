@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-26 00:07'
+updated_date: '2026-09-26 00:28'
 labels: []
 milestone: m-5
 dependencies: []
@@ -48,4 +48,6 @@ The foundation for every kind of trace. Store traces per screen position, separa
 Interaction design settled in a throwaway demo on 2026-09-25 (local only, _local/traces-demo, not in the repo). Chosen: inventory bar below the view with the carved biome panel; bottom hint bar shown only when stopped; one interact key (E or Space) for using things in the world. Rejected: text prompts while walking (too distracting), floating prompts over targets (covered the player), worn footpaths (dropped, TASK-50.5 archived). The demo found a trap when facing south: the faced tile came from a point above the feet, so a sign could land on a tile the player stood on.
 
 Signs are no longer inventory items or a daily allowance: they come from naming landmarks (TASK-50.2).
+
+Design settled by an architect arena (three candidate designs, one cross-judge). Defaults chosen: traces keyed by (tile, kind) so a grave can hold an epitaph and flowers at once; a solid trace may not go on a screen-edge tile or split the walkable ground, so nobody present, absent or arriving later is ever stranded and the client checks it with no generator data; reach is the 3x3 around the tile holding the centre of the feet box; the faced tile can overlap the player's own box facing east or west and a solid placement there is refused with 'Too close. Step back.'; inventory is its own table (one JSON row per user) and a world wipe clears traces, reports and inventories; a test-only probe kind ships in the registry, nothing in play grants it.
 <!-- SECTION:NOTES:END -->
