@@ -5,6 +5,7 @@ import {
   FENCES,
   FENCE_KINDS,
   FLORA,
+  FLOWERS,
   CLOTH_COLORS,
   HAIR_COLORS,
   HAIR_STYLES,
@@ -28,6 +29,7 @@ import {
   brokenFence,
   cornerIndex,
   drawRecipe,
+  flowerRecipe,
   generateScreen,
   secretGarden,
   type Avatar,
@@ -217,6 +219,24 @@ function showFlora() {
         });
       }
     }
+  }
+}
+
+/** Each flower regrowing after picking, in bloom, then laid on a grave fresh and wilted. */
+function showFlowers() {
+  const row = section('Flowers: sprout, bud, bloom, then left on a grave fresh and wilted');
+  const grave = drawRecipe(FLORA.meadow.grave[0]!.recipe, 0);
+  const forms = ['sprout', 'bud', undefined, 'bunch', 'wilted'] as const;
+  const cellW = TILE + 4;
+  for (const flower of FLOWERS.values()) {
+    const ctx = figure(row, flower.name, forms.length * cellW, TILE + 2);
+    ctx.fillStyle = RAMPS.grass[3];
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    forms.forEach((form, i) => {
+      if (form === 'bunch' || form === 'wilted')
+        ctx.drawImage(spriteCanvas(grave), i * cellW + 2, 1);
+      ctx.drawImage(spriteCanvas(drawRecipe(flowerRecipe(flower, form), 1)), i * cellW + 2, 1);
+    });
   }
 }
 
@@ -484,6 +504,7 @@ const SECTIONS = {
   edges: showEdges,
   world: showWorld,
   flora: showFlora,
+  flowers: showFlowers,
   recipes: showRecipes,
   fences: showFences,
   avatars: showAvatars,

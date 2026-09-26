@@ -16,3 +16,4 @@ export const rampName = z.enum(Object.keys(RAMPS) as [RampName, ...RampName[]]);
 export const userRef = z.object({ id: z.number().int(), name: z.string() });
 /** Milliseconds since the epoch. */
 export const epochMs = z.number().int().min(0);
+export const DAY_MS = 86_400_000;

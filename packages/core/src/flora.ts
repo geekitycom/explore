@@ -1,6 +1,6 @@
 import { isFence } from './fences.ts';
 import type { RampName } from './palette.ts';
-import type { BonesParams, GraveParams, Recipe, TreeParams } from './recipes/index.ts';
+import type { BonesParams, FlowerForm, GraveParams, Recipe, TreeParams } from './recipes/index.ts';
 import { tileHash } from './traces/hash.ts';
 import {
   FEATURES,
@@ -744,4 +744,24 @@ export function tilePlant(
   if (feature === 'none' || isFence(feature)) return undefined;
   const hash = tileHash(screen.coord, tx, ty, FEATURES.indexOf(feature));
   return { species: speciesAt(screen.biome, feature, hash), seed: hash >>> 8 };
+}
+
+/** A species that can be picked: a flower, not a mushroom or a grass. */
+export type Flower = Species & { readonly recipe: Extract<Recipe, { readonly family: 'flower' }> };
+
+const isFlower = (s: Species): s is Flower => s.recipe.family === 'flower';
+
+/** Every pickable species by name, across biomes. */
+export const FLOWERS: ReadonlyMap<string, Flower> = new Map(
+  Object.values(FLORA).flatMap((flora) =>
+    flora.flowers.filter(isFlower).map((s): [string, Flower] => [s.name, s]),
+  ),
+);
+
+export function pickable(plant: Species | undefined): Flower | undefined {
+  return plant && isFlower(plant) ? plant : undefined;
+}
+
+export function flowerRecipe(flower: Flower, form: FlowerForm | undefined): Recipe {
+  return form ? { family: 'flower', params: { ...flower.recipe.params, form } } : flower.recipe;
 }

@@ -159,9 +159,17 @@ export type FlowerParams = {
   readonly centre?: RampName;
   /** Blossoms per clump, at most. */
   readonly blossoms: number;
+  /** Absent in bloom. */
+  readonly form?: FlowerForm;
 };
 
+/** A picked clump regrows as a sprout, then a bud; a bunch is picked flowers laid down, then wilted. */
+export type FlowerForm = 'sprout' | 'bud' | 'bunch' | 'wilted';
+
+const BUD: Stamp = ['1', '2'];
+
 export function flower(p: FlowerParams, rng: Rng): Sprite {
+  if (p.form === 'bunch' || p.form === 'wilted') return bunch(p, p.form === 'wilted', rng);
   const c = new Canvas(TILE, TILE);
   const leaves = tones(ramp(p.leaves));
   const petals = tones(ramp(p.petals));
@@ -178,13 +186,62 @@ export function flower(p: FlowerParams, rng: Rng): Sprite {
     const x = clamp(stemX - Math.floor(bloomW / 2), 1, TILE - 1 - bloomW);
     return { x, stemX, y: 3 + Math.floor(rng() * 4) };
   });
+  if (p.form === 'sprout') {
+    stamp(c, leafBase.slice(1), bx, baseTop + 1, { '1': leaves.lit, '2': leaves.shaded });
+    c.outline();
+    return c.toSprite();
+  }
+  const budding = p.form === 'bud';
   for (const h of heads) {
-    for (let y = h.y + bloom.length; y < baseTop + 1; y++) c.set(h.stemX, y, leaves.shaded);
+    const top = budding ? h.y + bloom.length + 1 : h.y + bloom.length;
+    for (let y = top; y < baseTop + 1; y++) c.set(h.stemX, y, leaves.shaded);
   }
   stamp(c, leafBase, bx, baseTop, { '1': leaves.lit, '2': leaves.shaded });
   for (const h of heads) {
-    stamp(c, bloom, h.x, h.y, { '1': petals.lit, '2': petals.shaded, c: centre });
+    if (budding)
+      stamp(c, BUD, h.stemX, h.y + bloom.length - 1, { '1': petals.shaded, '2': leaves.lit });
+    else stamp(c, bloom, h.x, h.y, { '1': petals.lit, '2': petals.shaded, c: centre });
   }
+  c.outline();
+  return c.toSprite();
+}
+
+/**
+ * Picked flowers laid down, heads to the right: `s` stem, `l` the tie, `1` `2` `d` petals from
+ * lit to dark, `c` the eye.
+ */
+const BUNCH: Stamp = [
+  '........1....',
+  '..1....1c2.1.',
+  '.1c2.s..2.1c2',
+  '..2.s.s.s.s2.',
+  '...s.sslss...',
+  '.sssssss.....',
+];
+const WILTED: Stamp = [
+  '.............',
+  '......ss.....',
+  '....ss..ss...',
+  '..2s.s..s.s..',
+  '.dcd.s.s..2c.',
+  '..sssslsss.d.',
+];
+
+function bunch(p: FlowerParams, wilted: boolean, rng: Rng): Sprite {
+  const c = new Canvas(TILE, TILE);
+  const leaves = tones(ramp(p.leaves));
+  const petals = tones(ramp(p.petals));
+  const centre = p.centre ? tones(ramp(p.centre)).shaded : ramp(p.petals)[0]!;
+  const shape = wilted ? WILTED : BUNCH;
+  const mirrored = rng() < 0.5 ? shape.map((row) => [...row].reverse().join('')) : shape;
+  stamp(c, mirrored, 1, FOOT - shape.length + 1, {
+    s: wilted ? leaves.dark : leaves.shaded,
+    l: leaves.lit,
+    '1': petals.lit,
+    '2': petals.shaded,
+    d: petals.dark,
+    c: centre,
+  });
   c.outline();
   return c.toSprite();
 }

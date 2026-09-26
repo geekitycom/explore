@@ -1,10 +1,11 @@
 ---
 id: TASK-50.4
 title: Flowers picked and left at graves
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-25 22:55'
+updated_date: '2026-09-26 01:15'
 labels: []
 milestone: m-5
 dependencies:
@@ -29,6 +30,16 @@ Players pick flowers from the flower patches that grow in the world and carry th
 - [ ] #5 Flower sprites come from the species recipes in FLORA and pass pnpm lint:art
 - [ ] #6 A picked plant regrows through visible stages, sprout then bud then full flower, over its regrowth days, and can only be picked again once it is a full flower; each stage is a recipe of the species that passes pnpm lint:art
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Flower recipe gains an optional form: sprout, bud (regrowth stages), bunch (fresh on a grave) and wilted; every flower species at every form joins the recipe style-lint list and the art gallery.
+2. Kind 'picked' (kinds/picked.ts): a trace {at} on a picked flower tile; hides the generated plant and draws sprout, bud, then the full species by elapsed time; E on a flower-family plant gains a 'flowers' item of that species, refused while regrowing.
+3. Kind 'flowers' (kinds/flowers.ts): carried item keyed by species name; use on a grave puts {species, by, at}; fresh then wilted then gone by elapsed time from the stored timestamp and Here.now; refusals for non-graves and graves already holding flowers; bubble names who left them.
+4. Tests in core with an injected now; e2e picks a flower, leaves it on a grave, screenshots each state.
+5. lint, typecheck, test, format:check, lint:art, e2e; rebase and push.
+<!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
 
