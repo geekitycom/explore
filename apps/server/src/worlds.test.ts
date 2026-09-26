@@ -13,7 +13,7 @@ test('ensuring a home world creates it once, however often it is asked for', () 
   const home = ensureHomeWorld(db, alice.id, 5);
   expect(ensureHomeWorld(db, alice.id, 9)).toBe(home);
   expect(homeWorld(db, alice.id)).toBe(home);
-  expect(ensureHomeWorld(db, bob.id)).not.toBe(home);
+  expect(ensureHomeWorld(db, bob.id)).toBe(home + 1);
   expect(db.prepare('SELECT owner_id, host, created_at FROM worlds ORDER BY id').all()).toEqual([
     { owner_id: alice.id, host: null, created_at: 5 },
     { owner_id: bob.id, host: null, created_at: expect.any(Number) as number },

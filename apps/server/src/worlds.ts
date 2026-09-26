@@ -20,6 +20,9 @@ export const worldIdSchema = z.coerce
  * request.
  */
 export function ensureHomeWorld(db: MainDb, userId: number, now = Date.now()): WorldId {
+  const existing = homeWorld(db, userId);
+  if (existing) return existing;
+  // Checked first because an ignored INSERT still spends an AUTOINCREMENT id.
   db.prepare(
     `INSERT INTO worlds (owner_id, host, created_at) VALUES (?, NULL, ?)
      ON CONFLICT (owner_id) DO NOTHING`,
