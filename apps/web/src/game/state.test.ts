@@ -1,4 +1,12 @@
-import { DEFAULT_AVATAR, encodeScreen, secretGarden, type PlayerView } from '@explore/core';
+import {
+  DEFAULT_AVATAR,
+  allTraces,
+  encodeScreen,
+  isWalkable,
+  secretGarden,
+  type PlayerView,
+  type TraceRecord,
+} from '@explore/core';
 import { describe, expect, test } from 'vitest';
 import { applyMessage, interpolate, type GameState } from './state.ts';
 
@@ -14,13 +22,13 @@ const bob: PlayerView = {
 };
 const you = { x: 160, y: 200, dir: 'n' as const, moving: false };
 
-function playing(): GameState {
+function playing(traces: TraceRecord[] = []): GameState {
   return applyMessage(
     { phase: 'connecting' },
     {
       t: 'screen',
       screen: garden,
-      traces: [],
+      traces,
       patch: { x: 0, y: 0 },
       you,
       others: [bob],
@@ -29,12 +37,20 @@ function playing(): GameState {
   );
 }
 
+function place(state: GameState) {
+  if (state.phase === 'connecting') throw new Error('not playing');
+  return state.place;
+}
+
+/** A kind this client has never heard of, as a newer server might send. */
+const unknown = { kind: 'comet', tx: 4, ty: 4 } as unknown as TraceRecord;
+
 describe('applyMessage', () => {
   test('a screen message starts play with the decoded screen and its occupants', () => {
     const state = playing();
     expect(state.phase).toBe('playing');
     if (state.phase === 'connecting') throw new Error('unreachable');
-    expect(state.screen.coord).toEqual({ layer: 'overworld', sx: 0, sy: 0 });
+    expect(state.place.screen.coord).toEqual({ layer: 'overworld', sx: 0, sy: 0 });
     expect(state.you).toEqual(you);
     expect([...state.others.keys()]).toEqual([2]);
   });
@@ -76,6 +92,52 @@ describe('applyMessage', () => {
     const state = applyMessage(playing(), { t: 'correct', x: 10, y: 20 });
     if (state.phase === 'connecting') throw new Error('unreachable');
     expect(state.you).toEqual({ ...you, x: 10, y: 20 });
+  });
+});
+
+describe('traces and inventory', () => {
+  test('a screen arrives with its traces, dropping kinds this client does not know', () => {
+    const probe = { kind: 'probe', tx: 5, ty: 6, by: 1 } as const;
+    expect(isWalkable(place(playing()), 5, 6)).toBe(true);
+    const arrived = place(playing([probe, unknown]));
+    expect(allTraces(arrived)).toEqual([probe]);
+    expect(isWalkable(arrived, 5, 6)).toBe(false);
+  });
+
+  test('trace changes put and drop, and skip unknown kinds', () => {
+    let state = applyMessage(playing(), {
+      t: 'traces',
+      changes: [{ put: { kind: 'probe', tx: 3, ty: 3, by: 1 } }, { put: unknown }],
+    });
+    expect(allTraces(place(state))).toEqual([{ kind: 'probe', tx: 3, ty: 3, by: 1 }]);
+    state = applyMessage(state, {
+      t: 'traces',
+      changes: [{ drop: { tx: 3, ty: 3, kind: 'comet' } }],
+    });
+    expect(allTraces(place(state))).toHaveLength(1);
+    state = applyMessage(state, {
+      t: 'traces',
+      changes: [{ drop: { tx: 3, ty: 3, kind: 'probe' } }],
+    });
+    expect(allTraces(place(state))).toEqual([]);
+    expect(isWalkable(place(state), 3, 3)).toBe(true);
+  });
+
+  test('an inventory message replaces the stacks, dropping what does not parse', () => {
+    const state = applyMessage(playing(), {
+      t: 'inventory',
+      stacks: [
+        { kind: 'probe', variant: 'probe', count: 2 },
+        { kind: 'comet', variant: 'x', count: 1 } as never,
+      ],
+    });
+    if (state.phase === 'connecting') throw new Error('not playing');
+    expect(state.inventory).toEqual([{ kind: 'probe', variant: 'probe', count: 2 }]);
+  });
+
+  test('a refusal changes nothing', () => {
+    const state = playing();
+    expect(applyMessage(state, { t: 'refused', reason: 'Too far away. Walk closer.' })).toBe(state);
   });
 });
 

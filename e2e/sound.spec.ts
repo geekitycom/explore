@@ -18,9 +18,11 @@ const coord = (page: Page) =>
     () =>
       (
         window as unknown as {
-          exploreState: () => { screen?: { coord: { layer: string; sx: number; sy: number } } };
+          exploreState: () => {
+            place?: { screen: { coord: { layer: string; sx: number; sy: number } } };
+          };
         }
-      ).exploreState().screen?.coord,
+      ).exploreState().place?.screen.coord,
   );
 
 test('music and ambience wait for input, follow the world, and settings persist', async ({

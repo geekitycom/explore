@@ -24,6 +24,7 @@ import {
   SKIN_TONES,
   TERRAINS,
   TILE,
+  bare,
   brokenFence,
   cornerIndex,
   drawRecipe,
@@ -76,7 +77,7 @@ function figure(parent: HTMLElement, caption: string, w: number, h: number, scal
 
 function drawScreen(ctx: CanvasRenderingContext2D, screen: Screen, art: Art, ox = 0, oy = 0) {
   ctx.drawImage(bakeTerrain(screen, art), ox, oy);
-  const sprites = featureSprites(screen).sort((a, b) => a.sortY - b.sortY);
+  const sprites = featureSprites(bare(screen)).sort((a, b) => a.sortY - b.sortY);
   for (const { image, src, dx, dy } of sprites) {
     ctx.drawImage(image, src.x, src.y, src.w, src.h, ox + dx, oy + dy, src.w, src.h);
   }
@@ -506,7 +507,7 @@ function showMotion(art: Art) {
     { label: 'garden', screen: secretGarden() },
     ...find('lake', (s) => fishes(s).length > 0 && twinkles(s).length > 20),
     ...find('forest', (s) => {
-      const f = featureSprites(s);
+      const f = featureSprites(bare(s));
       return (
         f.filter((x) => x.feature === 'tree').length >= 20 &&
         f.some((x) => x.feature === 'tallgrass')
@@ -515,7 +516,7 @@ function showMotion(art: Art) {
     ...find('meadow', (s) => butterflies(s).length >= 2),
   ];
   for (const { label, screen } of picks) {
-    const scene = buildScene(screen, art);
+    const scene = buildScene(bare(screen), art, Date.now());
     const grass = scene.features.find((f) => f.feature === 'tallgrass');
     const walker: Actor[] = grass
       ? [

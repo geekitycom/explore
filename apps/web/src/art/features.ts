@@ -6,17 +6,19 @@ import {
   drawRecipe,
   featureAt,
   fenceLinks,
+  tileHash,
   fenceSpecies,
   isFence,
-  speciesAt,
+  tileIndex,
+  tilePlant,
   type Family,
   type PlacedFeature,
+  type Place,
   type Recipe,
-  type Screen,
   type Species,
   type Sprite,
 } from '@explore/core';
-import { tileHash, type Rect } from './sheets.ts';
+import type { Rect } from './sheets.ts';
 import type { Sway } from './wind.ts';
 
 const ROUND_TREE: Sway = { still: 9, bands: 2 };
@@ -59,7 +61,7 @@ export function spriteCanvas(sprite: Sprite): HTMLCanvasElement {
   return canvas;
 }
 
-type DrawnSprite = { readonly canvas: HTMLCanvasElement; readonly sprite: Sprite };
+export type DrawnSprite = { readonly canvas: HTMLCanvasElement; readonly sprite: Sprite };
 
 const drawn = new Map<Recipe, Map<number, DrawnSprite>>();
 
@@ -96,19 +98,21 @@ export type PlacedSprite = {
 /**
  * Features anchored bottom-centre on their tile, so 32px trees overhang the tiles above. Each
  * tile's species comes from the screen's biome in the flora catalogue; a fence piece joins the
- * same fence on neighbouring tiles.
+ * same fence on neighbouring tiles. A feature a trace hides is left out.
  */
-export function featureSprites(screen: Screen): PlacedSprite[] {
+export function featureSprites({ screen, tiles }: Place): PlacedSprite[] {
   const sprites: PlacedSprite[] = [];
   for (let ty = 0; ty < SCREEN_H; ty++) {
     for (let tx = 0; tx < SCREEN_W; tx++) {
       const feature = featureAt(screen, tx, ty);
-      if (feature === 'none') continue;
-      const hash = tileHash(screen.coord, tx, ty, FEATURES.indexOf(feature));
-      const species = isFence(feature)
-        ? fenceSpecies(feature, fenceLinks(screen, tx, ty))
-        : speciesAt(screen.biome, feature, hash);
-      const { canvas, sprite } = speciesSprite(species, hash >>> 8);
+      if (feature === 'none' || tiles[tileIndex(tx, ty)]!.hidden) continue;
+      const { species, seed } = isFence(feature)
+        ? {
+            species: fenceSpecies(feature, fenceLinks(screen, tx, ty)),
+            seed: tileHash(screen.coord, tx, ty, FEATURES.indexOf(feature)) >>> 8,
+          }
+        : tilePlant(screen, tx, ty)!;
+      const { canvas, sprite } = speciesSprite(species, seed);
       const bottom = (ty + 1) * TILE;
       sprites.push({
         feature,
@@ -121,7 +125,7 @@ export function featureSprites(screen: Screen): PlacedSprite[] {
         dx: tx * TILE + TILE / 2 - sprite.anchor.x,
         dy: bottom - sprite.anchor.y,
         sortY: bottom,
-        phase: (hash >>> 20) / 0x1000,
+        phase: (seed >>> 12) / 0x1000,
       });
     }
   }

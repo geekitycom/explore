@@ -12,6 +12,7 @@ import { authView, type AuthMode } from './ui/auth.ts';
 import { avatarEditor } from './ui/avatar-editor.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
+import { inventoryBar } from './ui/inventory-bar.ts';
 import { soundSettings } from './ui/sound-settings.ts';
 import './style.css';
 
@@ -55,6 +56,11 @@ function gameView(user: User) {
   let avatar = user.avatar;
   const canvas = h('canvas', { class: 'game-canvas', 'aria-label': 'Game world' });
   const status = h('p', { class: 'status', role: 'status' });
+  const hud = {
+    bar: inventoryBar(),
+    hint: h('p', { class: 'hint-bar', role: 'status', hidden: true }),
+  };
+  const stage = h('div', { class: 'stage' }, h('div', { class: 'world' }, canvas, hud.hint));
   const view = h(
     'main',
     { class: 'game' },
@@ -84,17 +90,29 @@ function gameView(user: User) {
         'Log out',
       ),
     ),
-    h('div', { class: 'stage' }, canvas),
-    h('p', { class: 'hint' }, 'Arrow keys or WASD to walk. Walk off an edge to explore.'),
+    stage,
+    hud.bar.el,
   );
   root.replaceChildren(view);
+  Object.assign(window, {
+    exploreHud: () => ({
+      hint: hud.hint.textContent || undefined,
+      hintHidden: hud.hint.hidden,
+      slots: [...hud.bar.el.querySelectorAll<HTMLElement>('.slot')].map((slot) => ({
+        key: slot.querySelector('.slot-key')!.textContent,
+        count: slot.dataset.count === undefined ? undefined : Number(slot.dataset.count),
+      })),
+    }),
+  });
   const game = startGame(
     user,
-    canvasRenderer(canvas, art),
+    canvasRenderer(canvas, stage, art),
+    canvas,
+    hud,
     (s) => {
       status.textContent = STATUS_TEXT[s];
     },
-    (screen, patch) => {
+    ({ screen }, patch) => {
       music.play(tuneFor(screen.biome, patch));
       ambience.set(ambientMix(screen));
     },

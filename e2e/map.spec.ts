@@ -13,8 +13,9 @@ const mapScreens = (page: Page) =>
 const coord = (page: Page) =>
   page.evaluate(
     () =>
-      (window as unknown as { exploreState: () => { screen?: { coord: Coord } } }).exploreState()
-        .screen?.coord,
+      (
+        window as unknown as { exploreState: () => { place?: { screen: { coord: Coord } } } }
+      ).exploreState().place?.screen.coord,
   );
 
 /** Screens of the garden's chunk that no e2e spec walks onto, though the server stores them. */

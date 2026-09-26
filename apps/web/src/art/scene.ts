@@ -1,4 +1,4 @@
-import { TILE, type Dir, type Screen } from '@explore/core';
+import { TILE, type Dir, type Place, type Screen } from '@explore/core';
 import { featureSprites, type PlacedSprite } from './features.ts';
 import {
   butterflies,
@@ -16,13 +16,15 @@ import {
 import type { Art } from './load.ts';
 import { cell } from './sheets.ts';
 import { bakeTerrain, TERRAIN_ART } from './terrain.ts';
+import { traceSprites, type TraceSprite } from './traces.ts';
 import { gust, rustle, swaySlices } from './wind.ts';
 
-/** Everything about a screen that is worked out once and then drawn every frame. */
+/** Everything about a place that is worked out once and then drawn every frame. */
 export type Scene = {
   readonly screen: Screen;
   readonly terrain: HTMLCanvasElement;
   readonly features: readonly PlacedSprite[];
+  readonly traces: readonly TraceSprite[];
   readonly twinkles: readonly Twinkle[];
   readonly butterflies: readonly Butterfly[];
   readonly fish: readonly Fish[];
@@ -38,12 +40,20 @@ export type Actor = {
   draw(): void;
 };
 
-export function buildScene(screen: Screen, art: Art): Scene {
-  const features = featureSprites(screen);
+/** `now` (ms since the epoch) picks each trace's look; `terrain` depends only on the screen. */
+export function buildScene(
+  place: Place,
+  art: Art,
+  now: number,
+  terrain: HTMLCanvasElement = bakeTerrain(place.screen, art),
+): Scene {
+  const { screen } = place;
+  const features = featureSprites(place);
   return {
     screen,
-    terrain: bakeTerrain(screen, art),
+    terrain,
     features,
+    traces: traceSprites(place, now),
     twinkles: twinkles(screen),
     butterflies: butterflies(screen),
     fish: fishes(screen),
@@ -171,6 +181,10 @@ export function drawScene(
     ...scene.features.map((f) => ({
       sortY: f.sortY,
       draw: () => drawFeature(ctx, scene, f, clock, motion, actors),
+    })),
+    ...scene.traces.map(({ image, src, dx, dy, sortY }) => ({
+      sortY,
+      draw: () => ctx.drawImage(image, src.x, src.y, src.w, src.h, dx, dy, src.w, src.h),
     })),
     ...actors,
   ].sort((a, b) => a.sortY - b.sortY);

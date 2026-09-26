@@ -1,4 +1,4 @@
-import type { Dir } from '@explore/core';
+import { slotOf, type Dir, type Slot } from '@explore/core';
 
 const KEY_DIRS: Record<string, Dir> = {
   ArrowUp: 'n',
@@ -11,17 +11,46 @@ const KEY_DIRS: Record<string, Dir> = {
   KeyD: 'e',
 };
 
-/** Tracks held movement keys. Releases everything on blur so a key can't stick down. */
-export function keyboard() {
+export type KeyAction =
+  | { readonly kind: 'interact' }
+  | { readonly kind: 'slot'; readonly slot: Slot }
+  | { readonly kind: 'cancel' };
+
+const INTERACT: KeyAction = { kind: 'interact' };
+const CANCEL: KeyAction = { kind: 'cancel' };
+
+/** Digit1..Digit9 are slots 0..8 and Digit0 is slot 9, as on the bar. */
+function keyAction(code: string): KeyAction | undefined {
+  if (code === 'KeyE' || code === 'Space') return INTERACT;
+  if (code === 'Escape') return CANCEL;
+  const digit = /^Digit(\d)$/.exec(code)?.[1];
+  const slot = digit === undefined ? undefined : slotOf((Number(digit) + 9) % 10);
+  return slot === undefined ? undefined : { kind: 'slot', slot };
+}
+
+const within = (target: EventTarget | null, selector: string) =>
+  target instanceof Element && target.closest(selector) !== null;
+
+/** Tracks held movement keys and reports action keys. Releases everything on blur so a key can't stick down. */
+export function keyboard(onAction: (action: KeyAction) => void) {
   const held = new Set<Dir>();
   let lastPressed: Dir | undefined;
 
   const down = (event: KeyboardEvent) => {
+    if (within(event.target, 'input, textarea, [contenteditable]')) return;
     const dir = KEY_DIRS[event.code];
-    if (!dir) return;
-    event.preventDefault();
-    if (!held.has(dir)) lastPressed = dir;
-    held.add(dir);
+    if (dir) {
+      event.preventDefault();
+      if (!held.has(dir)) lastPressed = dir;
+      held.add(dir);
+      return;
+    }
+    const action = keyAction(event.code);
+    if (!action) return;
+    // Space still presses a focused button, and Escape still closes a dialog.
+    if (event.code === 'Space' && within(event.target, 'button, a, select, summary')) return;
+    if (action !== CANCEL) event.preventDefault();
+    if (!event.repeat) onAction(action);
   };
   const up = (event: KeyboardEvent) => {
     const dir = KEY_DIRS[event.code];

@@ -3,7 +3,7 @@ import { playing, signUp, unique } from './helpers.ts';
 
 type Snapshot = {
   phase: string;
-  screen?: { coord: { layer: string; sx: number; sy: number } };
+  place?: { screen: { coord: { layer: string; sx: number; sy: number } } };
   you?: { x: number; y: number };
   others?: Map<number, { name: string; x: number; y: number }>;
 };
@@ -19,7 +19,7 @@ const snapshot = (page: Page) =>
     const s = (window as unknown as { exploreState: () => Snapshot }).exploreState();
     return {
       phase: s.phase,
-      coord: s.screen?.coord,
+      coord: s.place?.screen.coord,
       you: s.you,
       others: [...(s.others?.values() ?? [])].map(({ name, x, y }) => ({ name, x, y })),
     };

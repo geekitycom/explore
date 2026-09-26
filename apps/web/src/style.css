@@ -211,6 +211,7 @@ legend {
 .game {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   height: 100vh;
   background: var(--ink);
   color: var(--paper);
@@ -218,6 +219,7 @@ legend {
 
 .game-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
   padding: 0.5rem 16px;
@@ -241,17 +243,104 @@ legend {
   overflow: hidden;
 }
 
+.world {
+  position: relative;
+}
+
 .game-canvas {
   display: block;
   border: 3px solid var(--ink-soft);
 }
 
-.hint {
+.hint-bar {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
   margin: 0;
-  padding: 0.5rem 16px;
+  padding: 0.4rem 16px;
+  background: #141b1bd9;
+  border-top: 3px solid var(--ink);
+  color: var(--paper);
+  font-size: 0.95rem;
   text-align: center;
-  color: var(--paper-edge);
-  font-size: 0.9rem;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
+.hint-bar[hidden] {
+  display: none;
+}
+
+.inventory-bar {
+  --bar-dark: #345a52;
+  --bar-face: #74a334;
+  --bar-light: #adbc3a;
+  --slot: min(3.25rem, calc((100vw - 32px - 6px - 9 * 0.4rem) / 10));
+  display: grid;
+  grid-template-columns: repeat(10, var(--slot));
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 16px;
+  background: var(--bar-face);
+  border: 3px solid var(--ink);
+  box-shadow:
+    inset 3px 3px 0 var(--bar-light),
+    inset -3px -3px 0 var(--bar-dark);
+}
+
+.slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--slot);
+  height: var(--slot);
+  padding: 0;
+  background: var(--bar-dark);
+  border: 3px solid var(--ink);
+  box-shadow:
+    inset 3px 3px 0 #141b1b80,
+    inset -2px -2px 0 var(--bar-light);
+  cursor: pointer;
+}
+
+.slot[aria-pressed='true'] {
+  outline: 3px solid var(--paper);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 5px var(--ink);
+}
+
+.slot-key {
+  position: absolute;
+  top: 1px;
+  left: 3px;
+  color: var(--paper);
+  font-size: 0.7rem;
+  line-height: 1;
+  text-shadow:
+    1px 0 var(--ink),
+    -1px 0 var(--ink),
+    0 1px var(--ink),
+    0 -1px var(--ink);
+}
+
+.slot-icon {
+  width: 75%;
+  height: 75%;
+}
+
+.slot-count {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  color: var(--paper);
+  font-size: 0.75rem;
+  line-height: 1;
+  text-shadow:
+    1px 0 var(--ink),
+    -1px 0 var(--ink),
+    0 1px var(--ink),
+    0 -1px var(--ink);
 }
 
 .sound {

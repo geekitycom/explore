@@ -2,11 +2,10 @@ import {
   SCREEN_PX_H,
   SCREEN_PX_W,
   WALK_SPEED,
-  bare,
   canOccupy,
   type Dir,
+  type Place,
   type Pose,
-  type Screen,
 } from '@explore/core';
 
 type Held = ReadonlySet<Dir>;
@@ -28,7 +27,7 @@ function facing(held: Held, current: Dir, lastPressed: Dir | undefined): Dir {
 }
 
 export function step(
-  screen: Screen,
+  place: Place,
   pose: Pose,
   held: Held,
   dtSeconds: number,
@@ -38,7 +37,6 @@ export function step(
   const dy = (held.has('s') ? 1 : 0) - (held.has('n') ? 1 : 0);
   if (dx === 0 && dy === 0) return { pose: { ...pose, moving: false }, exit: undefined };
 
-  const place = bare(screen);
   const scale = (WALK_SPEED * dtSeconds) / (dx !== 0 && dy !== 0 ? Math.SQRT2 : 1);
   let { x, y } = pose;
   if (dx !== 0 && canOccupy(place, x + dx * scale, y)) x += dx * scale;

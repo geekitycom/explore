@@ -2,17 +2,21 @@ import {
   MOVE_INTERVAL_MS,
   type Avatar,
   type BiomeCell,
+  type Place,
   type Pose,
-  type Screen,
+  type Tile,
 } from '@explore/core';
 import type { User } from '../api.ts';
+import { createHands, type Aim, type Hud } from './hands.ts';
 import { keyboard } from './input.ts';
 import { step } from './movement.ts';
 import { connect } from './net.ts';
 import { applyMessage, interpolate, type GameState } from './state.ts';
 
 export type Renderer = {
-  draw(state: GameState, you: User, clock: number): void;
+  draw(state: GameState, you: User, clock: number, aim: Aim | undefined): void;
+  /** The tile under a pointer event on the canvas. */
+  tileAt(event: MouseEvent): Tile | undefined;
   dispose(): void;
 };
 
@@ -25,22 +29,31 @@ const samePose = (a: Pose, b: Pose) =>
 export function startGame(
   initialUser: User,
   renderer: Renderer,
+  canvas: HTMLCanvasElement,
+  hud: Hud,
   onStatus: (s: GameStatus) => void,
-  onScreen: (screen: Screen, patch: BiomeCell) => void,
+  onScreen: (place: Place, patch: BiomeCell) => void,
 ) {
   let user = initialUser;
   let state: GameState = { phase: 'connecting' };
   let lastSent: Pose | undefined;
   let lastSentAt = 0;
 
-  const keys = keyboard();
+  const hands = createHands({
+    hud,
+    canvas,
+    tileAt: (event) => renderer.tileAt(event),
+    send: (message) => conn.send(message),
+  });
+  const keys = keyboard(hands.key);
   Object.assign(window, { exploreState: () => state, exploreUser: () => user });
   const conn = connect({
     onMessage: (message) => {
       state = applyMessage(state, message);
+      if (message.t === 'refused') hands.refused(message.reason, performance.now());
       if (message.t === 'screen' || message.t === 'correct') lastSent = undefined;
       if (message.t === 'screen' && state.phase !== 'connecting')
-        onScreen(state.screen, state.patch);
+        onScreen(state.place, state.patch);
     },
     onStatus,
   });
@@ -51,7 +64,7 @@ export function startGame(
     previous = now;
 
     if (state.phase === 'playing') {
-      const { pose, exit } = step(state.screen, state.you, keys.held, dt, keys.lastPressed());
+      const { pose, exit } = step(state.place, state.you, keys.held, dt, keys.lastPressed());
       state = { ...state, you: pose, others: interpolate(state.others, dt) };
       if (exit) {
         conn.send({ t: 'move', ...pose });
@@ -69,7 +82,8 @@ export function startGame(
       state = { ...state, others: interpolate(state.others, dt) };
     }
 
-    renderer.draw(state, user, now);
+    const { aim } = hands.frame(state, user, now);
+    renderer.draw(state, user, now, aim);
     frameId = requestAnimationFrame(frame);
   });
 
@@ -80,6 +94,7 @@ export function startGame(
     stop: () => {
       cancelAnimationFrame(frameId);
       keys.dispose();
+      hands.dispose();
       conn.close();
       renderer.dispose();
     },

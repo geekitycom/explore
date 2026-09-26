@@ -1,10 +1,19 @@
 import {
+  TRACE_KIND_NAMES,
   decodeScreen,
+  parseInventory,
+  parseTraces,
+  placeOf,
+  traceSchema,
+  withChanges,
   type BiomeCell,
+  type Inventory,
+  type Place,
   type PlayerView,
   type Pose,
-  type Screen,
   type ServerMessage,
+  type TraceChange,
+  type TraceChangeRecord,
 } from '@explore/core';
 
 /** Another player as drawn: their last reported pose plus where we are currently drawing them. */
@@ -14,7 +23,8 @@ export type GameState =
   | { phase: 'connecting' }
   | {
       phase: 'playing' | 'travelling';
-      screen: Screen;
+      place: Place;
+      inventory: Inventory;
       patch: BiomeCell;
       you: Pose;
       others: ReadonlyMap<number, Remote>;
@@ -26,7 +36,8 @@ export function applyMessage(state: GameState, message: ServerMessage): GameStat
   if (message.t === 'screen') {
     return {
       phase: 'playing',
-      screen: decodeScreen(message.screen),
+      place: placeOf(decodeScreen(message.screen), parseTraces(message.traces)),
+      inventory: parseInventory(message.inventory),
       patch: message.patch,
       you: message.you,
       others: new Map(message.others.map((p) => [p.id, remote(p)])),
@@ -69,10 +80,23 @@ export function applyMessage(state: GameState, message: ServerMessage): GameStat
         you: { ...state.you, x: message.x, y: message.y, moving: false },
       };
     case 'traces':
+      return { ...state, place: withChanges(state.place, message.changes.flatMap(parseChange)) };
     case 'inventory':
+      return { ...state, inventory: parseInventory(message.stacks) };
     case 'refused':
       return state;
   }
+}
+
+/** Drops a change whose kind this client does not know, so a stale tab survives a deploy. */
+function parseChange(change: TraceChangeRecord): TraceChange[] {
+  if ('put' in change) {
+    const parsed = traceSchema.safeParse(change.put);
+    return parsed.success ? [{ put: parsed.data }] : [];
+  }
+  const { tx, ty } = change.drop;
+  const kind = TRACE_KIND_NAMES.find((k) => k === change.drop.kind);
+  return kind ? [{ drop: { tx, ty, kind } }] : [];
 }
 
 /** Eases each remote player's drawn position toward their reported one. */

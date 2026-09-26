@@ -1,4 +1,4 @@
-import { WALK_SPEED, secretGarden, type Dir, type Pose } from '@explore/core';
+import { WALK_SPEED, bare, secretGarden, type Dir, type Pose } from '@explore/core';
 import { uniformScreen, withFeatures } from '@explore/core/testing';
 import { describe, expect, test } from 'vitest';
 import { step } from './movement.ts';
@@ -7,7 +7,7 @@ const at = (x: number, y: number, dir: Dir = 's'): Pose => ({ x, y, dir, moving:
 const held = (...dirs: Dir[]) => new Set(dirs);
 
 describe('step', () => {
-  const open = uniformScreen();
+  const open = bare(uniformScreen());
 
   test('walks at WALK_SPEED and faces the direction of travel', () => {
     const { pose, exit } = step(open, at(100, 100), held('e'), 0.5);
@@ -21,7 +21,7 @@ describe('step', () => {
   });
 
   test('stops at a blocking tile but slides along it', () => {
-    const rockRight = withFeatures(open, [[7, 6, 'rock']]);
+    const rockRight = bare(withFeatures(uniformScreen(), [[7, 6, 'rock']]));
     const { pose } = step(rockRight, at(7 * 16 - 6, 6 * 16 + 8), held('e', 's'), 0.1);
     expect(pose.x).toBe(7 * 16 - 6);
     expect(pose.y).toBeGreaterThan(6 * 16 + 8);
@@ -42,7 +42,7 @@ describe('step', () => {
   });
 
   test('cannot walk into the garden pond', () => {
-    const garden = secretGarden();
+    const garden = bare(secretGarden());
     let pose = at(10 * 16, 11 * 16 + 8, 'n');
     for (let i = 0; i < 60; i++) pose = step(garden, pose, held('n'), 1 / 30).pose;
     expect(pose.y).toBeGreaterThan(9 * 16);
