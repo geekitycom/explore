@@ -100,6 +100,7 @@ describe('putting a stone down', () => {
     ['a road', withCorners(uniformScreen(), [[12, 8, 'path']]), 'Keep the road clear.'],
     ['water', withCorners(uniformScreen(), [[11, 7, 'water']]), 'It would sink.'],
     ['a bush', withFeatures(uniformScreen(), [[11, 7, 'bush']]), 'Something is in the way.'],
+    ['flowers', withFeatures(uniformScreen(), [[11, 7, 'flowers']]), 'Something is in the way.'],
   ])('refuses %s with a reason', (_, screen, reason) => {
     expect(resolve(here(bare(screen), carrying(['sand', 1])), use)).toEqual({
       kind: 'refused',

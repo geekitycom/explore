@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-26 01:29'
+updated_date: '2026-09-26 01:32'
 labels: []
 milestone: m-5
 dependencies:
@@ -60,6 +60,8 @@ Per-player cairn limits removed on 2026-09-25: rocks are conserved, so stacking 
 Defaults chosen: one trace kind 'rock' per tile whose stack is [] (a generated rock taken), 1 stone (loose rock) or 2..12 (cairn); a generated rock a cairn is started on becomes its unbuilt bottom stone. Drops are refused on any tile with a water corner ('It would sink.'), a road corner ('Keep the road clear.'), a blocking feature or another kind's trace ('Something is in the way.'); edge, split and standing players come from resolve(). Stones are named Fieldstone, Granite, Sandstone. Cairn art: rows of seats per count (1; 1+1 off-centre; 2+1; 3+1; 3+2; 3+2+1; 4+2+1; 4+3+1; 4+3+1+1; 4+3+2+1; 4+3+2+1+1; 4+3+2+2+1); each stone drops onto the rows below and sinks a pixel so its dark underside is the seam; side-by-side stones get a dark seam on the stone behind; closed gaps fill with the seam shade; a mixed cairn merges the closest shades within one material, seam shade last, to stay within 8 colours. The e2e seeds stones into the inventories table (E2E_DB_PATH, now shared with workers by playwright.config.ts) because nothing grants stones in the garden.
 
 Verification: pnpm lint, typecheck, format:check, lint:art, test (605), e2e (14 incl. e2e/cairn.spec.ts). AC1-3,9: kinds/rock.test.ts through resolve() (highlands rock gives granite, carry limit 3, stacking by material, drop/refusals/split, cairn stays put, one player builds 12, complete refusal) and cairn.spec.ts in the browser. AC4: bubble test ('Complete cairn: 12 stones, 4 builders'). AC5-7: recipes/cairn.test.ts (style lint for all counts, materials, mixes and seeds; each material keeps two shades in a 3-material cairn; every added stone changes the silhouette and covers more pixels; stage 2 wider than a headstone; 12 about 1.5 tiles). AC8: rock.test.ts asserts the screen record is untouched after a pick-up; lint:art passes. Screenshots: e2e/.results/cairn-stones-in-bar.png, cairn-pick-up.png, cairn-mixed.png, cairn-mixed-view.png, cairn-gallery.png.
+
+After rebasing onto TASK-50.4: drops are also refused on any generated feature but none or a taken rock, so a rock never lands on a flower patch where the picked kind (earlier in registry order) would claim E before the rock could be picked up again.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

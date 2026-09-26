@@ -87,7 +87,8 @@ export const rock: TraceKind<'rock', typeof fields, RampName, never> = traceKind
       if (stack.length > 1) return { ok: true, label: 'Add a stone to the cairn', next: added };
       if (spot.corners.includes('water')) return refuse('It would sink.');
       if (spot.corners.includes('path')) return refuse('Keep the road clear.');
-      if (!spot.walkable || spot.traces.some((t) => t.kind !== 'rock'))
+      const bare = spot.feature === 'none' || spot.feature === 'rock';
+      if (!bare || !spot.walkable || spot.traces.some((t) => t.kind !== 'rock'))
         return refuse('Something is in the way.');
       return { ok: true, label: 'Put the stone down', next: added };
     },
