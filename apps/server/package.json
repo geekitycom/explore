@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/main.ts --dev",
-    "start": "node src/main.ts",
+    "dev": "node --env-file-if-exists=../../.env --watch src/main.ts --dev",
+    "start": "node --env-file-if-exists=../../.env src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "world:wipe": "node src/wipe-world.ts",
-    "epitaphs": "node src/epitaph-admin.ts",
-    "names": "node src/landmark-names.ts"
+    "world:wipe": "node --env-file-if-exists=../../.env src/wipe-world.ts",
+    "epitaphs": "node --env-file-if-exists=../../.env src/epitaph-admin.ts",
+    "names": "node --env-file-if-exists=../../.env src/landmark-names.ts"
   },
   "dependencies": {
     "@explore/core": "workspace:*",
