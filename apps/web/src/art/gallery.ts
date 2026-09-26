@@ -2,6 +2,7 @@ import {
   BIOMES,
   BIOME_PHOTO_PALETTES,
   BIOME_RAMPS,
+  CAIRN_MAX,
   FENCES,
   FENCE_KINDS,
   FLORA,
@@ -236,6 +237,40 @@ function showFlowers() {
       if (form === 'bunch' || form === 'wilted')
         ctx.drawImage(spriteCanvas(grave), i * cellW + 2, 1);
       ctx.drawImage(spriteCanvas(drawRecipe(flowerRecipe(flower, form), 1)), i * cellW + 2, 1);
+    });
+  }
+}
+
+const CAIRN_SEEDS = [0, 1, 2];
+
+/** Cairns from one stone to a full one, a row per material and seed, then mixed materials. */
+function showCairns() {
+  const mixed: readonly RampName[] = ['stone', 'granite', 'sand'];
+  const sets: [string, (i: number) => RampName][] = [
+    ...mixed.map((m): [string, (i: number) => RampName] => [m, () => m]),
+    ['mixed', (i) => mixed[i % mixed.length]!],
+  ];
+  const cell = 2 * TILE + 4;
+  for (const [name, stoneAt] of sets) {
+    const row = section(`Cairn: ${name}, 1 to ${CAIRN_MAX} stones`);
+    const ctx = figure(
+      row,
+      `${CAIRN_SEEDS.length} seeds`,
+      CAIRN_MAX * cell,
+      CAIRN_SEEDS.length * cell,
+    );
+    ctx.fillStyle = RAMPS.grass[3];
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    CAIRN_SEEDS.forEach((seed, r) => {
+      for (let n = 1; n <= CAIRN_MAX; n++) {
+        const stones = Array.from({ length: n }, (_, i) => stoneAt(i));
+        const sprite = drawRecipe({ family: 'cairn', params: { stones } }, seed);
+        ctx.drawImage(
+          spriteCanvas(sprite),
+          (n - 1) * cell + (cell - sprite.width) / 2,
+          (r + 1) * cell - 2 - sprite.height,
+        );
+      }
     });
   }
 }
@@ -506,6 +541,7 @@ const SECTIONS = {
   flora: showFlora,
   flowers: showFlowers,
   recipes: showRecipes,
+  cairns: showCairns,
   fences: showFences,
   avatars: showAvatars,
   motion: showMotion,

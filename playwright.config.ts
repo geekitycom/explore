@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 const PORT = 4310;
-const dbPath = join(tmpdir(), `explore-e2e-${Date.now()}.db`);
+// Workers load this file again; the env keeps them on the server's database.
+const dbPath = (process.env['E2E_DB_PATH'] ??= join(tmpdir(), `explore-e2e-${Date.now()}.db`));
 
 export default defineConfig({
   testDir: 'e2e',
