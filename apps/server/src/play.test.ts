@@ -62,7 +62,7 @@ async function start(dbPath = ':memory:'): Promise<Running> {
   let clock = 0;
   // Every clock read is a tick later, so each move sees at least one report interval pass.
   const game = createGame(db, { now: () => (clock += 100) });
-  const { app, injectWebSocket } = createApp({ db, game });
+  const { app, injectWebSocket } = createApp({ db, game, scryptCost: { N: 2 ** 4, r: 1, p: 1 } });
   let server!: Server;
   const port = await new Promise<number>((resolve) => {
     server = serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' }, (info) =>

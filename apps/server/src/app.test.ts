@@ -7,7 +7,7 @@ import { DEFAULT_AVATAR, type Avatar } from '@explore/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.ts';
 import { openDatabase } from './db.ts';
-import { verifyPassword } from './password.ts';
+import { hashPassword, verifyPassword } from './password.ts';
 import { AUTH_LIMITS } from './rate-limit.ts';
 import { createGame } from './play.ts';
 import { SESSION_TTL_MS, sessionUser } from './sessions.ts';
@@ -17,9 +17,11 @@ type App = ReturnType<typeof createApp>['app'];
 let db: DatabaseSync;
 let app: App;
 
+const scryptCost = { N: 2 ** 4, r: 1, p: 1 };
+
 beforeEach(() => {
   db = openDatabase(':memory:');
-  app = createApp({ db, game: createGame(db) }).app;
+  app = createApp({ db, game: createGame(db), scryptCost }).app;
 });
 
 afterEach(() => db.close());
@@ -74,7 +76,7 @@ describe('signup', () => {
   });
 
   it('marks the cookie Secure when secure cookies are on', async () => {
-    app = createApp({ db, game: createGame(db), secureCookies: true }).app;
+    app = createApp({ db, game: createGame(db), secureCookies: true, scryptCost }).app;
     const { res } = await signup();
     expect(res.headers.get('set-cookie')).toMatch(/Secure/);
   });
@@ -290,7 +292,7 @@ describe('rate limits', () => {
 
   describe('trust proxy', () => {
     beforeEach(() => {
-      app = createApp({ db, game: createGame(db), trustProxy: true }).app;
+      app = createApp({ db, game: createGame(db), trustProxy: true, scryptCost }).app;
     });
 
     it('keys the limit on the rightmost X-Forwarded-For entry, not a spoofed leftmost one', async () => {
@@ -358,6 +360,12 @@ describe('storage', () => {
 
     const sessions = db.prepare('SELECT token_hash FROM sessions').all();
     expect(sessions).toEqual([{ token_hash: createHash('sha256').update(token).digest('hex') }]);
+  });
+
+  it('hashes with the full scrypt cost unless told otherwise', async () => {
+    const stored = await hashPassword(PASSWORD);
+    expect(stored).toMatch(/^scrypt\$32768\$8\$1\$/);
+    expect(await verifyPassword(PASSWORD, stored)).toBe(true);
   });
 
   it('salts each password so equal passwords hash differently', async () => {

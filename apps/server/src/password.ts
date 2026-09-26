@@ -1,6 +1,8 @@
 import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
 
-const PARAMS = { N: 2 ** 15, r: 8, p: 1 };
+export type ScryptCost = { N: number; r: number; p: number };
+
+export const SCRYPT_COST: ScryptCost = { N: 2 ** 15, r: 8, p: 1 };
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
 const MAX_MEMORY = 256 * 1024 * 1024;
@@ -13,10 +15,10 @@ function derive(password: string, salt: Buffer, params: ScryptOptions): Promise<
   });
 }
 
-export async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string, cost = SCRYPT_COST): Promise<string> {
   const salt = randomBytes(SALT_LENGTH);
-  const key = await derive(password, salt, PARAMS);
-  const { N, r, p } = PARAMS;
+  const key = await derive(password, salt, cost);
+  const { N, r, p } = cost;
   return `scrypt$${N}$${r}$${p}$${salt.toString('base64')}$${key.toString('base64')}`;
 }
 
@@ -32,11 +34,12 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return key.length === expected.length && timingSafeEqual(key, expected);
 }
 
-let decoyHash: Promise<string> | undefined;
+const decoyHashes = new WeakMap<ScryptCost, Promise<string>>();
 
 // Unknown usernames still pay for one scrypt so response time does not reveal which usernames exist.
-export async function rejectUnknownUser(password: string): Promise<false> {
-  decoyHash ??= hashPassword('decoy-password');
+export async function rejectUnknownUser(password: string, cost = SCRYPT_COST): Promise<false> {
+  let decoyHash = decoyHashes.get(cost);
+  if (!decoyHash) decoyHashes.set(cost, (decoyHash = hashPassword('decoy-password', cost)));
   await verifyPassword(password, await decoyHash);
   return false;
 }

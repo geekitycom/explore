@@ -7,7 +7,13 @@ import { deleteCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { z } from 'zod';
-import { hashPassword, rejectUnknownUser, verifyPassword } from './password.ts';
+import {
+  hashPassword,
+  rejectUnknownUser,
+  SCRYPT_COST,
+  verifyPassword,
+  type ScryptCost,
+} from './password.ts';
 import type { Game } from './play.ts';
 import type { Player } from './presence.ts';
 import { AUTH_LIMITS, createRateLimiter, type RateLimiter } from './rate-limit.ts';
@@ -69,12 +75,15 @@ export function createApp({
   game,
   secureCookies = false,
   trustProxy = false,
+  scryptCost = SCRYPT_COST,
 }: {
   db: DatabaseSync;
   game: Game;
   secureCookies?: boolean;
   /** Behind a reverse proxy, key rate limits on the client address it reports. */
   trustProxy?: boolean;
+  /** Tests lower it so hashing does not dominate their run time. */
+  scryptCost?: ScryptCost;
 }) {
   const startSession = (c: Context, user: User) => {
     const { token, expiresAt } = createSession(db, user.id);
@@ -139,7 +148,7 @@ export function createApp({
     const body = await parseBody(c, signupBody);
     const user = insertUser(db, {
       username: body.username,
-      passwordHash: await hashPassword(body.password),
+      passwordHash: await hashPassword(body.password, scryptCost),
       avatar: body.avatar,
     });
     if (!user) throw new ApiError(409, 'username_taken', 'That username is taken', 'username');
@@ -156,7 +165,7 @@ export function createApp({
     const found = findUserCredentials(db, body.username);
     const ok = found
       ? await verifyPassword(body.password, found.passwordHash)
-      : await rejectUnknownUser(body.password);
+      : await rejectUnknownUser(body.password, scryptCost);
     if (!found || !ok) {
       throw new ApiError(401, 'invalid_credentials', 'Wrong username or password');
     }

@@ -142,12 +142,12 @@ describe('epitaph writing', () => {
     const screenRow = JSON.stringify(getScreen(first.db, coord));
 
     for (let i = 0; i < pending.length; i++) {
-      await vi.waitFor(() => expect(model.asked).toHaveLength(i + 1));
+      await vi.waitFor(() => expect(model.asked).toHaveLength(i + 1), { interval: 1 });
       const { request, answer } = model.asked[i]!;
       expect(request.messages.at(-1)!.content).toMatch(/buried in a (graveyard|burial ground) in /);
       answer({ kind: 'ok', text: `"Here lies ${model.nameIn(request)}, gone fishing."` });
     }
-    await vi.waitFor(() => expect(writtenIn(bob)).toHaveLength(pending.length));
+    await vi.waitFor(() => expect(writtenIn(bob)).toHaveLength(pending.length), { interval: 1 });
     expect(model.asked).toHaveLength(pending.length);
     expect(writtenIn(alice)).toEqual(writtenIn(bob));
     for (const trace of writtenIn(bob)) {
@@ -174,7 +174,7 @@ describe('epitaph writing', () => {
     first.leave(1);
     const alice = first.join(1);
     const pending = epitaphsIn(screenOf(alice).traces);
-    await vi.waitFor(() => expect(failing).toHaveBeenCalledTimes(pending.length));
+    await vi.waitFor(() => expect(failing).toHaveBeenCalledTimes(pending.length), { interval: 1 });
     first.leave(1);
     first.join(1);
     await new Promise((r) => setTimeout(r, 20));
@@ -187,9 +187,9 @@ describe('epitaph writing', () => {
     const model = fakeModel();
     const again = open(path, model.writeText);
     const bob = again.join(2);
-    await vi.waitFor(() => expect(model.asked).toHaveLength(1));
+    await vi.waitFor(() => expect(model.asked).toHaveLength(1), { interval: 1 });
     model.asked[0]!.answer({ kind: 'ok', text: 'Rest well.' });
-    await vi.waitFor(() => expect(writtenIn(bob)).toHaveLength(1));
+    await vi.waitFor(() => expect(writtenIn(bob)).toHaveLength(1), { interval: 1 });
   });
 
   it('shows seed epitaphs and asks nothing when no provider is configured', () => {
@@ -208,11 +208,11 @@ describe('epitaph writing', () => {
     const { db, join } = open(path, model.writeText);
     const alice = join(1);
     const [grave, other] = epitaphsIn(screenOf(alice).traces);
-    await vi.waitFor(() => expect(model.asked).toHaveLength(1));
+    await vi.waitFor(() => expect(model.asked).toHaveLength(1), { interval: 1 });
 
     expect(setEpitaph(db, coord, grave!, 'Beloved of the crows')).toBe(grave!.text);
     model.asked[0]!.answer({ kind: 'ok', text: 'Too late' });
-    await vi.waitFor(() => expect(model.asked).toHaveLength(2));
+    await vi.waitFor(() => expect(model.asked).toHaveLength(2), { interval: 1 });
     expect(writtenIn(alice)).toEqual([]);
 
     expect(setEpitaph(db, coord, other!, undefined)).toBe(other!.text);
