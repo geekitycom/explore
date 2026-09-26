@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import { SESSION_TIMEOUT_MS } from './e2e/session.ts';
 
 const PORT = 4310;
@@ -15,9 +15,12 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,
-    channel: 'chrome',
     screenshot: 'only-on-failure',
   },
+  projects: [
+    { name: 'chrome', use: { channel: 'chrome' }, testIgnore: 'touch.spec.ts' },
+    { name: 'ipad', use: { ...devices['iPad (gen 7)'] }, testMatch: 'touch.spec.ts' },
+  ],
   webServer: {
     command: `pnpm --filter @explore/web build && node apps/server/src/main.ts`,
     env: {
