@@ -14,6 +14,7 @@ import {
   SCREEN_H,
   SCREEN_PX_W,
   SCREEN_RECORD_VERSION,
+  bare,
   canOccupy,
   decodeScreen,
   encodeScreen,
@@ -210,9 +211,11 @@ describe('world socket', () => {
     expect(await alice.next()).toEqual({
       t: 'screen',
       screen: encodeScreen(secretGarden()),
+      traces: [],
       patch: { x: 0, y: 0 },
       you: SPAWN,
       others: [],
+      inventory: [],
     });
   });
 
@@ -319,7 +322,7 @@ describe('world socket', () => {
     const screen = decodeScreen(arrival.screen);
     expect(arrival.you.dir).toBe('e');
     expect(arrival.you.x).toBeLessThan(16 + 12);
-    expect(canOccupy(screen, arrival.you.x, arrival.you.y)).toBe(true);
+    expect(canOccupy(bare(screen), arrival.you.x, arrival.you.y)).toBe(true);
 
     walk(alice, arrival.you, [2, arrival.you.y]);
     alice.send({ t: 'travel', dir: 'w' });
@@ -445,7 +448,7 @@ describe('world socket', () => {
     const edgeOf = { layer: OVERWORLD, sx: 1, sy: 1 };
     const stood = getScreen(db, edgeOf)!;
     const y = Array.from({ length: SCREEN_H }, (_, ty) => ty * 16 + 12).find((y) =>
-      canOccupy(stood, SCREEN_PX_W - 8, y),
+      canOccupy(bare(stood), SCREEN_PX_W - 8, y),
     )!;
     const pose: Pose = { x: SCREEN_PX_W - 8, y, dir: 'e', moving: false };
     savePlayerState(db, id, { coord: edgeOf, pose });
@@ -463,9 +466,9 @@ describe('world socket', () => {
     const arrival = await nextOf(alice, 'screen');
     expect(arrival.screen).toMatchObject({ sx: 2, sy: 1 });
     const fresh = decodeScreen(arrival.screen);
-    expect(canOccupy(fresh, arrival.you.x, arrival.you.y)).toBe(true);
+    expect(canOccupy(bare(fresh), arrival.you.x, arrival.you.y)).toBe(true);
     const entered = Math.floor(arrival.you.y / 16);
-    expect(seamOpenings(stood, fresh, 'e').map(([, ty]) => ty)).toContain(entered);
+    expect(seamOpenings(bare(stood), bare(fresh), 'e').map(([, ty]) => ty)).toContain(entered);
     expect(db.prepare('SELECT gen_version FROM screens WHERE sx = 2 AND sy = 1').get()).toEqual({
       gen_version: GENERATOR_VERSION,
     });

@@ -7,6 +7,7 @@ import {
   SCREEN_PX_W,
   WALK_SPEED,
   arrivalPose,
+  bare,
   canOccupy,
   clientMessageSchema,
   encodeScreen,
@@ -72,9 +73,11 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
     player.conn.send({
       t: 'screen',
       screen: encodeScreen(player.room.screen),
+      traces: [],
       patch: screenBiome(loadWorld(db), player.room.screen.coord).cell,
       you: player.pose,
       others,
+      inventory: [],
     });
     chunks.prefetchAround(player.room.screen.coord, player.user.id);
   };
@@ -86,7 +89,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
     const elapsed = Math.min((now() - player.acceptedAt) / 1000, MAX_ELAPSED_S);
     const budget = WALK_SPEED * elapsed * SPEED_SLACK + DISTANCE_SLACK_PX;
     const distance = Math.hypot(pose.x - player.pose.x, pose.y - player.pose.y);
-    if (distance > budget || !canOccupy(player.room.screen, pose.x, pose.y)) {
+    if (distance > budget || !canOccupy(bare(player.room.screen), pose.x, pose.y)) {
       correct(player);
       return;
     }
@@ -103,12 +106,12 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
     }
     const coord = neighborCoord(player.room.screen.coord, dir);
     const room = roomAt(coord, player.user.id);
-    const openings = seamOpenings(player.room.screen, room.screen, dir);
+    const openings = seamOpenings(bare(player.room.screen), bare(room.screen), dir);
     if (openings.length === 0) {
       correct(player);
       return;
     }
-    const pose = arrivalPose(room.screen, dir, player.pose, openings);
+    const pose = arrivalPose(bare(room.screen), dir, player.pose, openings);
     presence.exit(player);
     player.room = room;
     player.pose = pose;
@@ -155,6 +158,10 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
           break;
         case 'travel':
           travel(player, message.dir);
+          break;
+        case 'interact':
+        case 'use':
+        case 'act':
           break;
       }
     },

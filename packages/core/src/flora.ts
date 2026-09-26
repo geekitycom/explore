@@ -1,6 +1,15 @@
+import { isFence } from './fences.ts';
 import type { RampName } from './palette.ts';
 import type { BonesParams, GraveParams, Recipe, TreeParams } from './recipes/index.ts';
-import type { Biome, Feature, FenceFeature } from './world.ts';
+import { tileHash } from './traces/hash.ts';
+import {
+  FEATURES,
+  featureAt,
+  type Biome,
+  type Feature,
+  type FenceFeature,
+  type Screen,
+} from './world.ts';
 
 export type PlacedFeature = Exclude<Feature, 'none'>;
 
@@ -723,4 +732,16 @@ export function speciesAt(biome: Biome, feature: Plant, hash: number): Species {
     if (roll < 0) return s;
   }
   return species[0]!;
+}
+
+/** The generated species on a tile and the seed it is drawn with, as the client picks them. */
+export function tilePlant(
+  screen: Screen,
+  tx: number,
+  ty: number,
+): { species: Species; seed: number } | undefined {
+  const feature = featureAt(screen, tx, ty);
+  if (feature === 'none' || isFence(feature)) return undefined;
+  const hash = tileHash(screen.coord, tx, ty, FEATURES.indexOf(feature));
+  return { species: speciesAt(screen.biome, feature, hash), seed: hash >>> 8 };
 }

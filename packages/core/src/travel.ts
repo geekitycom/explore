@@ -1,5 +1,5 @@
-import type { Pose } from './protocol.ts';
-import { FEET, canOccupy, isTileWalkable } from './walk.ts';
+import type { Place } from './place.ts';
+import { FEET, canOccupy, isWalkable } from './walk.ts';
 import {
   DIR_DELTA,
   SCREEN_H,
@@ -11,7 +11,7 @@ import {
   screenKey,
   tileIndex,
   type Dir,
-  type Screen,
+  type Pose,
 } from './world.ts';
 
 type Point = { x: number; y: number };
@@ -58,7 +58,7 @@ const ENTRY: Record<Dir, Edge> = {
  * The tiles of `to`'s entry edge a player walking `dir` off `from` can step onto: walkable on
  * both sides of the seam. Read from the two screens as stored, so it holds however each was made.
  */
-export function seamOpenings(from: Screen, to: Screen, dir: Dir): [number, number][] {
+export function seamOpenings(from: Place, to: Place, dir: Dir): [number, number][] {
   const { dx, dy } = DIR_DELTA[dir];
   const entry: [number, number][] =
     dx === 0
@@ -66,15 +66,15 @@ export function seamOpenings(from: Screen, to: Screen, dir: Dir): [number, numbe
       : Array.from({ length: SCREEN_H }, (_, ty) => [dx > 0 ? 0 : SCREEN_W - 1, ty]);
   return entry.filter(
     ([tx, ty]) =>
-      isTileWalkable(to, tx, ty) &&
-      isTileWalkable(from, tx + dx * (SCREEN_W - 1), ty + dy * (SCREEN_H - 1)),
+      isWalkable(to, tx, ty) &&
+      isWalkable(from, tx + dx * (SCREEN_W - 1), ty + dy * (SCREEN_H - 1)),
   );
 }
 
 /** Arrivals are kept to these so a nudge along an edge never strands a player in a pocket. */
-function reachableFrom(screen: Screen, entries: readonly [number, number][]): boolean[] {
+function reachableFrom(place: Place, entries: readonly [number, number][]): boolean[] {
   const seen = Array<boolean>(SCREEN_W * SCREEN_H).fill(false);
-  const stack = entries.filter(([tx, ty]) => isTileWalkable(screen, tx, ty));
+  const stack = entries.filter(([tx, ty]) => isWalkable(place, tx, ty));
   for (const [tx, ty] of stack) seen[tileIndex(tx, ty)] = true;
   while (stack.length > 0) {
     const [x, y] = stack.pop()!;
@@ -84,7 +84,7 @@ function reachableFrom(screen: Screen, entries: readonly [number, number][]): bo
       [x, y + 1],
       [x, y - 1],
     ] as const) {
-      if (!inScreen(nx, ny) || seen[tileIndex(nx, ny)] || !isTileWalkable(screen, nx, ny)) continue;
+      if (!inScreen(nx, ny) || seen[tileIndex(nx, ny)] || !isWalkable(place, nx, ny)) continue;
       seen[tileIndex(nx, ny)] = true;
       stack.push([nx, ny]);
     }
@@ -98,7 +98,7 @@ function reachableFrom(screen: Screen, entries: readonly [number, number][]): bo
  * leads on from one of `entries`, stepping a tile inward at a time if the whole edge is blocked.
  */
 export function arrivalPose(
-  target: Screen,
+  target: Place,
   dir: Dir,
   from: Point,
   entries: readonly [number, number][],
@@ -117,5 +117,5 @@ export function arrivalPose(
       }
     }
   }
-  throw new Error(`screen ${screenKey(target.coord)} has no walkable position`);
+  throw new Error(`screen ${screenKey(target.screen.coord)} has no walkable position`);
 }

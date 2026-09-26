@@ -15,6 +15,7 @@ import {
   SCREEN_RECORD_VERSION,
   SCREEN_W,
   TILE,
+  bare,
   chunkScreens,
   cornerAt,
   inScreen,
@@ -134,7 +135,10 @@ it('builds new screens around the old ones that share their edges and open onto 
           }
         }
       }
-      if (old.has(screenKey(other.coord)) && seamOpenings(other, screen, dir).length === 0) {
+      if (
+        old.has(screenKey(other.coord)) &&
+        seamOpenings(bare(other), bare(screen), dir).length === 0
+      ) {
         closed.push(`${screenKey(coord)} ${dir}`);
       }
     }
@@ -199,7 +203,7 @@ function reachable(
         (dy < 0 && ty === 0);
       const other = screens.get(screenKey(neighborCoord(screen.coord, dir)));
       if (!atEdge || !other) continue;
-      for (const [ox, oy] of seamOpenings(screen, other, dir)) {
+      for (const [ox, oy] of seamOpenings(bare(screen), bare(other), dir)) {
         if (ox + dx * (SCREEN_W - 1) === tx && oy + dy * (SCREEN_H - 1) === ty)
           visit(other, ox, oy);
       }

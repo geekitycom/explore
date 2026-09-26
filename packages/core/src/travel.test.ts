@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { crossingTiles } from './generate.ts';
+import { bare } from './place.ts';
 import { createRng } from './rng.ts';
 import { generateRegion, uniformScreen, withCorners, withFeatures, worldOf } from './testing.ts';
 import { arrivalPose, seamOpenings } from './travel.ts';
@@ -28,18 +29,20 @@ describe('seamOpenings', () => {
       [1, 8, 'water'],
       [0, 9, 'water'],
     ]);
-    const openings = seamOpenings(from, to, 'e');
+    const openings = seamOpenings(bare(from), bare(to), 'e');
     expect(openings.every(([tx]) => tx === 0)).toBe(true);
     const rows = openings.map(([, ty]) => ty);
     expect(rows).not.toContain(3);
     expect(rows).not.toContain(5);
     expect(rows).not.toContain(8);
     expect(rows).toHaveLength(SCREEN_H - 3);
-    expect(seamOpenings(to, from, 'w').map(([, ty]) => ty)).toEqual(rows);
-    expect(seamOpenings(open, withFeatures(open, [[4, 0, 'bush']]), 's')).toHaveLength(
+    expect(seamOpenings(bare(to), bare(from), 'w').map(([, ty]) => ty)).toEqual(rows);
+    expect(seamOpenings(bare(open), bare(withFeatures(open, [[4, 0, 'bush']])), 's')).toHaveLength(
       SCREEN_W - 1,
     );
-    expect(seamOpenings(open, open, 'n').every(([, ty]) => ty === SCREEN_H - 1)).toBe(true);
+    expect(seamOpenings(bare(open), bare(open), 'n').every(([, ty]) => ty === SCREEN_H - 1)).toBe(
+      true,
+    );
   });
 
   test('includes every crossing the generator opened on a seam', () => {
@@ -50,7 +53,7 @@ describe('seamOpenings', () => {
       for (const dir of DIRS) {
         const to = screens.get(screenKey(neighborCoord(from.coord, dir)));
         if (!to) continue;
-        const openings = new Set(seamOpenings(from, to, dir).map((t) => t.join()));
+        const openings = new Set(seamOpenings(bare(from), bare(to), dir).map((t) => t.join()));
         const corner = ([tx, ty]: [number, number]) =>
           (tx === 0 || tx === SCREEN_W - 1) && (ty === 0 || ty === SCREEN_H - 1);
         const edge = crossingTiles(world, to.coord).filter(
@@ -71,25 +74,25 @@ describe('seamOpenings', () => {
 
 describe('arrivalPose', () => {
   test('arrives just inside the opposite edge at the mirrored coordinate, facing the walk', () => {
-    expect(arrivalPose(open, 'e', { x: 318, y: 100 }, anywhere)).toEqual({
+    expect(arrivalPose(bare(open), 'e', { x: 318, y: 100 }, anywhere)).toEqual({
       x: 8,
       y: 100,
       dir: 'e',
       moving: false,
     });
-    expect(arrivalPose(open, 'w', { x: 2, y: 100 }, anywhere)).toEqual({
+    expect(arrivalPose(bare(open), 'w', { x: 2, y: 100 }, anywhere)).toEqual({
       x: SCREEN_PX_W - 8,
       y: 100,
       dir: 'w',
       moving: false,
     });
-    expect(arrivalPose(open, 's', { x: 150, y: 238 }, anywhere)).toEqual({
+    expect(arrivalPose(bare(open), 's', { x: 150, y: 238 }, anywhere)).toEqual({
       x: 150,
       y: 14,
       dir: 's',
       moving: false,
     });
-    expect(arrivalPose(open, 'n', { x: 150, y: 3 }, anywhere)).toEqual({
+    expect(arrivalPose(bare(open), 'n', { x: 150, y: 3 }, anywhere)).toEqual({
       x: 150,
       y: SCREEN_PX_H - 1,
       dir: 'n',
@@ -98,8 +101,11 @@ describe('arrivalPose', () => {
   });
 
   test('clamps a coordinate that was past the corner back onto the screen', () => {
-    expect(arrivalPose(open, 'e', { x: 330, y: -20 }, anywhere)).toMatchObject({ x: 8, y: 4 });
-    expect(arrivalPose(open, 's', { x: 400, y: 250 }, anywhere)).toMatchObject({
+    expect(arrivalPose(bare(open), 'e', { x: 330, y: -20 }, anywhere)).toMatchObject({
+      x: 8,
+      y: 4,
+    });
+    expect(arrivalPose(bare(open), 's', { x: 400, y: 250 }, anywhere)).toMatchObject({
       x: SCREEN_PX_W - 5,
       y: 14,
     });
@@ -110,15 +116,15 @@ describe('arrivalPose', () => {
       [0, 6, 'rock'],
       [0, 7, 'tree'],
     ]);
-    const pose = arrivalPose(blocked, 'e', { x: 318, y: 118 }, anywhere);
+    const pose = arrivalPose(bare(blocked), 'e', { x: 318, y: 118 }, anywhere);
     expect(pose).toEqual({ x: 8, y: 132, dir: 'e', moving: false });
-    expect(canOccupy(blocked, 8, 131)).toBe(false);
+    expect(canOccupy(bare(blocked), 8, 131)).toBe(false);
   });
 
   test('prefers the closer side when nudging', () => {
     const blocked = withFeatures(open, [[0, 6, 'rock']]);
-    expect(arrivalPose(blocked, 'e', { x: 318, y: 99 }, anywhere).y).toBe(95);
-    expect(arrivalPose(blocked, 'e', { x: 318, y: 108 }, anywhere).y).toBe(116);
+    expect(arrivalPose(bare(blocked), 'e', { x: 318, y: 99 }, anywhere).y).toBe(95);
+    expect(arrivalPose(bare(blocked), 'e', { x: 318, y: 108 }, anywhere).y).toBe(116);
   });
 
   test('steps a tile inward when the whole edge is blocked', () => {
@@ -127,7 +133,7 @@ describe('arrivalPose', () => {
       ty,
       'bush',
     ]);
-    const pose = arrivalPose(withFeatures(open, column), 'e', { x: 318, y: 100 }, anywhere);
+    const pose = arrivalPose(bare(withFeatures(open, column)), 'e', { x: 318, y: 100 }, anywhere);
     expect(pose).toEqual({ x: 24, y: 100, dir: 'e', moving: false });
   });
 
@@ -157,8 +163,8 @@ describe('arrivalPose', () => {
       }
       for (const dir of DIRS) {
         const from = { x: rng() * SCREEN_PX_W, y: rng() * SCREEN_PX_H };
-        const pose = arrivalPose(screen, dir, from, entries);
-        expect(canOccupy(screen, pose.x, pose.y)).toBe(true);
+        const pose = arrivalPose(bare(screen), dir, from, entries);
+        expect(canOccupy(bare(screen), pose.x, pose.y)).toBe(true);
         expect(reachable.has(`${Math.floor(pose.x / TILE)},${Math.floor(pose.y / TILE)}`)).toBe(
           true,
         );
@@ -175,8 +181,16 @@ describe('arrivalPose', () => {
       'tree',
     ]);
     const pocketed = withFeatures(uniformScreen(), wall);
-    expect(arrivalPose(pocketed, 'e', { x: 318, y: 40 }, [[5, 0]])).toMatchObject({ x: 40, y: 40 });
-    expect(arrivalPose(pocketed, 'e', { x: 318, y: 40 }, [[0, 5]])).toMatchObject({ x: 8, y: 40 });
-    expect(() => arrivalPose(pocketed, 'e', { x: 318, y: 40 }, [[1, 5]])).toThrow(/no walkable/);
+    expect(arrivalPose(bare(pocketed), 'e', { x: 318, y: 40 }, [[5, 0]])).toMatchObject({
+      x: 40,
+      y: 40,
+    });
+    expect(arrivalPose(bare(pocketed), 'e', { x: 318, y: 40 }, [[0, 5]])).toMatchObject({
+      x: 8,
+      y: 40,
+    });
+    expect(() => arrivalPose(bare(pocketed), 'e', { x: 318, y: 40 }, [[1, 5]])).toThrow(
+      /no walkable/,
+    );
   });
 });

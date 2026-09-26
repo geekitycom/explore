@@ -2,6 +2,7 @@ import {
   SCREEN_PX_H,
   SCREEN_PX_W,
   WALK_SPEED,
+  bare,
   canOccupy,
   type Dir,
   type Pose,
@@ -37,10 +38,11 @@ export function step(
   const dy = (held.has('s') ? 1 : 0) - (held.has('n') ? 1 : 0);
   if (dx === 0 && dy === 0) return { pose: { ...pose, moving: false }, exit: undefined };
 
+  const place = bare(screen);
   const scale = (WALK_SPEED * dtSeconds) / (dx !== 0 && dy !== 0 ? Math.SQRT2 : 1);
   let { x, y } = pose;
-  if (dx !== 0 && canOccupy(screen, x + dx * scale, y)) x += dx * scale;
-  if (dy !== 0 && canOccupy(screen, x, y + dy * scale)) y += dy * scale;
+  if (dx !== 0 && canOccupy(place, x + dx * scale, y)) x += dx * scale;
+  if (dy !== 0 && canOccupy(place, x, y + dy * scale)) y += dy * scale;
 
   const moved = x !== pose.x || y !== pose.y;
   return {

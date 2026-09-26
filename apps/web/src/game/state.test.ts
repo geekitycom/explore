@@ -20,9 +20,11 @@ function playing(): GameState {
     {
       t: 'screen',
       screen: garden,
+      traces: [],
       patch: { x: 0, y: 0 },
       you,
       others: [bob],
+      inventory: [],
     },
   );
 }

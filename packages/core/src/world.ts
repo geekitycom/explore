@@ -88,6 +88,9 @@ export const DIR_DELTA: Record<Dir, { readonly dx: number; readonly dy: number }
   w: { dx: -1, dy: 0 },
 };
 
+/** A player's feet, in screen pixels, and which way they face. */
+export type Pose = { x: number; y: number; dir: Dir; moving: boolean };
+
 export const OPPOSITE: Record<Dir, Dir> = { n: 's', e: 'w', s: 'n', w: 'e' };
 
 export function screenKey({ layer, sx, sy }: ScreenCoord): string {

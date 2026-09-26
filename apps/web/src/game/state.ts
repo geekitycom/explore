@@ -68,6 +68,10 @@ export function applyMessage(state: GameState, message: ServerMessage): GameStat
         phase: 'playing',
         you: { ...state.you, x: message.x, y: message.y, moving: false },
       };
+    case 'traces':
+    case 'inventory':
+    case 'refused':
+      return state;
   }
 }
 

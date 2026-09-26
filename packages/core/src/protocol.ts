@@ -2,7 +2,10 @@ import { z } from 'zod';
 import type { Avatar } from './avatar.ts';
 import type { BiomeCell } from './biome.ts';
 import type { ScreenRecord } from './codec.ts';
-import { DIRS, SCREEN_PX_H, SCREEN_PX_W, type Dir } from './world.ts';
+import { tileX, tileY } from './traces/fields.ts';
+import { SLOTS, type inventorySchema } from './traces/inventory.ts';
+import { actionSchema, type traceSchema } from './traces/registry.ts';
+import { DIRS, SCREEN_PX_H, SCREEN_PX_W, type Pose } from './world.ts';
 
 /** Walking speed in screen pixels per second. */
 export const WALK_SPEED = 72;
@@ -28,16 +31,42 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
     moving: z.boolean(),
   }),
   z.object({ t: z.literal('travel'), dir: dirSchema }),
+  z.object({ t: z.literal('interact'), tx: tileX, ty: tileY }),
+  z.object({
+    t: z.literal('use'),
+    slot: z
+      .number()
+      .int()
+      .min(0)
+      .max(SLOTS - 1),
+    tx: tileX,
+    ty: tileY,
+  }),
+  z.object({ t: z.literal('act'), action: actionSchema }),
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-export type Pose = { x: number; y: number; dir: Dir; moving: boolean };
-
 export type PlayerView = Pose & { id: number; name: string; avatar: Avatar };
 
+export type TraceRecord = z.input<typeof traceSchema>;
+export type TraceChangeRecord =
+  { put: TraceRecord } | { drop: { tx: number; ty: number; kind: string } };
+export type StackRecord = z.input<typeof inventorySchema>[number];
+
 export type ServerMessage =
-  | { t: 'screen'; screen: ScreenRecord; patch: BiomeCell; you: Pose; others: PlayerView[] }
+  | {
+      t: 'screen';
+      screen: ScreenRecord;
+      traces: TraceRecord[];
+      patch: BiomeCell;
+      you: Pose;
+      others: PlayerView[];
+      inventory: StackRecord[];
+    }
+  | { t: 'traces'; changes: TraceChangeRecord[] }
+  | { t: 'inventory'; stacks: StackRecord[] }
+  | { t: 'refused'; reason: string }
   | { t: 'join'; player: PlayerView }
   | { t: 'leave'; id: number }
   | ({ t: 'moved'; id: number } & Pose)

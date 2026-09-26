@@ -1,5 +1,6 @@
 export * from './world.ts';
 export * from './walk.ts';
+export * from './place.ts';
 export * from './codec.ts';
 export * from './avatar.ts';
 export * from './rng.ts';
@@ -18,3 +19,10 @@ export * from './sprite.ts';
 export * from './recipes/index.ts';
 export * from './flora.ts';
 export * from './fences.ts';
+export * from './traces/act.ts';
+export * from './traces/fields.ts';
+export * from './traces/hash.ts';
+export * from './traces/inventory.ts';
+export * from './traces/kind.ts';
+export * from './traces/registry.ts';
+export type { Plan } from './traces/kind.ts';

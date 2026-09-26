@@ -10,6 +10,7 @@ import {
   OVERWORLD,
   SCREEN_H,
   SCREEN_W,
+  bare,
   chunkScreens,
   cornerAt,
   encodeScreen,
@@ -111,8 +112,8 @@ it('keeps a screen stored by an older generator when its chunk is built around i
   }
   for (let cx = 0; cx < LATTICE_W; cx++)
     expect(cornerAt(south, cx, 0)).toBe(cornerAt(kept, cx, SCREEN_H));
-  expect(seamOpenings(kept, east, 'e').length).toBeGreaterThan(0);
-  expect(seamOpenings(kept, south, 's').length).toBeGreaterThan(0);
+  expect(seamOpenings(bare(kept), bare(east), 'e').length).toBeGreaterThan(0);
+  expect(seamOpenings(bare(kept), bare(south), 's').length).toBeGreaterThan(0);
 });
 
 it('generates a chunk once when two players arrive at it in the same turn', () => {
