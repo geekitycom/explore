@@ -141,10 +141,15 @@ export function startGame({
       hooks.onScreen(state.place, state.patch);
     },
     /**
-     * Leaves a visited world through a portal; `onDepart` follows once it has closed. With no
-     * connection to carry the portal, you go home at once.
+     * Leaves a visited world through a portal; `onDepart` follows once it has closed. A second
+     * call while the portal plays does nothing. With no connection to carry the portal, you go
+     * home at once.
      */
     leave: () => {
+      const leaving =
+        state.phase !== 'connecting' &&
+        state.portals.some((p) => p.kind === 'depart' && p.traveller === 'you');
+      if (leaving) return;
       if (conn.isOpen() && state.phase === 'playing') conn.send({ t: 'goHome' });
       else hooks.onDepart(undefined);
     },
