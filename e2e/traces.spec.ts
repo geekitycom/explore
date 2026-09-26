@@ -4,7 +4,7 @@ import { playing, signUp, unique } from './helpers.ts';
 type Hud = {
   hint: string | undefined;
   hintHidden: boolean;
-  slots: { key: string; count: number | undefined }[];
+  slots: { label: string; count: number | undefined }[];
 };
 
 type Coord = { layer: string; sx: number; sy: number };
@@ -43,8 +43,11 @@ test('the inventory bar and the hint bar frame the world', async ({ page }) => {
 
   await expect(page.getByRole('navigation', { name: 'Inventory' })).toBeVisible();
   const { slots } = await hud(page);
-  expect(slots.map((s) => s.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
+  expect(slots.map((s) => s.label)).toEqual(
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((key) => `Slot ${key}, empty`),
+  );
   expect(slots.every((s) => s.count === undefined)).toBe(true);
+  await expect(page.getByRole('navigation', { name: 'Inventory' })).toHaveText('');
   await expectBarUnderView(page);
 
   await page.keyboard.down('ArrowLeft');

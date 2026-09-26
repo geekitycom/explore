@@ -54,17 +54,13 @@ export function panelColours(biome: Biome): PanelColours {
 }
 
 function slotView({ slot, key, stack, selected }: BarSlot): HTMLButtonElement {
-  const button = h(
-    'button',
-    {
-      type: 'button',
-      class: 'slot',
-      'data-slot': String(slot),
-      'aria-pressed': String(selected),
-      onmousedown: (event) => event.preventDefault(),
-    },
-    h('span', { class: 'slot-key' }, key),
-  );
+  const button = h('button', {
+    type: 'button',
+    class: 'slot',
+    'data-slot': String(slot),
+    'aria-pressed': String(selected),
+    onmousedown: (event) => event.preventDefault(),
+  });
   if (!stack) {
     button.setAttribute('aria-label', `Slot ${key}, empty`);
     return button;

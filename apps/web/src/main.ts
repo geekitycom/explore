@@ -123,7 +123,7 @@ function gameView(user: User) {
       hint: hud.hint.textContent || undefined,
       hintHidden: hud.hint.hidden,
       slots: [...hud.bar.el.querySelectorAll<HTMLElement>('.slot')].map((slot) => ({
-        key: slot.querySelector('.slot-key')!.textContent,
+        label: slot.getAttribute('aria-label'),
         count: slot.dataset.count === undefined ? undefined : Number(slot.dataset.count),
       })),
     }),
