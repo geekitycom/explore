@@ -10,8 +10,22 @@ export const unique = (tag: string) =>
 /** The e2e server's accounts database, under the data directory playwright.config.ts picked. */
 export const mainDb = () => new DatabaseSync(join(process.env['E2E_DATA_DIR']!, 'main.db'));
 
-/** The one world file every e2e player shares until TASK-64.2. */
-export const worldDb = () => new DatabaseSync(join(process.env['E2E_DATA_DIR']!, 'worlds', '1.db'));
+/** The world file of world `worldId`. */
+export const worldDb = (worldId: number) =>
+  new DatabaseSync(join(process.env['E2E_DATA_DIR']!, 'worlds', `${worldId}.db`));
+
+/** The account named `username` and the world it owns. */
+export function account(username: string): { id: number; home: number } {
+  const main = mainDb();
+  const row = main
+    .prepare(
+      `SELECT users.id AS id, worlds.id AS home FROM users
+       JOIN worlds ON worlds.owner_id = users.id WHERE username = ?`,
+    )
+    .get(username) as { id: number; home: number };
+  main.close();
+  return row;
+}
 
 let signupAddress = 0;
 
@@ -59,12 +73,8 @@ export async function wakeUp(page: Page) {
 export async function teleport(page: Page, user: string, coord: ScreenCoord, at: Tile) {
   await page.goto('about:blank');
   await page.waitForTimeout(500);
-  const main = mainDb();
-  const { id } = main.prepare('SELECT id FROM users WHERE username = ?').get(user) as {
-    id: number;
-  };
-  main.close();
-  const world = worldDb();
+  const { id, home } = account(user);
+  const world = worldDb(home);
   world
     .prepare(
       `UPDATE player_state SET layer = ?, sx = ?, sy = ?, x = ?, y = ?, dir = 'n' WHERE user_id = ?`,

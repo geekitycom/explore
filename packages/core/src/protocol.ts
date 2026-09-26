@@ -13,6 +13,8 @@ export const WALK_SPEED = 72;
 export const MOVE_INTERVAL_MS = 100;
 /** WebSocket close code the server sends when a newer session replaces this one. */
 export const REPLACED_CLOSE_CODE = 4000;
+/** WebSocket close code the server sends when the player may not enter the world they asked for. */
+export const REFUSED_CLOSE_CODE = 4403;
 
 const dirSchema = z.enum(DIRS);
 const coordinate = (max: number) =>

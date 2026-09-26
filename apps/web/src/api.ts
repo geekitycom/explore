@@ -1,6 +1,13 @@
 import type { Avatar } from '@explore/core';
 
-export type User = { id: number; username: string; avatar: Avatar; avatarChosen: boolean };
+/** `home` is the world this account owns, the one it joins by default. */
+export type User = {
+  id: number;
+  username: string;
+  avatar: Avatar;
+  avatarChosen: boolean;
+  home: number;
+};
 
 export class ApiError extends Error {
   readonly code: string;
@@ -65,6 +72,6 @@ export type WorldMap = {
   screens: unknown[];
 };
 
-export async function fetchMap(): Promise<WorldMap> {
-  return request<WorldMap>('GET', '/api/map');
+export async function fetchMap(worldId: number): Promise<WorldMap> {
+  return request<WorldMap>('GET', `/api/worlds/${worldId}/map`);
 }

@@ -31,7 +31,8 @@ async function hold(page: Page, key: string, ms: number) {
   await page.keyboard.up(key);
 }
 
-test('two players in the garden see each other walk', async ({ browser }) => {
+// Two accounts cannot share a world until TASK-64.3 opens worlds to visitors: restored by TASK-64.3.
+test.fixme('two players in the garden see each other walk', async ({ browser }) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()]);
   const [pa, pb] = await Promise.all([a.newPage(), b.newPage()]);
   const [na, nb] = [unique('ann'), unique('ben')];

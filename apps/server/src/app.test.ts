@@ -1,29 +1,34 @@
 import { createHash } from 'node:crypto';
-import { DEFAULT_AVATAR, type Avatar } from '@explore/core';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DEFAULT_AVATAR, GARDEN_COORD, secretGarden, type Avatar } from '@explore/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app.ts';
-import { openMainDatabase, openWorldDatabase, type MainDb, type WorldDb } from './db.ts';
+import { openMainDatabase, type MainDb } from './db.ts';
+import { createWorldHost, type WorldHost } from './host.ts';
 import { hashPassword, verifyPassword } from './password.ts';
 import { AUTH_LIMITS } from './rate-limit.ts';
-import { createGame } from './play.ts';
 import { SESSION_TTL_MS, sessionUser } from './sessions.ts';
+import { getScreen, loadWorld } from './world.ts';
+import type { WorldId } from './worlds.ts';
 
 type App = ReturnType<typeof createApp>['app'];
 
 let db: MainDb;
-let world: WorldDb;
+let host: WorldHost;
 let app: App;
 
 const scryptCost = { N: 2 ** 4, r: 1, p: 1 };
 
 beforeEach(() => {
   db = openMainDatabase(':memory:');
-  world = openWorldDatabase(':memory:');
-  app = createApp({ db, world, game: createGame(world), scryptCost }).app;
+  host = createWorldHost({ pathOf: () => ':memory:' });
+  app = createApp({ db, host, scryptCost }).app;
 });
 
 afterEach(() => {
-  world.close();
+  host.stop();
   db.close();
 });
 
@@ -61,7 +66,7 @@ describe('signup', () => {
   it('creates the user wearing the default avatar, not yet chosen, with a session cookie', async () => {
     const { res, cookie } = await signup('Alice');
     expect(await res.json()).toEqual({
-      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false },
+      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false, home: 1 },
     });
     const header = res.headers.get('set-cookie') ?? '';
     expect(header).toMatch(/HttpOnly/);
@@ -72,12 +77,12 @@ describe('signup', () => {
     const me = await send('GET', '/api/me', undefined, cookie);
     expect(me.status).toBe(200);
     expect(await me.json()).toEqual({
-      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false },
+      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false, home: 1 },
     });
   });
 
   it('marks the cookie Secure when secure cookies are on', async () => {
-    app = createApp({ db, world, game: createGame(world), secureCookies: true, scryptCost }).app;
+    app = createApp({ db, host, secureCookies: true, scryptCost }).app;
     const { res } = await signup();
     expect(res.headers.get('set-cookie')).toMatch(/Secure/);
   });
@@ -128,7 +133,7 @@ describe('login', () => {
     const res = await send('POST', '/api/login', { username: 'alice', password: PASSWORD });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false },
+      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false, home: 1 },
     });
     const me = await send('GET', '/api/me', undefined, sessionCookie(res));
     expect(me.status).toBe(200);
@@ -286,7 +291,7 @@ describe('rate limits', () => {
 
   describe('trust proxy', () => {
     beforeEach(() => {
-      app = createApp({ db, world, game: createGame(world), trustProxy: true, scryptCost }).app;
+      app = createApp({ db, host, trustProxy: true, scryptCost }).app;
     });
 
     it('keys the limit on the rightmost X-Forwarded-For entry, not a spoofed leftmost one', async () => {
@@ -317,7 +322,7 @@ describe('me', () => {
   it('saving an avatar marks it chosen for every later session', async () => {
     const { cookie } = await signup();
     const avatar: Avatar = { ...DEFAULT_AVATAR, hairStyle: 'spiky', shirt: 'purple' };
-    const saved = { user: { id: 1, username: 'Alice', avatar, avatarChosen: true } };
+    const saved = { user: { id: 1, username: 'Alice', avatar, avatarChosen: true, home: 1 } };
     const res = await send('PUT', '/api/me/avatar', { avatar }, cookie);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(saved);
@@ -383,4 +388,41 @@ it('answers unknown /api paths with a JSON 404', async () => {
   const res = await send('GET', '/api/nope');
   expect(res.status).toBe(404);
   expect(await res.json()).toMatchObject({ error: { code: 'not_found' } });
+});
+
+describe('worlds', () => {
+  it("signup creates the account's world file with its own seed and the garden", async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'explore-app-'));
+    try {
+      host.stop();
+      host = createWorldHost({ pathOf: (id) => join(dir, `${id}.db`) });
+      app = createApp({ db, host, scryptCost }).app;
+      const { res } = await signup('Alice');
+      expect(await res.json()).toMatchObject({ user: { home: 1 } });
+      expect(readdirSync(dir)).toContain('1.db');
+      const world = host.open(1 as WorldId).db;
+      expect(Number.isInteger(loadWorld(world).seed)).toBe(true);
+      expect(getScreen(world, GARDEN_COORD)).toEqual(secretGarden());
+    } finally {
+      host.stop();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("gives each account its own home world and shows only that world's map", async () => {
+    const alice = await signup('Alice');
+    const bob = await signup('Bobby');
+    const me = await send('GET', '/api/me', undefined, bob.cookie);
+    expect(await me.json()).toMatchObject({ user: { id: 2, home: 2 } });
+
+    expect((await send('GET', '/api/worlds/2/map', undefined, bob.cookie)).status).toBe(200);
+    expect((await send('GET', '/api/worlds/1/map', undefined, alice.cookie)).status).toBe(200);
+    const refused = await send('GET', '/api/worlds/1/map', undefined, bob.cookie);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({
+      error: { code: 'forbidden', message: 'That world is not open to you' },
+    });
+    expect((await send('GET', '/api/worlds/abc/map', undefined, bob.cookie)).status).toBe(403);
+    expect((await send('GET', '/api/worlds/2/map')).status).toBe(401);
+  });
 });

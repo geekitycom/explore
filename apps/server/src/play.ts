@@ -205,6 +205,8 @@ export function createGame(
 
     disconnect,
 
+    playerCount: (): number => online.size,
+
     changeAvatar(user: User): void {
       const player = online.get(user.id);
       if (!player) return;

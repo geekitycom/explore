@@ -27,7 +27,7 @@ pnpm start
 
 The server and its admin scripts read settings from environment variables, and also from a `.env` file in the repository root when one exists. Variables already set in the shell take precedence. Copy `.env.example` to `.env` to start; it lists every setting with its default.
 
-Data lives under `DATA_DIR` (default `apps/server/data`): `main.db` holds accounts and sessions, and `worlds/<id>.db` holds one world each, its seed, screens, traces, positions, and inventories (D25 in the decision log).
+Data lives under `DATA_DIR` (default `apps/server/data`): `main.db` holds accounts and sessions, and `worlds/<id>.db` holds one world each, its seed, screens, traces, positions, and inventories. Every account owns a world, created at signup, and a connection names the world it joins (`/ws/worlds/<id>`); a world with nobody in it for five minutes is closed and reopens on the next visit (D25 in the decision log).
 
 Behind a reverse proxy, set `TRUST_PROXY=true` so login and signup rate limits key on the client address the proxy reports in `X-Forwarded-For` (the rightmost entry, the one the proxy itself appended) instead of the proxy's own address. Leave it unset when the server is reachable directly.
 
@@ -57,20 +57,20 @@ LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=google/gemini-3.8-flash LLM_
 
 ## Scripts
 
-| Script                                | What it does                                                                                                                                                                  |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                            | Server with watch mode, plus the Vite dev server                                                                                                                              |
-| `pnpm build`                          | Build every package that has a build step                                                                                                                                     |
-| `pnpm start`                          | Start the server                                                                                                                                                              |
-| `pnpm lint`                           | ESLint with type-aware rules                                                                                                                                                  |
-| `pnpm format` / `pnpm format:check`   | Prettier write or check                                                                                                                                                       |
-| `pnpm typecheck`                      | `tsc` in every package                                                                                                                                                        |
-| `pnpm test`                           | Vitest across all packages                                                                                                                                                    |
-| `pnpm e2e`                            | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                                   |
-| `pnpm world:wipe --yes`               | Delete the generated world and saved positions (accounts stay), roll a new world seed, and restore the garden. Stop the server first. Acts on the world file under `DATA_DIR` |
-| `pnpm epitaphs`                       | List every grave's epitaph. `--set sx,sy tx,ty "words"` replaces one, `--clear sx,sy tx,ty` puts back its built-in epitaph for good. Acts on the world file under `DATA_DIR`  |
-| `pnpm names`                          | List every named landmark with its reports. `--clear sx,sy` takes the name off a landmark. Acts on the world file under `DATA_DIR`                                            |
-| `pnpm --filter @explore/core preview` | Render a large area of the world to a PNG for tuning generation                                                                                                               |
+| Script                                     | What it does                                                                                                                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                 | Server with watch mode, plus the Vite dev server                                                                                                                                                                |
+| `pnpm build`                               | Build every package that has a build step                                                                                                                                                                       |
+| `pnpm start`                               | Start the server                                                                                                                                                                                                |
+| `pnpm lint`                                | ESLint with type-aware rules                                                                                                                                                                                    |
+| `pnpm format` / `pnpm format:check`        | Prettier write or check                                                                                                                                                                                         |
+| `pnpm typecheck`                           | `tsc` in every package                                                                                                                                                                                          |
+| `pnpm test`                                | Vitest across all packages                                                                                                                                                                                      |
+| `pnpm e2e`                                 | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                                                                     |
+| `pnpm world:wipe --yes --owner <username>` | Delete one world's generated screens, traces, saved positions, and inventories (accounts stay), roll it a new seed, and restore its garden. Stop the server first. `--world <id>` names the world file directly |
+| `pnpm epitaphs`                            | List every grave's epitaph in one world, named with `--owner <username>` or `--world <id>`. `--set sx,sy tx,ty "words"` replaces one, `--clear sx,sy tx,ty` puts back its built-in epitaph for good             |
+| `pnpm names`                               | List every named landmark in one world (`--owner` or `--world`) with its reports. `--clear sx,sy` takes the name off a landmark                                                                                 |
+| `pnpm --filter @explore/core preview`      | Render a large area of the world to a PNG for tuning generation                                                                                                                                                 |
 
 ## Testing
 

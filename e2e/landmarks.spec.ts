@@ -10,7 +10,7 @@ import {
   type ScreenCoord,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { playing, signUp, teleport, unique, worldDb } from './helpers.ts';
+import { account, playing, signUp, teleport, unique, worldDb } from './helpers.ts';
 
 type Hud = { hint: string | undefined };
 type Site = { tx: number; ty: number; area: Area };
@@ -43,9 +43,9 @@ function landmarkScreen(seed: WorldSeed): ScreenCoord {
 }
 
 test('the first to reach a landmark names it for everyone and the map', async ({ page }) => {
-  const db = worldDb();
   const user = unique('namer');
   await signUp(page, user);
+  const db = worldDb(account(user).home);
   await playing(page);
   await page.waitForTimeout(300);
 

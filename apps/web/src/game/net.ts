@@ -1,15 +1,23 @@
-import { REPLACED_CLOSE_CODE, type ClientMessage, type ServerMessage } from '@explore/core';
+import {
+  REFUSED_CLOSE_CODE,
+  REPLACED_CLOSE_CODE,
+  type ClientMessage,
+  type ServerMessage,
+} from '@explore/core';
 
 export type Connection = { send: (message: ClientMessage) => void; close: () => void };
 
+export type ConnectionStatus = 'open' | 'reconnecting' | 'replaced' | 'refused';
+
 type Handlers = {
+  worldId: number;
   onMessage: (message: ServerMessage) => void;
-  onStatus: (status: 'open' | 'reconnecting' | 'replaced') => void;
+  onStatus: (status: ConnectionStatus) => void;
 };
 
-/** One game socket that reconnects with backoff until closed or replaced by another tab. */
-export function connect({ onMessage, onStatus }: Handlers): Connection {
-  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+/** One game socket into `worldId` that reconnects with backoff until closed, replaced, or refused. */
+export function connect({ worldId, onMessage, onStatus }: Handlers): Connection {
+  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/worlds/${worldId}`;
   let socket: WebSocket | undefined;
   let closed = false;
   let attempt = 0;
@@ -25,9 +33,9 @@ export function connect({ onMessage, onStatus }: Handlers): Connection {
     });
     socket.addEventListener('close', (event) => {
       if (closed) return;
-      if (event.code === REPLACED_CLOSE_CODE) {
+      if (event.code === REPLACED_CLOSE_CODE || event.code === REFUSED_CLOSE_CODE) {
         closed = true;
-        onStatus('replaced');
+        onStatus(event.code === REPLACED_CLOSE_CODE ? 'replaced' : 'refused');
         return;
       }
       onStatus('reconnecting');

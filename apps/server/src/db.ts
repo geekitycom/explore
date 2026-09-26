@@ -3,7 +3,7 @@ import { ensureGarden, upgradeScreenRecords } from './world.ts';
 
 declare const kind: unique symbol;
 
-/** The main database: accounts and sessions, one per deployment (decision D25). */
+/** The main database: accounts, sessions, and the world registry, one per deployment (D25). */
 export type MainDb = DatabaseSync & { readonly [kind]: 'main' };
 
 /** A world file: everything inside one world, with user ids as plain integers (D25). */
@@ -24,7 +24,13 @@ const mainMigrations: readonly string[] = [
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at INTEGER NOT NULL
   );
-  CREATE INDEX sessions_user_id ON sessions(user_id);`,
+  CREATE INDEX sessions_user_id ON sessions(user_id);
+  CREATE TABLE worlds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+    host TEXT,
+    created_at INTEGER NOT NULL
+  );`,
 ];
 
 /**

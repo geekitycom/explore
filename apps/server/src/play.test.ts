@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +22,7 @@ import {
   parseTraces,
   placeOf,
   REASONS,
+  REFUSED_CLOSE_CODE,
   secretGarden,
   siteOf,
   type Avatar,
@@ -37,16 +38,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { createApp } from './app.ts';
 import { openMainDatabase, openWorldDatabase, type MainDb, type WorldDb } from './db.ts';
+import { createWorldHost, type WorldHost } from './host.ts';
 import { saveInventory } from './inventory.ts';
 import { clearName, landmarkNames } from './names.ts';
 import { createGame, type Game } from './play.ts';
 import type { Conn } from './presence.ts';
 import { userNamed } from './testing.ts';
 import type { User } from './users.ts';
+import { mayEnter, type WorldId } from './worlds.ts';
 import { loadPlayerState, loadWorld, savePlayerState } from './world.ts';
 
-/** `db` is the world file; accounts live in `main`. */
-type Running = { db: WorldDb; main: MainDb; base: string; stop: () => Promise<void> };
+/** Alice signs up first in every test, so her world is the first one registered. */
+const ALICE_WORLD = 1 as WorldId;
+
+type Admit = NonNullable<Parameters<typeof createApp>[0]['admit']>;
+
+/** `db` is alice's world file; accounts live in `main`. */
+type Running = {
+  db: WorldDb;
+  main: MainDb;
+  host: WorldHost;
+  base: string;
+  stop: () => Promise<void>;
+};
 
 const cleanups: (() => Promise<void> | void)[] = [];
 
@@ -54,16 +68,20 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-async function start(dir?: string): Promise<Running> {
+/** Unless a test says otherwise, everyone may enter every world, as TASK-64.3's invitations will allow. */
+async function start(dir?: string, admit: Admit = () => true): Promise<Running> {
   const main = openMainDatabase(dir ? join(dir, 'main.db') : ':memory:');
-  const db = openWorldDatabase(dir ? join(dir, 'world.db') : ':memory:');
+  if (dir) mkdirSync(join(dir, 'worlds'), { recursive: true });
   let clock = 0;
   // Every clock read is a tick later, so each move sees at least one report interval pass.
-  const game = createGame(db, { now: () => (clock += 100) });
+  const host = createWorldHost({
+    pathOf: (id) => (dir ? join(dir, 'worlds', `${id}.db`) : ':memory:'),
+    game: { now: () => (clock += 100) },
+  });
   const { app, injectWebSocket } = createApp({
     db: main,
-    world: db,
-    game,
+    host,
+    admit,
     scryptCost: { N: 2 ** 4, r: 1, p: 1 },
   });
   let server!: Server;
@@ -79,12 +97,11 @@ async function start(dir?: string): Promise<Running> {
     stopped = true;
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
-    game.stop();
-    db.close();
+    host.stop();
     main.close();
   };
   cleanups.push(stop);
-  return { db, main, base: `127.0.0.1:${port}`, stop };
+  return { db: host.open(ALICE_WORLD).db, main, host, base: `127.0.0.1:${port}`, stop };
 }
 
 async function signup(base: string, username: string): Promise<string> {
@@ -104,8 +121,12 @@ type Client = {
   closed: Promise<{ code: number; reason: string }>;
 };
 
-async function connect(base: string, cookie: string): Promise<Client> {
-  const ws = new WebSocket(`ws://${base}/ws`, { headers: { cookie } });
+async function connect(
+  base: string,
+  cookie: string,
+  worldId: WorldId = ALICE_WORLD,
+): Promise<Client> {
+  const ws = new WebSocket(`ws://${base}/ws/worlds/${worldId}`, { headers: { cookie } });
   const inbox: ServerMessage[] = [];
   const waiting: ((message: ServerMessage) => void)[] = [];
   ws.addEventListener('message', ({ data }) => {
@@ -172,8 +193,12 @@ type WorldMap = {
   screens: ScreenRecord[];
 };
 
-async function fetchMap(base: string, cookie: string): Promise<WorldMap> {
-  const res = await fetch(`http://${base}/api/map`, { headers: { cookie } });
+async function fetchMap(
+  base: string,
+  cookie: string,
+  worldId: WorldId = ALICE_WORLD,
+): Promise<WorldMap> {
+  const res = await fetch(`http://${base}/api/worlds/${worldId}/map`, { headers: { cookie } });
   expect(res.status).toBe(200);
   return (await res.json()) as WorldMap;
 }
@@ -375,7 +400,7 @@ describe('world socket', () => {
     const bobCookie = await signup(base, 'bob');
     expect((await fetchMap(base, bobCookie)).screens).toEqual(map.screens);
 
-    expect((await fetch(`http://${base}/api/map`)).status).toBe(401);
+    expect((await fetch(`http://${base}/api/worlds/1/map`)).status).toBe(401);
   });
 
   it('refuses to travel from away from the edge', async () => {
@@ -496,7 +521,7 @@ describe('world socket', () => {
   it('rejects an upgrade without a valid session', async () => {
     const { base } = await start();
     for (const headers of [{}, { cookie: 'session=forged' }]) {
-      const ws = new WebSocket(`ws://${base}/ws`, { headers });
+      const ws = new WebSocket(`ws://${base}/ws/worlds/1`, { headers });
       const error = await new Promise<Error>((resolve, reject) => {
         ws.once('error', resolve);
         ws.once('open', () => reject(new Error('socket opened')));
@@ -899,5 +924,64 @@ describe('game', () => {
     });
     db.close();
     expect(() => game.disconnect(player)).not.toThrow();
+  });
+});
+
+describe('worlds', () => {
+  const BOB_WORLD = 2 as WorldId;
+
+  it('lets a player into their own world only, closing a socket into another with a code', async () => {
+    const { base } = await start(undefined, mayEnter);
+    await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    const me = (await (
+      await fetch(`http://${base}/api/me`, { headers: { cookie: bobCookie } })
+    ).json()) as { user: { home: number } };
+    expect(me.user.home).toBe(BOB_WORLD);
+
+    const intruder = await connect(base, bobCookie, ALICE_WORLD);
+    expect(await intruder.closed).toEqual({
+      code: REFUSED_CLOSE_CODE,
+      reason: 'That world is not open to you',
+    });
+    const map = await fetch(`http://${base}/api/worlds/${ALICE_WORLD}/map`, {
+      headers: { cookie: bobCookie },
+    });
+    expect(map.status).toBe(403);
+    expect(await map.json()).toMatchObject({ error: { code: 'forbidden' } });
+
+    const bob = await connect(base, bobCookie, BOB_WORLD);
+    expect((await nextOf(bob, 'screen')).others).toEqual([]);
+    expect((await fetchMap(base, bobCookie, BOB_WORLD)).screens).toEqual([
+      encodeScreen(secretGarden()),
+    ]);
+  });
+
+  it('keeps players in different worlds apart: no presence, moves, traces, or screens cross', async () => {
+    const { base, db, host } = await start(undefined, mayEnter);
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    saveInventory(db, 1, PROBES);
+    const alice = await connect(base, aliceCookie);
+    const bob = await connect(base, bobCookie, BOB_WORLD);
+    expect((await nextOf(alice, 'screen')).others).toEqual([]);
+    expect((await nextOf(bob, 'screen')).others).toEqual([]);
+
+    walk(alice, SPAWN, [PROBE_STAND.x, PROBE_STAND.y]);
+    alice.send({ t: 'use', slot: 0, ...PROBE_TILE });
+    await nextOf(alice, 'traces');
+    await nextOf(alice, 'inventory');
+    walk(alice, PROBE_STAND, [SPAWN.x, SPAWN.y]);
+    const arrival = await travelEast(alice);
+
+    bob.send({ t: 'move', x: 0, y: 0, dir: 'n', moving: true });
+    expect(await bob.next()).toEqual({ t: 'correct', x: SPAWN.x, y: SPAWN.y });
+    const garden = encodeScreen(secretGarden());
+    expect((await fetchMap(base, bobCookie, BOB_WORLD)).screens).toEqual([garden]);
+    expect((await fetchMap(base, aliceCookie)).screens).toEqual([garden, arrival.screen]);
+    expect(host.open(BOB_WORLD).db.prepare('SELECT count(*) AS n FROM traces').get()).toEqual({
+      n: 0,
+    });
+    expect(loadWorld(host.open(BOB_WORLD).db).seed).not.toBe(loadWorld(db).seed);
   });
 });

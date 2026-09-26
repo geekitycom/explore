@@ -41,10 +41,13 @@ const stackAt = async (page: Page) =>
 
 /** Nothing in play hands out stones in the garden, so the test fills the pockets directly. */
 async function give(page: Page, stones: string[]) {
-  const id = await page.evaluate(
-    () => (window as unknown as { exploreUser: () => { id: number } }).exploreUser().id,
-  );
-  const db = worldDb();
+  const { id, home } = await page.evaluate(() => {
+    const me = (
+      window as unknown as { exploreUser: () => { id: number; home: number } }
+    ).exploreUser();
+    return { id: me.id, home: me.home };
+  });
+  const db = worldDb(home);
   db.prepare(
     `INSERT INTO inventories (user_id, items, updated_at) VALUES (?, ?, ?)
      ON CONFLICT (user_id) DO UPDATE SET items = excluded.items, updated_at = excluded.updated_at`,

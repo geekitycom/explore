@@ -1,12 +1,14 @@
-import { avatarSchema } from '@explore/core';
+import { REFUSED_CLOSE_CODE, avatarSchema } from '@explore/core';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { createNodeWebSocket } from '@hono/node-ws';
-import type { MainDb, WorldDb } from './db.ts';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { z } from 'zod';
+import type { MainDb } from './db.ts';
+import type { WorldHost } from './host.ts';
+import { worldMapJson } from './map.ts';
 import {
   hashPassword,
   rejectUnknownUser,
@@ -14,7 +16,6 @@ import {
   verifyPassword,
   type ScryptCost,
 } from './password.ts';
-import type { Game } from './play.ts';
 import type { Player } from './presence.ts';
 import { AUTH_LIMITS, createRateLimiter, type RateLimiter } from './rate-limit.ts';
 import {
@@ -25,9 +26,9 @@ import {
   sessionUser,
 } from './sessions.ts';
 import { findUserCredentials, insertUser, updateAvatar, type User } from './users.ts';
-import { worldMapJson } from './map.ts';
+import { ensureHomeWorld, mayEnter, worldIdSchema, type WorldId } from './worlds.ts';
 
-type Env = { Variables: { user: User } };
+type Env = { Variables: { user: User; worldId: WorldId } };
 
 class ApiError extends Error {
   readonly status: ContentfulStatusCode;
@@ -49,6 +50,8 @@ const password = z
   .string()
   .min(8, 'Password must be at least 8 characters')
   .max(200, 'Password must be at most 200 characters');
+
+const REFUSED_MESSAGE = 'That world is not open to you';
 
 const signupBody = z.object({ username, password });
 const loginBody = z.object({ username: z.string().max(200), password: z.string().max(200) });
@@ -72,15 +75,16 @@ async function parseBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.
 
 export function createApp({
   db,
-  world,
-  game,
+  host,
+  admit = mayEnter,
   secureCookies = false,
   trustProxy = false,
   scryptCost = SCRYPT_COST,
 }: {
   db: MainDb;
-  world: WorldDb;
-  game: Game;
+  host: WorldHost;
+  /** Who may enter which world; tests widen it to put two players in one world. */
+  admit?: (db: MainDb, user: User, worldId: WorldId) => boolean;
   secureCookies?: boolean;
   /** Behind a reverse proxy, key rate limits on the client address it reports. */
   trustProxy?: boolean;
@@ -96,6 +100,13 @@ export function createApp({
       secure: secureCookies,
       expires: new Date(expiresAt),
     });
+  };
+
+  /** The account as the client sees it, with its home world open and ready to join. */
+  const account = (user: User) => {
+    const home = ensureHomeWorld(db, user.id);
+    host.open(home);
+    return { user: { ...user, home } };
   };
 
   const signupsByAddress = createRateLimiter(AUTH_LIMITS.signupsPerAddress);
@@ -154,7 +165,7 @@ export function createApp({
     });
     if (!user) throw new ApiError(409, 'username_taken', 'That username is taken', 'username');
     startSession(c, user);
-    return c.json({ user }, 201);
+    return c.json(account(user), 201);
   });
 
   app.post('/api/login', async (c) => {
@@ -172,7 +183,7 @@ export function createApp({
     }
     failedLoginsByUsername.reset(usernameKey);
     startSession(c, found.user);
-    return c.json({ user: found.user });
+    return c.json(account(found.user));
   });
 
   app.post('/api/logout', (c) => {
@@ -189,19 +200,31 @@ export function createApp({
     await next();
   });
 
+  /** Reads `:id` from the path; a world the player may not enter, or no world at all, is 403. */
+  const requireWorld = createMiddleware<Env>(async (c, next) => {
+    const parsed = worldIdSchema.safeParse(c.req.param('id'));
+    if (!parsed.success || !admit(db, c.get('user'), parsed.data)) {
+      throw new ApiError(403, 'forbidden', REFUSED_MESSAGE);
+    }
+    c.set('worldId', parsed.data);
+    await next();
+  });
+
   app.use('/api/me/*', requireUser);
 
-  app.get('/api/me', (c) => c.json({ user: c.get('user') }));
+  app.get('/api/me', (c) => c.json(account(c.get('user'))));
 
   app.put('/api/me/avatar', async (c) => {
     const { avatar } = await parseBody(c, avatarBody);
     const user = updateAvatar(db, c.get('user').id, avatar);
-    game.changeAvatar(user);
-    return c.json({ user });
+    host.changeAvatar(user);
+    return c.json(account(user));
   });
 
-  app.get('/api/map', requireUser, (c) =>
-    c.body(worldMapJson(world, c.get('user').id), 200, { 'content-type': 'application/json' }),
+  app.get('/api/worlds/:id/map', requireUser, requireWorld, (c) =>
+    c.body(worldMapJson(host.open(c.get('worldId')).db, c.get('user').id), 200, {
+      'content-type': 'application/json',
+    }),
   );
 
   app.all('/api/*', () => {
@@ -209,23 +232,31 @@ export function createApp({
   });
 
   app.get(
-    '/ws',
+    '/ws/worlds/:id',
     requireUser,
     nodeWs.upgradeWebSocket((c: Context<Env>) => {
       const user = c.get('user');
+      const parsed = worldIdSchema.safeParse(c.req.param('id'));
+      const worldId = parsed.success && admit(db, user, parsed.data) ? parsed.data : undefined;
       let player: Player | undefined;
       return {
         onOpen(_event, ws) {
-          player = game.connect(user, {
+          if (worldId === undefined) {
+            ws.close(REFUSED_CLOSE_CODE, REFUSED_MESSAGE);
+            return;
+          }
+          player = host.connect(worldId, user, {
             send: (message) => ws.send(JSON.stringify(message)),
             close: (code, reason) => ws.close(code, reason),
           });
         },
         onMessage(event: { data: unknown }) {
-          if (player && typeof event.data === 'string') game.receive(player, event.data);
+          if (player && worldId !== undefined && typeof event.data === 'string') {
+            host.receive(worldId, player, event.data);
+          }
         },
         onClose() {
-          if (player) game.disconnect(player);
+          if (player && worldId !== undefined) host.disconnect(worldId, player);
         },
       };
     }),

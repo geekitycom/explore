@@ -5,7 +5,7 @@ import {
   generateScreen,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { playing, probeOutput, signUp, unique, worldDb } from './helpers.ts';
+import { account, playing, probeOutput, signUp, unique, worldDb } from './helpers.ts';
 
 type Coord = { sx: number; sy: number };
 type Rect = { x: number; y: number; w: number; h: number };
@@ -136,10 +136,11 @@ test('the map opens over the game, keeping the music and the connection', async 
 test('the map opens on you at one size however much is discovered, and shows more in a bigger window', async ({
   page,
 }) => {
-  const db = worldDb();
-  const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   await page.setViewportSize({ width: 960, height: 600 });
-  await signUp(page, unique('mapsize'));
+  const user = unique('mapsize');
+  await signUp(page, user);
+  const db = worldDb(account(user).home);
+  const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   await playing(page);
   await page.waitForTimeout(300);
 
@@ -160,7 +161,7 @@ test('the map opens on you at one size however much is discovered, and shows mor
   }))
     .filter(({ sx, sy }) => !known.has(`${sx},${sy}`))
     .map((c) => encodeScreen(generateScreen({ seed }, { layer: OVERWORLD, ...c })));
-  await page.route('/api/map', async (route) => {
+  await page.route('**/api/worlds/*/map', async (route) => {
     const real = (await (await route.fetch()).json()) as { screens: unknown[] };
     await route.fulfill({ json: { ...real, screens: [...real.screens, ...many] } });
   });

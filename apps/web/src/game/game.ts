@@ -9,7 +9,7 @@ import type { User } from '../api.ts';
 import { createHands, type Aim, type Hud, type Point } from './hands.ts';
 import { keyboard } from './input.ts';
 import { steer, step } from './movement.ts';
-import { connect } from './net.ts';
+import { connect, type ConnectionStatus } from './net.ts';
 import { applyMessage, interpolate, type GameState } from './state.ts';
 
 export type Renderer = {
@@ -19,7 +19,7 @@ export type Renderer = {
   dispose(): void;
 };
 
-export type GameStatus = 'connecting' | 'open' | 'reconnecting' | 'replaced';
+export type GameStatus = 'connecting' | ConnectionStatus;
 
 const samePose = (a: Pose, b: Pose) =>
   a.x === b.x && a.y === b.y && a.dir === b.dir && a.moving === b.moving;
@@ -48,6 +48,7 @@ export function startGame(
   const keys = keyboard(hands.key);
   Object.assign(window, { exploreState: () => state, exploreUser: () => user });
   const conn = connect({
+    worldId: initialUser.home,
     onMessage: (message) => {
       const was = state.phase;
       state = applyMessage(state, message);

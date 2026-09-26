@@ -1,33 +1,22 @@
-import { existsSync } from 'node:fs';
 import { OVERWORLD, layerIdSchema } from '@explore/core';
-import { openWorldDatabase } from './db.ts';
+import { WORLD_USAGE, flagValue, openNamedWorld } from './admin.ts';
 import { clearName, landmarkNames } from './names.ts';
-import { SHARED_WORLD_ID, dataDir, worldDbPath } from './paths.ts';
 
-const dbPath = worldDbPath(dataDir(), SHARED_WORLD_ID);
-
-const USAGE = `usage: pnpm names [--clear <sx>,<sy> [--layer <layer>]]
-  Lists every named landmark in ${dbPath} with its reports.
+const USAGE = `usage: pnpm names (--world <id> | --owner <username>) [--clear <sx>,<sy> [--layer <layer>]]
+  Lists every named landmark in one world with its reports.
+${WORLD_USAGE}
   --clear   takes the name off the landmark on screen sx,sy so the next visitor can name it`;
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--');
-const flag = (name: string) => {
-  const i = args.indexOf(name);
-  return i < 0 ? undefined : (args[i + 1] ?? '');
-};
-const clear = flag('--clear');
+const clear = flagValue(args, '--clear');
 const at = clear === undefined ? undefined : /^(-?\d+),(-?\d+)$/.exec(clear);
-const layer = layerIdSchema.safeParse(flag('--layer') ?? OVERWORLD);
+const layer = layerIdSchema.safeParse(flagValue(args, '--layer') ?? OVERWORLD);
 if ((clear !== undefined && !at) || !layer.success) {
   console.error(USAGE);
   process.exit(2);
 }
-if (!existsSync(dbPath)) {
-  console.error(`No database at ${dbPath}. Set DATA_DIR to the directory holding it.`);
-  process.exit(1);
-}
 
-const db = openWorldDatabase(dbPath, { upgradeRecords: false });
+const { db } = openNamedWorld(args);
 if (at) {
   const coord = { layer: layer.data, sx: Number(at[1]), sy: Number(at[2]) };
   const cleared = clearName(db, coord);

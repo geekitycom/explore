@@ -12,7 +12,7 @@ import {
   type ScreenCoord,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { playing, signUp, teleport, unique, worldDb } from './helpers.ts';
+import { account, playing, signUp, teleport, unique, worldDb } from './helpers.ts';
 
 function graveyardScreen(seed: WorldSeed): ScreenCoord {
   const poi = networkOf({ seed }, OVERWORLD)
@@ -65,9 +65,9 @@ async function expectBeside(page: Page, grave: { tx: number; ty: number }, side:
 }
 
 test('a grave speaks to a player facing it, its bubble beside it', async ({ page }) => {
-  const db = worldDb();
   const user = unique('mourner');
   await signUp(page, user);
+  const db = worldDb(account(user).home);
   await playing(page);
   await page.waitForTimeout(300);
 

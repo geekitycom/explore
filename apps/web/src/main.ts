@@ -29,13 +29,14 @@ type View =
   | { kind: 'auth'; mode: AuthMode; then: Place }
   | { kind: 'avatar'; user: User; then: Place }
   | { kind: 'game'; user: User }
-  | { kind: 'map' };
+  | { kind: 'map'; user: User };
 
 const STATUS_TEXT: Record<GameStatus, string> = {
   connecting: 'Connecting…',
   open: '',
   reconnecting: 'Connection lost. Reconnecting…',
   replaced: 'You opened the game in another tab. This one is paused.',
+  refused: 'That world is not open to you.',
 };
 
 const root = document.querySelector<HTMLElement>('#app')!;
@@ -162,7 +163,7 @@ function gameView(user: User) {
     game.pauseKeys(true);
     view.inert = true;
     root.append(opened.el);
-    void fetchMap().then((data) => {
+    void fetchMap(user.home).then((data) => {
       if (overlay !== opened) return;
       const map = mapView(data, () => history.back());
       opened.el.replaceChildren(map.el);
@@ -225,7 +226,7 @@ function show(view: View) {
       return;
     case 'map':
       root.replaceChildren(h('p', { class: 'loading' }, 'Loading the map…'));
-      void fetchMap().then((data) => {
+      void fetchMap(view.user.home).then((data) => {
         const map = mapView(data);
         root.replaceChildren(map.el);
         map.mount();
@@ -242,7 +243,7 @@ function show(view: View) {
 /** Where a signed-in player goes next: the avatar step until they have chosen one, then `place`. */
 function enter(user: User, place: Place) {
   if (!user.avatarChosen) show({ kind: 'avatar', user, then: place });
-  else show(place === 'map' ? { kind: 'map' } : { kind: 'game', user });
+  else show(place === 'map' ? { kind: 'map', user } : { kind: 'game', user });
 }
 
 const place: Place = location.pathname === '/map' ? 'map' : 'game';

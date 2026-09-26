@@ -92,7 +92,7 @@ test('the inventory bar and the hint bar frame the world', async ({ page }) => {
 
 test('the inventory bar takes its colours from the biome', async ({ page }) => {
   // The garden is grass; rewriting the screen's biome shows the bar carved from desert dune.
-  await page.routeWebSocket('**/ws', (ws) => {
+  await page.routeWebSocket('**/ws/worlds/*', (ws) => {
     const server = ws.connectToServer();
     ws.onMessage((message) => server.send(message));
     server.onMessage((message) => {
