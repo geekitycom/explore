@@ -129,58 +129,69 @@ function components(walkable: (tx: number, ty: number) => boolean): number[] {
   return comp;
 }
 
-function reachableScreens(world: World, screens: ReadonlyMap<string, Screen>): Set<string> {
-  const garden = screens.get(screenKey(GARDEN_COORD))!;
+/**
+ * A river can wall off a corner of the region that the land beyond its end still reaches, so
+ * walking may leave the region, into a ring of MARGIN more screens around it.
+ */
+const MARGIN = 2;
+
+const inMargin = ({ sx, sy }: ScreenCoord) =>
+  sx >= REGION.x0 - MARGIN &&
+  sy >= REGION.y0 - MARGIN &&
+  sx < REGION.x0 + REGION.w + MARGIN &&
+  sy < REGION.y0 + REGION.h + MARGIN;
+
+/**
+ * The screens of the region reached on foot from the garden. It walks the region first and makes
+ * margin screens only for the steps out of it, and only while a screen of the region is unreached.
+ */
+function reachableScreens(
+  world: World,
+  screens: ReadonlyMap<string, Screen>,
+  older?: Older,
+): Set<string> {
+  const around = new Map(screens);
   const seen = new Set<string>();
-  const queue: { screen: Screen; tile: Tile }[] = [];
+  const reached = new Set<string>();
+  const stepsOut: { coord: ScreenCoord; tile: Tile }[] = [];
+  let queue: { screen: Screen; tile: Tile }[] = [];
   const visit = (screen: Screen, tile: Tile) => {
     const key = `${screenKey(screen.coord)}:${tile.join(',')}`;
     if (seen.has(key) || !isTileWalkable(screen, ...tile)) return;
     seen.add(key);
     queue.push({ screen, tile });
   };
+  const garden = screens.get(screenKey(GARDEN_COORD))!;
   crossingTiles(world, garden.coord).forEach((t) => visit(garden, t));
-  const reached = new Set<string>();
-  for (const { screen, tile } of queue) {
-    reached.add(screenKey(screen.coord));
-    const [x, y] = tile;
-    for (const [nx, ny] of [
-      [x + 1, y],
-      [x - 1, y],
-      [x, y + 1],
-      [x, y - 1],
-    ] as const) {
-      if (nx >= 0 && ny >= 0 && nx < SCREEN_W && ny < SCREEN_H) visit(screen, [nx, ny]);
+  while (queue.length > 0) {
+    for (const { screen, tile } of queue) {
+      reached.add(screenKey(screen.coord));
+      const [x, y] = tile;
+      for (const [nx, ny] of [
+        [x + 1, y],
+        [x - 1, y],
+        [x, y + 1],
+        [x, y - 1],
+      ] as const) {
+        if (nx >= 0 && ny >= 0 && nx < SCREEN_W && ny < SCREEN_H) visit(screen, [nx, ny]);
+      }
+      for (const dir of DIRS) {
+        if (!onEdge(dir, tile)) continue;
+        const coord = neighborCoord(screen.coord, dir);
+        const other = around.get(screenKey(coord));
+        if (other) visit(other, facing(dir, tile));
+        else if (inMargin(coord)) stepsOut.push({ coord, tile: facing(dir, tile) });
+      }
     }
-    for (const dir of DIRS) {
-      if (!onEdge(dir, tile)) continue;
-      const other = screens.get(screenKey(neighborCoord(screen.coord, dir)));
-      if (other) visit(other, facing(dir, tile));
+    queue = [];
+    if ([...screens.keys()].every((key) => reached.has(key))) break;
+    for (const { coord, tile } of stepsOut.splice(0)) {
+      const key = screenKey(coord);
+      if (!around.has(key)) around.set(key, generateScreen(world, coord, older));
+      visit(around.get(key)!, tile);
     }
   }
   return reached;
-}
-
-/**
- * The region's screens and a ring of MARGIN more around them. A river can wall off a corner of the
- * region that the land beyond its end still reaches, so walking may leave the region.
- */
-const MARGIN = 2;
-
-function withMargin(
-  world: World,
-  screens: ReadonlyMap<string, Screen>,
-  older?: Older,
-): Map<string, Screen> {
-  const all = new Map(screens);
-  for (let sy = REGION.y0 - MARGIN; sy < REGION.y0 + REGION.h + MARGIN; sy++) {
-    for (let sx = REGION.x0 - MARGIN; sx < REGION.x0 + REGION.w + MARGIN; sx++) {
-      const coord = { layer: OVERWORLD, sx, sy };
-      if (!all.has(screenKey(coord)))
-        all.set(screenKey(coord), generateScreen(world, coord, older));
-    }
-  }
-  return all;
 }
 
 function shuffled<T>(items: readonly T[], seed: number): T[] {
@@ -197,30 +208,41 @@ describe.each(SEEDS)('a world with seed %i', (seed) => {
   const world = worldOf(seed);
   const screens = generateRegion(world, REGION);
 
-  test('agrees on every shared lattice point whatever order screens are generated in', () => {
-    const again = new Map<string, Screen>();
-    for (const coord of shuffled(
-      [...screens.values()].map((s) => s.coord),
-      seed,
-    )) {
-      again.set(screenKey(coord), generateScreen(world, coord));
-    }
-    expect(seamMismatches(again)).toEqual([]);
-    for (const [key, screen] of screens) expect(again.get(key)).toEqual(screen);
+  test('agrees on every shared lattice point', () => {
+    expect(seamMismatches(screens)).toEqual([]);
   });
+
+  // Regenerated in parts, so each test stays well inside the per-test budget.
+  const reordered = shuffled(
+    [...screens.values()].map((s) => s.coord),
+    seed,
+  );
+  const PARTS = 4;
+  test.each(Array.from({ length: PARTS }, (_, i) => i + 1))(
+    `makes the same screens whatever order they are generated in, part %i of ${PARTS}`,
+    (part) => {
+      const size = reordered.length / PARTS;
+      for (const coord of reordered.slice((part - 1) * size, part * size)) {
+        expect(generateScreen(world, coord)).toEqual(screens.get(screenKey(coord)));
+      }
+    },
+  );
 
   test('gives every seam a crossing that is open on both sides, unless water blocks it entirely', () => {
     const problems: string[] = [];
-    for (const screen of screens.values()) {
-      const crossings = crossingTiles(world, screen.coord);
+    const crossingsOf = new Map(
+      [...screens].map(([key, screen]) => [key, crossingTiles(world, screen.coord)]),
+    );
+    for (const [key, screen] of screens) {
+      const crossings = crossingsOf.get(key)!;
       for (const dir of ['e', 's'] as const) {
-        const other = screens.get(screenKey(neighborCoord(screen.coord, dir)));
+        const otherKey = screenKey(neighborCoord(screen.coord, dir));
+        const other = screens.get(otherKey);
         if (!other) continue;
         const back = OPPOSITE[dir];
-        const along = (edge: Dir, tiles: readonly Tile[]) =>
-          tiles.filter((t) => edgeTiles(edge).some((e) => e.join() === t.join()));
+        const along = (edge: Dir, tiles: readonly Tile[]) => tiles.filter((t) => onEdge(edge, t));
         const ours = along(dir, crossings);
-        const theirs = along(back, crossingTiles(world, other.coord)).map((t) => facing(back, t));
+        const theirs = along(back, crossingsOf.get(otherKey)!).map((t) => facing(back, t));
         const inner = (tiles: readonly Tile[]) =>
           tiles
             .filter(([tx, ty]) => !isCornerTile(tx, ty))
@@ -278,7 +300,7 @@ describe.each(SEEDS)('a world with seed %i', (seed) => {
   });
 
   test('reaches every screen of the region from the garden on foot', () => {
-    const reached = reachableScreens(world, withMargin(world, screens));
+    const reached = reachableScreens(world, screens);
     expect([...screens.keys()].filter((k) => !reached.has(k))).toEqual([]);
   });
 });
@@ -394,7 +416,7 @@ describe.each(SEEDS)('next to older screens, a world with seed %i', (seed) => {
   });
 
   test('opens onto the whole walkable edge of their main land, so every screen is reached from the garden', () => {
-    const reached = reachableScreens(world, withMargin(world, screens, older));
+    const reached = reachableScreens(world, screens, older);
     expect([...screens.keys()].filter((k) => !reached.has(k))).toEqual([]);
     const blocked: string[] = [];
     let openings = 0;
@@ -454,23 +476,32 @@ describe('generateScreen', () => {
       secretGarden(),
     );
   });
+});
 
-  test('has lakes, forests, and meadows that each span several screens', () => {
-    const world = worldOf(3);
-    const screens: Screen[] = [];
-    for (let sy = -12; sy < 12; sy++) {
-      for (let sx = -12 + ((sy + 12) % 3); sx < 12; sx += 3) {
-        screens.push(generateScreen(world, { layer: OVERWORLD, sx, sy }));
-      }
+describe('a third of the screens of seed 3, 24 screens square', () => {
+  const world = worldOf(3);
+  const screens: Screen[] = [];
+  for (let sy = -12; sy < 12; sy++) {
+    for (let sx = -12 + ((sy + 12) % 3); sx < 12; sx += 3) {
+      screens.push(generateScreen(world, { layer: OVERWORLD, sx, sy }));
     }
-    const water = (s: Screen) => s.corners.filter((t) => t === 'water').length;
-    const trees = (s: Screen) => s.features.filter((f) => f === 'tree').length;
-    const lakeScreens = screens.filter((s) => water(s) > 40);
-    const forestScreens = screens.filter((s) => trees(s) > 80);
-    const meadowScreens = screens.filter((s) => trees(s) < 10 && water(s) === 0);
-    expect(lakeScreens.length).toBeGreaterThan(7);
-    expect(forestScreens.length).toBeGreaterThan(10);
-    expect(meadowScreens.length).toBeGreaterThan(20);
+  }
+  const water = (s: Screen) => s.corners.filter((t) => t === 'water').length;
+  const trees = (s: Screen) => s.features.filter((f) => f === 'tree').length;
+
+  test('have lakes that span several screens', () => {
+    expect(screens.filter((s) => water(s) > 40).length).toBeGreaterThan(7);
+  });
+
+  test('have forests that span several screens', () => {
+    expect(screens.filter((s) => trees(s) > 80).length).toBeGreaterThan(10);
+  });
+
+  test('have meadows that span several screens', () => {
+    expect(screens.filter((s) => trees(s) < 10 && water(s) === 0).length).toBeGreaterThan(20);
+  });
+
+  test('have sand and dirt', () => {
     expect(screens.some((s) => s.corners.includes('sand'))).toBe(true);
     expect(screens.some((s) => s.corners.includes('dirt'))).toBe(true);
   });

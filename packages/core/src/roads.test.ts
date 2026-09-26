@@ -75,18 +75,19 @@ describe.each(SEEDS)('the road network of seed %i', (seed) => {
   const chunks = range.flatMap((cy) => range.map((cx) => [cx, cy] as const));
   const forward = chunks.flatMap(([cx, cy]) => chunk(cx, cy));
 
+  // A fresh network that met the chunks in order, shared by the two tests that compare with it.
+  const fresh = roadNetwork(landFor(world, OVERWORLD));
+  const alone = roadMasks(fresh, forward);
+
   test('is the same whatever order fresh networks meet its chunks in', () => {
     const backward = [...chunks].reverse().flatMap(([cx, cy]) => chunk(cx, cy).reverse());
-    const a = roadMasks(roadNetwork(landFor(world, OVERWORLD)), forward);
     const b = roadMasks(roadNetwork(landFor(world, OVERWORLD)), backward);
-    expect(new Map([...b].sort())).toEqual(new Map([...a].sort()));
-    const roadPoints = [...a.values()].join('').replaceAll('0', '').length;
+    expect(new Map([...b].sort())).toEqual(new Map([...alone].sort()));
+    const roadPoints = [...alone.values()].join('').replaceAll('0', '').length;
     expect(roadPoints).toBeGreaterThan(16 * 16 * 10);
   });
 
   test('agrees across seams, each screen alone with the screens around it', () => {
-    const fresh = roadNetwork(landFor(world, OVERWORLD));
-    const alone = roadMasks(fresh, forward);
     const around = ({ sx, sy }: ScreenCoord) =>
       fresh.plan({
         x0: (sx - 1) * SCREEN_W,

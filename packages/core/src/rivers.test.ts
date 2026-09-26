@@ -78,25 +78,34 @@ function riverScreens(world: World): ScreenCoord[] {
 describe.each(SEEDS)('the rivers of seed %i', (seed) => {
   const world = worldOf(seed);
   const river = riverOf(world);
+  const wetScreens = riverScreens(world);
 
   test('wind across several screens', () => {
     const spans = riverSpans(world);
     expect(spans.filter((s) => s >= 3 * SCREEN_W).length).toBeGreaterThanOrEqual(4);
   });
 
-  test.each(['north', 'south'])(
-    'run on unbroken across screen and chunk seams in the %s, whichever screen is made first',
-    (half) => {
+  // Each half's screens are made in two parts, in order, so each test stays well inside the budget.
+  test.each([
+    ['north', 1],
+    ['north', 2],
+    ['south', 1],
+    ['south', 2],
+  ] as const)(
+    'run on unbroken across screen and chunk seams in the %s, whichever screen is made first, part %i of 2',
+    (half, part) => {
       // A checkerboard still puts one side of every seam between river screens under test.
-      const coords = riverScreens(world).filter(
+      const coords = wetScreens.filter(
         ({ sx, sy }) => ((sx + sy) & 1) === 0 && sy < 0 === (half === 'north'),
       );
       const chunks = new Set(
         coords.map(({ sx, sy }) => `${Math.floor(sx / CHUNK_W)},${Math.floor(sy / CHUNK_H)}`),
       );
       expect(chunks.size).toBeGreaterThan(1);
+      const order = [...coords].reverse();
+      const size = Math.ceil(order.length / 2);
       const broken: string[] = [];
-      for (const coord of [...coords].reverse()) {
+      for (const coord of order.slice((part - 1) * size, part * size)) {
         const screen = generateScreen(world, coord);
         for (let cy = 0; cy < LATTICE_H; cy++) {
           for (let cx = 0; cx < LATTICE_W; cx++) {
@@ -112,14 +121,19 @@ describe.each(SEEDS)('the rivers of seed %i', (seed) => {
     },
   );
 
-  test('never shut any land away, so no one is trapped', () => {
+  // Built here, outside the test's time: the water of every lattice point of AREA.
+  const wetPoints = (() => {
     const land = landFor(world, OVERWORLD);
     const { x0, y0, w, h } = AREA;
-    const wetPoints = new Uint8Array((w + 1) * (h + 1));
+    const points = new Uint8Array((w + 1) * (h + 1));
     for (let y = 0; y <= h; y++) {
-      for (let x = 0; x <= w; x++)
-        wetPoints[y * (w + 1) + x] = +(land.waterDepth(x0 + x, y0 + y) > 0);
+      for (let x = 0; x <= w; x++) points[y * (w + 1) + x] = +(land.waterDepth(x0 + x, y0 + y) > 0);
     }
+    return points;
+  })();
+
+  test('never shut any land away, so no one is trapped', () => {
+    const { x0, y0, w, h } = AREA;
     const wet = (x: number, y: number) => wetPoints[y * (w + 1) + x]!;
     const open = new Uint8Array(w * h);
     for (let ty = 0; ty < h; ty++) {

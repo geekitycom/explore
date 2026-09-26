@@ -67,12 +67,19 @@ describe('photo palette tool', () => {
     expect(() => parseSources([{ ...photo, licence: 'CC BY-SA 4.0' }])).toThrow(/not PD or CC0/);
   });
 
+  // A fresh run is some 100 ms of k-means per biome, so it runs here, outside the tests' time.
+  const fresh = new Map(
+    PALETTE_BIOMES.map((biome) => {
+      const photos = sources.filter((s) => s.biome === biome);
+      const jpegs = photos.map((s) => readFileSync(resolve(PHOTOS, s.file)));
+      return [biome, biomePalette(photos, jpegs)];
+    }),
+  );
+
   test.each(PALETTE_BIOMES)(
     'the committed %s palette matches a fresh run over the committed photos',
     (biome) => {
-      const photos = sources.filter((s) => s.biome === biome);
-      const jpegs = photos.map((s) => readFileSync(resolve(PHOTOS, s.file)));
-      expect(biomePalette(photos, jpegs)).toEqual(BIOME_PHOTO_PALETTES[biome]);
+      expect(fresh.get(biome)).toEqual(BIOME_PHOTO_PALETTES[biome]);
     },
   );
 
