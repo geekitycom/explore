@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import {
   GARDEN_COORD,
   GARDEN_SPAWN,
-  SENT_HOME_CLOSE_CODE,
+  DEPARTED_CLOSE_CODE,
   boxTiles,
   parseInventory,
   type ServerMessage,
@@ -65,7 +65,7 @@ function setup() {
   return { dir, clock, host, join: join_, hostAndGuest };
 }
 
-const sentHome = (sent: ServerMessage[]) => sent.filter((m) => m.t === 'sentHome');
+const departs = (sent: ServerMessage[]) => sent.filter((m) => m.t === 'depart');
 const screens = (sent: ServerMessage[]) => sent.filter((m) => m.t === 'screen');
 
 test('opens a world when first entered and closes it once nobody has been in it for a while', () => {
@@ -94,7 +94,7 @@ test('opens a world when first entered and closes it once nobody has been in it 
 
   const again = join(ONE, 1, 'alice');
   expect(host.openIds()).toEqual([TWO, ONE]);
-  expect(again.sent[0]).toMatchObject({ t: 'screen', you: STOOD, arrival: 'none' });
+  expect(again.sent[0]).toMatchObject({ t: 'screen', you: STOOD, arrival: { kind: 'none' } });
   expect(loadPlayerState(host.open(ONE).db, 1)).toMatchObject({
     coord: GARDEN_COORD,
     pose: STOOD,
@@ -151,9 +151,13 @@ test('tells whichever world the player is in about a new name and avatar', () =>
 test('a visitor arrives fresh on a free garden tile, the host wakes at the spawn', () => {
   const { host, hostAndGuest } = setup();
   const { alice, bob } = hostAndGuest();
-  expect(alice.sent[0]).toMatchObject({ t: 'screen', you: SPAWN, arrival: 'wake' });
+  expect(alice.sent[0]).toMatchObject({ t: 'screen', you: SPAWN, arrival: { kind: 'wake' } });
   const arrival = screens(bob.sent)[0]!;
-  expect(arrival).toMatchObject({ t: 'screen', arrival: 'visit', others: [{ id: 1, ...SPAWN }] });
+  expect(arrival).toMatchObject({
+    t: 'screen',
+    arrival: { kind: 'visit' },
+    others: [{ id: 1, ...SPAWN }],
+  });
   if (arrival.t !== 'screen') throw new Error('unreachable');
   const aliceTiles = boxTiles(SPAWN.x, SPAWN.y).map((t) => `${t.tx},${t.ty}`);
   const bobTiles = boxTiles(arrival.you.x, arrival.you.y).map((t) => `${t.tx},${t.ty}`);
@@ -171,15 +175,19 @@ test('closing the world sends every visitor home once, with the reason, and clos
   host.closeToVisitors(ONE);
   host.closeToVisitors(ONE);
   const reason = "alice closed their world, so you're back home.";
-  expect(sentHome(bob.sent)).toEqual([{ t: 'sentHome', reason }]);
-  expect(sentHome(carol.sent)).toEqual([{ t: 'sentHome', reason }]);
-  expect(bob.closes).toEqual([SENT_HOME_CLOSE_CODE]);
-  expect(carol.closes).toEqual([SENT_HOME_CLOSE_CODE]);
-  expect(sentHome(alice.sent)).toEqual([]);
+  const [bobGoes] = departs(bob.sent);
+  const [carolGoes] = departs(carol.sent);
+  expect(departs(bob.sent)).toMatchObject([{ t: 'depart', reason }]);
+  expect(departs(carol.sent)).toMatchObject([{ t: 'depart', reason }]);
+  expect(bob.closes).toEqual([DEPARTED_CLOSE_CODE]);
+  expect(carol.closes).toEqual([DEPARTED_CLOSE_CODE]);
+  expect(departs(alice.sent)).toEqual([]);
   expect(alice.closes).toEqual([]);
+  const portalOf = (m: ServerMessage | undefined) => (m?.t === 'depart' ? m.portal : undefined);
+  expect(portalOf(bobGoes)).not.toEqual(portalOf(carolGoes));
   expect(alice.sent.filter((m) => m.t === 'leave')).toEqual([
-    { t: 'leave', id: 2 },
-    { t: 'leave', id: 3 },
+    { t: 'leave', id: 2, portal: portalOf(bobGoes) },
+    { t: 'leave', id: 3, portal: portalOf(carolGoes) },
   ]);
   expect(host.open(ONE).game.playerCount()).toBe(1);
   expect(host.opening(ONE)).toEqual({ state: 'closed' });
@@ -197,10 +205,10 @@ test('the sweep closes the world to visitors once its host has been gone for the
   host.flush();
   host.sweep();
   expect(host.opening(ONE).state).toBe('open');
-  expect(sentHome(bob.sent)).toEqual([]);
+  expect(departs(bob.sent)).toEqual([]);
 
   const back = join(ONE, 1, 'alice');
-  expect(back.sent[0]).toMatchObject({ t: 'screen', arrival: 'none' });
+  expect(back.sent[0]).toMatchObject({ t: 'screen', arrival: { kind: 'none' } });
   clock.t = 200 + TIMEOUT;
   host.disconnect(ONE, back.player);
   clock.t = 200 + 2 * TIMEOUT - 1;
@@ -210,8 +218,8 @@ test('the sweep closes the world to visitors once its host has been gone for the
   clock.t = 200 + 2 * TIMEOUT;
   host.sweep();
   expect(host.opening(ONE)).toEqual({ state: 'closed' });
-  expect(sentHome(bob.sent)).toHaveLength(1);
-  expect(bob.closes).toEqual([SENT_HOME_CLOSE_CODE]);
+  expect(departs(bob.sent)).toHaveLength(1);
+  expect(bob.closes).toEqual([DEPARTED_CLOSE_CODE]);
   expect(host.open(ONE).game.playerCount()).toBe(0);
 });
 
@@ -224,7 +232,7 @@ test('a host who stays connected keeps the world open however long they idle', (
     host.sweep();
   }
   expect(host.opening(ONE).state).toBe('open');
-  expect(sentHome(bob.sent)).toEqual([]);
+  expect(departs(bob.sent)).toEqual([]);
 });
 
 test('going to visit another world closes your own to visitors', () => {
@@ -236,7 +244,7 @@ test('going to visit another world closes your own to visitors', () => {
   bob.sent.length = 0;
 
   join(TWO, 1, 'alice', 'visitor');
-  expect(sentHome(bob.sent)).toHaveLength(1);
+  expect(departs(bob.sent)).toHaveLength(1);
   expect(host.opening(ONE)).toEqual({ state: 'closed' });
   expect(host.opening(TWO).state).toBe('open');
   expect(alice.closes).toEqual([]);
@@ -288,7 +296,7 @@ test('a visit and the walk home are one session: home resumes in place, with no 
 
   clock.t += 100;
   const home = join(TWO, 2, 'bob');
-  expect(home.sent[0]).toMatchObject({ t: 'screen', you: STOOD, arrival: 'none' });
+  expect(home.sent[0]).toMatchObject({ t: 'screen', you: STOOD, arrival: { kind: 'none' } });
 });
 
 test('a real gap wakes you at home, even after playing elsewhere, and never resumes a stale visit', () => {
@@ -301,7 +309,7 @@ test('a real gap wakes you at home, even after playing elsewhere, and never resu
 
   clock.t = 100 + 2 * TIMEOUT;
   const home = join(TWO, 2, 'bob');
-  expect(home.sent[0]).toMatchObject({ t: 'screen', you: SPAWN, arrival: 'wake' });
+  expect(home.sent[0]).toMatchObject({ t: 'screen', you: SPAWN, arrival: { kind: 'wake' } });
   clock.t += 100;
   host.disconnect(TWO, home.player);
 
@@ -310,6 +318,6 @@ test('a real gap wakes you at home, even after playing elsewhere, and never resu
   host.redeemCode(host.openToVisitors(ONE, hostAgain.user), 2);
   const again = join(ONE, 2, 'bob', 'visitor');
   const arrival = screens(again.sent)[0]!;
-  expect(arrival).toMatchObject({ t: 'screen', arrival: 'visit' });
+  expect(arrival).toMatchObject({ t: 'screen', arrival: { kind: 'visit' } });
   if (arrival.t === 'screen') expect(arrival.you).not.toEqual(STOOD);
 });

@@ -2,6 +2,7 @@ import { fetchMap, fetchMe, logout, type User, type Visit } from './api.ts';
 import { avatarSheet, walkFrameRect } from './art/avatars.ts';
 import { ambientMix, createAmbience } from './audio/ambience.ts';
 import { createAudioEngine } from './audio/engine.ts';
+import { playWhoosh } from './audio/whoosh.ts';
 import { tuneFor } from './audio/mood.ts';
 import { createMusic } from './audio/music.ts';
 import { loadArt } from './art/load.ts';
@@ -42,7 +43,7 @@ const STATUS_TEXT: Record<GameStatus, string> = {
   reconnecting: 'Connection lost. Reconnecting…',
   replaced: 'You opened the game in another tab. This one is paused.',
   refused: 'That world is not open to you.',
-  sentHome: 'Going home…',
+  departed: 'Going home…',
 };
 
 /** How long the arrival line and a notice about being sent home stay up. */
@@ -139,9 +140,15 @@ function gameView(initialUser: User, worldId: number | undefined, notice: string
         },
       ),
       soundSettings(audio),
-      friendsMenu({ home: user.home, here, hostName, onVisit: visit, onGoHome: goHome }),
+      friendsMenu({
+        home: user.home,
+        here,
+        hostName,
+        onVisit: visit,
+        onGoHome: () => game.leave(),
+      }),
       ...(visiting
-        ? [h('button', { type: 'button', class: 'link', onclick: () => goHome() }, 'Go home')]
+        ? [h('button', { type: 'button', class: 'link', onclick: () => game.leave() }, 'Go home')]
         : []),
       h(
         'a',
@@ -218,7 +225,8 @@ function gameView(initialUser: User, worldId: number | undefined, notice: string
         notice = undefined;
       }
     },
-    onSentHome: goHome,
+    onPortal: () => audio.ifReady(({ ctx, effects }) => playWhoosh(ctx, effects, ctx.currentTime)),
+    onDepart: goHome,
   });
 
   let overlay: MapOverlay | undefined;

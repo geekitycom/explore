@@ -64,7 +64,7 @@ export function createWorldHost({
   const closeToVisitors = (id: WorldId): void => {
     const opening = openings.close(id);
     if (!opening) return;
-    worlds.get(id)?.game.sendVisitorsHome(opening.host.id, closedMessage(opening.host.name));
+    worlds.get(id)?.game.sendVisitorsHome(closedMessage(opening.host.name));
   };
 
   const close = (world: OpenWorld) => {

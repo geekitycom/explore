@@ -1,8 +1,8 @@
 import {
   GARDEN_COORD,
   GARDEN_SPAWN,
+  DEPARTED_CLOSE_CODE,
   REPLACED_CLOSE_CODE,
-  SENT_HOME_CLOSE_CODE,
   SCREEN_PX_H,
   SCREEN_PX_W,
   WALK_SPEED,
@@ -20,8 +20,9 @@ import {
   type Dir,
   type Pose,
   type ScreenCoord,
+  type Tile,
 } from '@explore/core';
-import { visitorPose } from './arrival.ts';
+import { departurePortal, occupied, visitorArrival, type VisitorArrival } from './arrival.ts';
 import { Chunks } from './chunks.ts';
 import type { WorldDb } from './db.ts';
 import { epitaphWriter, type WriteText } from './epitaphs.ts';
@@ -61,6 +62,13 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
 }
 
 const tileOf = ({ tx, ty }: { tx: number; ty: number }) => ({ tx, ty });
+
+const poses = (players: Iterable<Player>) => [...players].map((p) => p.pose);
+
+const visitThrough = ({ pose, portal }: VisitorArrival): [Pose, Arrival] => [
+  pose,
+  { kind: 'visit', portal },
+];
 
 /**
  * How a player comes in. `sessionSince` is when their current session began, on any world (the
@@ -110,10 +118,10 @@ export function createGame(
 
   const isLive = (player: Player) => online.get(player.user.id) === player;
 
-  const sendScreen = (player: Player, arrival: Arrival = 'none') => {
+  const sendScreen = (player: Player, arrival: Arrival = { kind: 'none' }) => {
     const { screen } = player.room.place;
     recordVisit(db, screen.coord);
-    const others = presence.enter(player);
+    const others = presence.enter(player, arrival.kind === 'visit' ? arrival.portal : undefined);
     player.conn.send({
       t: 'screen',
       screen: encodeScreen(screen),
@@ -127,18 +135,25 @@ export function createGame(
     chunks.prefetchAround(screen.coord, player.user.id);
   };
 
-  /** A player's first screen of this connection. TASK-67's arrival portal starts here. */
-  const arrive = (player: Player, arrival: Arrival) => sendScreen(player, arrival);
-
   /**
-   * Sends visitors back to their own worlds: every one hears it before anyone leaves the screen.
-   * TASK-67's departure portal starts here.
+   * Sends visitors back to their own worlds, each through a portal beside them. Every one hears
+   * where their portal opens before anyone leaves the screen; the others see each go through it.
+   * The server is done with them at once: every client plays the portal from these messages, the
+   * leaver's included, whose render loop outlives its socket.
    */
-  const sendHome = (visitors: Player[], reason: string) => {
-    for (const player of visitors) player.conn.send({ t: 'sentHome', reason });
+  const depart = (visitors: Player[], reason?: string) => {
+    const portals = new Map<Player, Tile>();
     for (const player of visitors) {
-      disconnect(player);
-      player.conn.close(SENT_HOME_CLOSE_CODE, 'sent home');
+      const { room } = player;
+      const taken = occupied([...room.players].filter((p) => p !== player).map((p) => p.pose));
+      for (const { tx, ty } of portals.values()) taken.add(`${tx},${ty}`);
+      const portal = departurePortal(room.place, player.pose, taken);
+      portals.set(player, portal);
+      player.conn.send({ t: 'depart', portal, ...(reason !== undefined && { reason }) });
+    }
+    for (const [player, portal] of portals) {
+      disconnect(player, portal);
+      player.conn.close(DEPARTED_CLOSE_CODE, 'departed');
     }
   };
 
@@ -179,10 +194,11 @@ export function createGame(
     save(player);
   }
 
-  function disconnect(player: Player): void {
+  /** `portal` is set when a visitor leaves through one rather than simply dropping out. */
+  function disconnect(player: Player, portal?: Tile): void {
     if (!isLive(player)) return;
     online.delete(player.user.id);
-    presence.exit(player);
+    presence.exit(player, portal);
     save(player);
   }
 
@@ -200,17 +216,14 @@ export function createGame(
       const saved = loadPlayerState(db, user.id);
       const resumed = saved && saved.seenAt > sessionSince - sessionTimeoutMs ? saved : undefined;
       const room = roomAt(resumed?.coord ?? GARDEN_COORD, user.id);
-      const pose =
-        resumed?.pose ??
-        (role === 'visitor'
-          ? visitorPose(
-              room.place,
-              [...room.players].map((p) => p.pose),
-              random,
-            )
-          : { ...GARDEN_SPAWN, moving: false });
+      const [pose, arrival]: [Pose, Arrival] = resumed
+        ? [resumed.pose, { kind: 'none' }]
+        : role === 'visitor'
+          ? visitThrough(visitorArrival(room.place, occupied(poses(room.players)), random))
+          : [{ ...GARDEN_SPAWN, moving: false }, { kind: 'wake' }];
       const player: Player = {
         user,
+        role,
         conn,
         room,
         pose,
@@ -218,7 +231,7 @@ export function createGame(
         inventory: loadInventory(db, user.id),
       };
       online.set(user.id, player);
-      arrive(player, resumed ? 'none' : role === 'visitor' ? 'visit' : 'wake');
+      sendScreen(player, arrival);
       return player;
     },
 
@@ -248,15 +261,18 @@ export function createGame(
         case 'report':
           reportTrace(db, player, message, now());
           break;
+        case 'goHome':
+          if (player.role === 'visitor') depart([player]);
+          break;
       }
     },
 
     disconnect,
 
-    /** Sends everyone but the host home, each with the reason, and closes their sockets. */
-    sendVisitorsHome(hostId: number, reason: string): void {
-      sendHome(
-        [...online.values()].filter((p) => p.user.id !== hostId),
+    /** Sends every visitor home through a portal, each with the reason, and closes their sockets. */
+    sendVisitorsHome(reason: string): void {
+      depart(
+        [...online.values()].filter((p) => p.role === 'visitor'),
         reason,
       );
     },

@@ -3,7 +3,7 @@ import type { NoteEvent, Song } from './compose.ts';
 const midiHz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
 const HARMONICS = 64;
 
-function pulseWave(ctx: BaseAudioContext, duty: number): PeriodicWave {
+export function pulseWave(ctx: BaseAudioContext, duty: number): PeriodicWave {
   const real = new Float32Array(HARMONICS);
   const imag = new Float32Array(HARMONICS);
   for (let k = 1; k < HARMONICS; k++) {
@@ -14,7 +14,7 @@ function pulseWave(ctx: BaseAudioContext, duty: number): PeriodicWave {
 }
 
 /** The NES triangle is a 4-bit staircase, which gives the bass its grainy edge. */
-function steppedTriangle(ctx: BaseAudioContext): PeriodicWave {
+export function steppedTriangle(ctx: BaseAudioContext): PeriodicWave {
   const samples = 32;
   const table = Array.from({ length: samples }, (_, i) => (i < 16 ? i : 31 - i) / 7.5 - 1);
   const real = new Float32Array(HARMONICS);
@@ -30,7 +30,7 @@ function steppedTriangle(ctx: BaseAudioContext): PeriodicWave {
 }
 
 /** Noise from the NES's 15-bit linear feedback shift register. */
-function lfsrNoise(ctx: BaseAudioContext): AudioBuffer {
+export function lfsrNoise(ctx: BaseAudioContext): AudioBuffer {
   const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
   const data = buffer.getChannelData(0);
   let lfsr = 1;

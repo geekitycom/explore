@@ -10,6 +10,7 @@ import { createHands, type Aim, type Hud, type Point } from './hands.ts';
 import { keyboard } from './input.ts';
 import { steer, step } from './movement.ts';
 import { connect, type ConnectionStatus } from './net.ts';
+import { portalDone, youCanMove } from './portal.ts';
 import { applyMessage, interpolate, type GameState } from './state.ts';
 
 export type Renderer = {
@@ -24,13 +25,15 @@ export type GameStatus = 'connecting' | ConnectionStatus;
 export type GameHooks = {
   onStatus: (s: GameStatus) => void;
   onScreen: (place: Place, patch: BiomeCell) => void;
+  /** The first screen of a connection, and any later screen that is a fresh arrival. */
+  onArrive: (arrival: Arrival['kind']) => void;
+  /** A portal opened on this screen, for anyone coming or going. */
+  onPortal: () => void;
   /**
-   * The first screen of a connection, and any later screen that is a fresh arrival. TASK-67's
-   * arrival portal attaches here.
+   * Your portal home has closed behind you; the caller takes you home. `reason` says why when
+   * the host closed their world rather than you choosing to go.
    */
-  onArrive: (arrival: Arrival) => void;
-  /** The host closed their world; the caller takes the player home. TASK-67's departure portal attaches here. */
-  onSentHome: (reason: string) => void;
+  onDepart: (reason: string | undefined) => void;
 };
 
 const samePose = (a: Pose, b: Pose) =>
@@ -55,6 +58,8 @@ export function startGame({
   let state: GameState = { phase: 'connecting' };
   let lastSent: Pose | undefined;
   let lastSentAt = 0;
+  /** Why the server sent you home, kept until your portal has taken you. */
+  let departReason: string | undefined;
 
   const hands = createHands({
     hud,
@@ -68,12 +73,16 @@ export function startGame({
     worldId,
     onMessage: (message) => {
       const was = state.phase;
-      state = applyMessage(state, message);
-      if (message.t === 'refused') hands.refused(message.reason, performance.now());
-      if (message.t === 'sentHome') hooks.onSentHome(message.reason);
+      const at = performance.now();
+      state = applyMessage(state, message, at);
+      if (state.phase !== 'connecting' && state.portals.some((p) => p.start === at))
+        hooks.onPortal();
+      if (message.t === 'refused') hands.refused(message.reason, at);
+      if (message.t === 'depart') departReason = message.reason;
       if (message.t === 'screen' || message.t === 'correct') lastSent = undefined;
       if (message.t === 'screen' && state.phase !== 'connecting') {
-        if (was === 'connecting' || message.arrival !== 'none') hooks.onArrive(message.arrival);
+        if (was === 'connecting' || message.arrival.kind !== 'none')
+          hooks.onArrive(message.arrival.kind);
         if (state.phase !== 'waking') hooks.onScreen(state.place, state.patch);
       }
     },
@@ -85,7 +94,18 @@ export function startGame({
     const dt = Math.min((now - previous) / 1000, 0.1);
     previous = now;
 
-    if (state.phase === 'playing') {
+    if (state.phase !== 'connecting' && state.portals.length > 0) {
+      const home = state.portals.find((p) => p.traveller === 'you' && p.kind === 'depart');
+      if (home && portalDone(home, now)) {
+        hooks.onDepart(departReason);
+        return;
+      }
+      state = { ...state, portals: state.portals.filter((p) => !portalDone(p, now)) };
+    }
+
+    if (state.phase === 'playing' && !youCanMove(state.portals, now)) {
+      state = { ...state, others: interpolate(state.others, dt) };
+    } else if (state.phase === 'playing') {
       const target = hands.walking();
       const { held, facing } = target
         ? steer(state.you, target)
@@ -119,6 +139,14 @@ export function startGame({
       if (state.phase !== 'waking') return;
       state = { ...state, phase: 'playing' };
       hooks.onScreen(state.place, state.patch);
+    },
+    /**
+     * Leaves a visited world through a portal; `onDepart` follows once it has closed. With no
+     * connection to carry the portal, you go home at once.
+     */
+    leave: () => {
+      if (conn.isOpen() && state.phase === 'playing') conn.send({ t: 'goHome' });
+      else hooks.onDepart(undefined);
     },
     /** A line in the hint bar for `forMs`, or the usual message time. */
     say: (text: string, forMs?: number) => hands.say(text, performance.now(), forMs),

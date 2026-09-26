@@ -53,6 +53,10 @@ export function createAudioEngine() {
       if (buses) fn(buses);
       else waiting.push(fn);
     },
+    /** Runs `fn` now if audio has started, and never otherwise: for a sound that is late if queued. */
+    ifReady(fn: (b: AudioBuses) => void) {
+      if (buses) fn(buses);
+    },
     /** Call from a user gesture that another handler keeps from reaching the window. */
     unlock,
     state: () => buses?.ctx.state ?? 'locked',

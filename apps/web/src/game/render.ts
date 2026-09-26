@@ -4,17 +4,20 @@ import {
   TILE,
   type Avatar,
   type Place,
+  type PlayerView,
   type Pose,
   type Screen,
 } from '@explore/core';
 import type { User } from '../api.ts';
 import { avatarSheet, walkFrameRect } from '../art/avatars.ts';
 import type { Art } from '../art/load.ts';
+import { drawPortal, portalFeet } from '../art/portal.ts';
 import { buildScene, drawScene, type Scene } from '../art/scene.ts';
 import { bakeTerrain } from '../art/terrain.ts';
 import type { Renderer } from './game.ts';
 import { namePoint } from '../ui/bubbles.ts';
 import type { Aim } from './hands.ts';
+import { portalLook, travellerLook, type Portal } from './portal.ts';
 import type { GameState } from './state.ts';
 
 const FRAME_MS = 140;
@@ -30,7 +33,38 @@ const PAPER = '#fff4dd';
 const FOCUS = '#3aa3c9';
 const ACCENT = '#d14b34';
 
-type Actor = { avatar: Avatar; name: string; x: number; y: number; pose: Pose };
+/** `alpha` below 1 is a traveller part way through a portal. */
+type Actor = { avatar: Avatar; name: string; x: number; y: number; pose: Pose; alpha: number };
+
+const facing = (dx: number, dy: number): Pose['dir'] =>
+  Math.abs(dy) > Math.abs(dx) ? (dy < 0 ? 'n' : 's') : dx < 0 ? 'w' : 'e';
+
+/**
+ * `actor` as a portal carries them at `clock`: faded by how far they have come through, and
+ * placed between where they stand and the portal's mouth, walking when they move.
+ */
+function carried(actor: Actor, portal: Portal, clock: number): Actor | undefined {
+  const look = travellerLook(portal, clock);
+  if (!look) return actor;
+  if (look.shown <= 0) return undefined;
+  const mouth = portalFeet(portal.tile);
+  const dx = mouth.x - actor.x;
+  const dy = mouth.y - actor.y;
+  const walking = look.along > 0 && look.along < 1;
+  return {
+    ...actor,
+    x: actor.x + dx * look.along,
+    y: actor.y + dy * look.along,
+    pose: walking
+      ? {
+          ...actor.pose,
+          moving: true,
+          dir: portal.kind === 'depart' ? facing(dx, dy) : facing(-dx, -dy),
+        }
+      : actor.pose,
+    alpha: look.shown,
+  };
+}
 
 /** Mirror .game-canvas's border in style.css. */
 const BORDER = 3;
@@ -82,9 +116,10 @@ export function canvasRenderer(
     return entry.scene;
   };
 
-  const drawActor = ({ avatar, x, y, pose }: Actor, clock: number) => {
+  const drawActor = ({ avatar, x, y, pose, alpha }: Actor, clock: number) => {
     const frame = pose.moving ? Math.floor(clock / FRAME_MS) : 0;
     const src = walkFrameRect(pose.dir, frame);
+    ctx.globalAlpha = alpha;
     ctx.drawImage(
       avatarSheet(avatar, art),
       src.x,
@@ -96,11 +131,13 @@ export function canvasRenderer(
       TILE,
       TILE,
     );
+    ctx.globalAlpha = 1;
   };
 
   /** Outlined text centred above the screen point (x, y), as over a player's head. */
-  const label = (text: string, x: number, y: number) => {
+  const label = (text: string, x: number, y: number, alpha: number) => {
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const size = Math.max(10, 4 * scale);
     ctx.font = `${size}px 'Pixelify Sans', monospace`;
@@ -142,40 +179,85 @@ export function canvasRenderer(
       ctx.setTransform(scale, 0, 0, scale, 0, 0);
       ctx.imageSmoothingEnabled = false;
 
-      const actors: Actor[] = [
-        {
-          avatar: you.avatar,
-          name: you.displayName,
-          x: state.you.x,
-          y: state.you.y,
-          pose: state.you,
-        },
-        ...[...state.others.values()].map((p) => ({
-          avatar: p.avatar,
-          name: p.name,
-          x: p.drawX,
-          y: p.drawY,
-          pose: p,
-        })),
-      ];
+      const motion = !reducedMotion.matches && state.phase !== 'waking';
+      const yours = state.portals.find((p) => p.traveller === 'you');
+      const self: Actor = {
+        avatar: you.avatar,
+        name: you.displayName,
+        x: state.you.x,
+        y: state.you.y,
+        pose: state.you,
+        alpha: 1,
+      };
+      const theirs = new Map<number, { portal: Portal; view: PlayerView }>();
+      for (const portal of state.portals)
+        if (portal.traveller !== 'you')
+          theirs.set(portal.traveller.id, { portal, view: portal.traveller });
+      const actors = [
+        yours ? carried(self, yours, clock) : self,
+        ...[...state.others.values()]
+          .filter((p) => !theirs.has(p.id))
+          .map((p) => ({
+            avatar: p.avatar,
+            name: p.name,
+            x: p.drawX,
+            y: p.drawY,
+            pose: p,
+            alpha: 1,
+          })),
+        ...[...theirs.values()].map(({ portal, view }) => {
+          const drawn = state.others.get(view.id);
+          const at = drawn ? { x: drawn.drawX, y: drawn.drawY } : view;
+          const actor = {
+            avatar: view.avatar,
+            name: view.name,
+            ...at,
+            pose: drawn ?? view,
+            alpha: 1,
+          };
+          return carried(actor, portal, clock);
+        }),
+      ].filter((a): a is Actor => a !== undefined);
+      const portals = state.portals.flatMap((portal) => {
+        const look = portalLook(portal, clock);
+        if (!look) return [];
+        const sortY = (portal.tile.ty + 1) * TILE;
+        return [
+          {
+            x: portal.tile.tx * TILE + TILE / 2,
+            y: sortY,
+            moving: false,
+            sortY,
+            draw: () => {
+              ctx.save();
+              ctx.globalAlpha = motion ? 1 : look.size;
+              drawPortal(ctx, portal.tile, motion ? look.size : 1, clock / 1000, motion);
+              ctx.restore();
+            },
+          },
+        ];
+      });
       drawScene(
         ctx,
         sceneFor(state.place, Date.now()),
         art,
         (Date.now() - AMBIENT_EPOCH_MS) / 1000,
-        actors.map((a) => ({
-          x: a.x,
-          y: a.y,
-          moving: a.pose.moving,
-          sortY: a.y + SPRITE_FOOT,
-          draw: () => drawActor(a, clock),
-        })),
-        !reducedMotion.matches && state.phase !== 'waking',
+        [
+          ...actors.map((a) => ({
+            x: a.x,
+            y: a.y,
+            moving: a.pose.moving,
+            sortY: a.y + SPRITE_FOOT,
+            draw: () => drawActor(a, clock),
+          })),
+          ...portals,
+        ],
+        motion,
       );
       if (aim) outline(aim);
       for (const a of actors) {
         const at = namePoint(a.x, a.y);
-        label(a.name, at.x, at.y);
+        label(a.name, at.x, at.y, a.alpha);
       }
 
       if (state.phase === 'travelling') {

@@ -1,20 +1,25 @@
 import {
   REFUSED_CLOSE_CODE,
+  DEPARTED_CLOSE_CODE,
   REPLACED_CLOSE_CODE,
-  SENT_HOME_CLOSE_CODE,
   type ClientMessage,
   type ServerMessage,
 } from '@explore/core';
 
-export type Connection = { send: (message: ClientMessage) => void; close: () => void };
+export type Connection = {
+  send: (message: ClientMessage) => void;
+  /** Whether a message sent now reaches the server. */
+  isOpen: () => boolean;
+  close: () => void;
+};
 
-export type ConnectionStatus = 'open' | 'reconnecting' | 'replaced' | 'refused' | 'sentHome';
+export type ConnectionStatus = 'open' | 'reconnecting' | 'replaced' | 'refused' | 'departed';
 
 /** Close codes after which the client does not reconnect. */
 const ENDINGS: Record<number, ConnectionStatus | undefined> = {
   [REPLACED_CLOSE_CODE]: 'replaced',
   [REFUSED_CLOSE_CODE]: 'refused',
-  [SENT_HOME_CLOSE_CODE]: 'sentHome',
+  [DEPARTED_CLOSE_CODE]: 'departed',
 };
 
 type Handlers = {
@@ -23,7 +28,7 @@ type Handlers = {
   onStatus: (status: ConnectionStatus) => void;
 };
 
-/** One game socket into `worldId` that reconnects with backoff until closed, replaced, refused, or sent home. */
+/** One game socket into `worldId` that reconnects with backoff until closed, replaced, refused, or gone home. */
 export function connect({ worldId, onMessage, onStatus }: Handlers): Connection {
   const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/worlds/${worldId}`;
   let socket: WebSocket | undefined;
@@ -57,6 +62,7 @@ export function connect({ worldId, onMessage, onStatus }: Handlers): Connection 
     send: (message) => {
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
     },
+    isOpen: () => !closed && socket?.readyState === WebSocket.OPEN,
     close: () => {
       closed = true;
       socket?.close();

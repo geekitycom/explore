@@ -6,8 +6,10 @@ import {
   type Pose,
   type ScreenCoord,
   type ServerMessage,
+  type Tile,
 } from '@explore/core';
 import type { User } from './users.ts';
+import type { Admission } from './worlds.ts';
 
 export type Conn = {
   send(message: ServerMessage): void;
@@ -19,6 +21,8 @@ export type Room = { place: Place; readonly players: Set<Player> };
 
 export type Player = {
   user: User;
+  /** Whether this world is the player's own or they are visiting it. */
+  readonly role: Admission;
   readonly conn: Conn;
   room: Room;
   /** The last accepted pose; every correction sends the player back here. */
@@ -50,18 +54,22 @@ export class Presence {
     return this.#rooms.get(screenKey(coord));
   }
 
-  /** Adds the player to `player.room` and returns everyone who was already there. */
-  enter(player: Player): PlayerView[] {
+  /**
+   * Adds the player to `player.room` and returns everyone who was already there. `portal` is set
+   * only when a visitor comes into the world through one.
+   */
+  enter(player: Player, portal?: Tile): PlayerView[] {
     const others = [...player.room.players].map(viewOf);
     player.room.players.add(player);
-    this.broadcast(player, { t: 'join', player: viewOf(player) });
+    this.broadcast(player, { t: 'join', player: viewOf(player), ...(portal && { portal }) });
     return others;
   }
 
-  exit(player: Player): void {
+  /** `portal` is set only when a visitor leaves the world through one. */
+  exit(player: Player, portal?: Tile): void {
     const { room } = player;
     room.players.delete(player);
-    this.broadcast(player, { t: 'leave', id: player.user.id });
+    this.broadcast(player, { t: 'leave', id: player.user.id, ...(portal && { portal }) });
     if (room.players.size === 0) this.#rooms.delete(screenKey(room.place.screen.coord));
   }
 
