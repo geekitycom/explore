@@ -7,12 +7,16 @@ import { TILE, type ScreenCoord, type Tile } from '../packages/core/src/index.ts
 export const unique = (tag: string) =>
   `${tag}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
 
+// The server writes these files while tests do (it saves every open world every few seconds),
+// so a test waits for the lock instead of failing with "database is locked".
+const open = (path: string) => new DatabaseSync(path, { timeout: 5000 });
+
 /** The e2e server's accounts database, under the data directory playwright.config.ts picked. */
-export const mainDb = () => new DatabaseSync(join(process.env['E2E_DATA_DIR']!, 'main.db'));
+export const mainDb = () => open(join(process.env['E2E_DATA_DIR']!, 'main.db'));
 
 /** The world file of world `worldId`. */
 export const worldDb = (worldId: number) =>
-  new DatabaseSync(join(process.env['E2E_DATA_DIR']!, 'worlds', `${worldId}.db`));
+  open(join(process.env['E2E_DATA_DIR']!, 'worlds', `${worldId}.db`));
 
 /** The account named `username` and the world it owns. */
 export function account(username: string): { id: number; home: number } {
