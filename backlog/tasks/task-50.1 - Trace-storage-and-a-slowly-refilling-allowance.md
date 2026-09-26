@@ -1,11 +1,11 @@
 ---
 id: TASK-50.1
 title: 'Trace storage, the inventory bar, and interaction'
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-26 00:28'
+updated_date: '2026-09-26 00:45'
 labels: []
 milestone: m-5
 dependencies: []
@@ -22,13 +22,13 @@ The foundation for every kind of trace. Store traces per screen position, separa
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Traces are stored apart from screen records, survive restarts, and reach every player on the screen without reconnecting
-- [ ] #2 Per-kind limits (for example the stone carry limit) live in one table and are enforced on the server; a refused request says why
-- [ ] #3 Players have an inventory bar below the game view: a full-width carved panel coloured from the current biome's palette ramps (BIOME_RAMPS), 10 numbered slots on keys 1 to 9 and 0, each with an icon and a count; stacks shift up when one runs out
-- [ ] #4 An item is used on the tile the player faces with its number key, or by clicking its slot and then a tile within reach; while an item is selected the cursor shows its icon and outlines the target tile as valid or invalid; right-click or Esc cancels
-- [ ] #5 A hint bar along the bottom edge of the world stays hidden while the player walks and appears after they stand still about half a second, or to show a message; refusals explain why, for example 'Flowers can only be placed on graves' or 'Too far away. Walk closer.'
-- [ ] #6 The faced tile is computed from the centre of the player's collision box, and nothing is placed on a tile that overlaps the player or would leave them no walkable route off the screen, tested over every sub-tile position and facing
-- [ ] #7 Stored generator output is unchanged (D23), and a world wipe also clears traces
+- [x] #1 Traces are stored apart from screen records, survive restarts, and reach every player on the screen without reconnecting
+- [x] #2 Per-kind limits (for example the stone carry limit) live in one table and are enforced on the server; a refused request says why
+- [x] #3 Players have an inventory bar below the game view: a full-width carved panel coloured from the current biome's palette ramps (BIOME_RAMPS), 10 numbered slots on keys 1 to 9 and 0, each with an icon and a count; stacks shift up when one runs out
+- [x] #4 An item is used on the tile the player faces with its number key, or by clicking its slot and then a tile within reach; while an item is selected the cursor shows its icon and outlines the target tile as valid or invalid; right-click or Esc cancels
+- [x] #5 A hint bar along the bottom edge of the world stays hidden while the player walks and appears after they stand still about half a second, or to show a message; refusals explain why, for example 'Flowers can only be placed on graves' or 'Too far away. Walk closer.'
+- [x] #6 The faced tile is computed from the centre of the player's collision box, and nothing is placed on a tile that overlaps the player or would leave them no walkable route off the screen, tested over every sub-tile position and facing
+- [x] #7 Stored generator output is unchanged (D23), and a world wipe also clears traces
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -50,4 +50,12 @@ Interaction design settled in a throwaway demo on 2026-09-25 (local only, _local
 Signs are no longer inventory items or a daily allowance: they come from naming landmarks (TASK-50.2).
 
 Design settled by an architect arena (three candidate designs, one cross-judge). Defaults chosen: traces keyed by (tile, kind) so a grave can hold an epitaph and flowers at once; a solid trace may not go on a screen-edge tile or split the walkable ground, so nobody present, absent or arriving later is ever stranded and the client checks it with no generator data; reach is the 3x3 around the tile holding the centre of the feet box; the faced tile can overlap the player's own box facing east or west and a solid placement there is refused with 'Too close. Step back.'; inventory is its own table (one JSON row per user) and a world wipe clears traces, reports and inventories; a test-only probe kind ships in the registry, nothing in play grants it.
+
+Verification on main at af77ddc: pnpm lint, lint:art, typecheck, format:check, build, test (585 tests; core walk/place/act/inventory, server play/traces/wipe, web hands/hint/state/inventory-bar) and pnpm e2e (13 specs, including e2e/traces.spec.ts: ten keyed slots, hint bar hidden through a 600 ms walk and shown after standing still, phone width without horizontal scroll, bar carved from the dune ramp when the screen is a desert). Screenshots in e2e/.results: inventory-garden.png, inventory-south.png, inventory-phone.png, inventory-desert.png. AC1: play.test.ts places a probe from one socket, the other socket receives the traces message, a restarted server on a file db sends it in the screen message. AC2: LIMITS table in packages/core/src/traces/registry.ts; the carry limit and every world rule refuse with a reason through the refused message. AC6: walk.test.ts covers every 0.5 px sub-tile position and all four facings; act.test.ts refuses the tile under the feet, another player's box, the screen edge and a corridor split. AC7: screens table untouched; wipe.test.ts shows wipeWorld clears traces, reports and inventories.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Built the trace foundation for TASK-50. Core: a Place is a Screen plus its traces with per-tile walkability derived once; trace kinds are one file each under packages/core/src/traces/kinds plus one export line, and the registry derives the Trace and Item unions, the wire and row zod schemas, and the LIMITS table; resolve() is the single pure rule the server enforces and the client predicts with (the kind's verdict, then reach, box overlap, screen edge and no-split); the faced tile comes from the centre of the feet box. Server: traces, trace_reports and inventories tables in one migration; TraceStore opens a screen's Place (skipping, never deleting, rows that fail to parse) and commits changes with the actor's inventory in one transaction, then tells the whole room; wipeWorld clears all three tables. Web: a carved inventory bar coloured from BIOME_RAMPS with ten keyed slots, a hint bar over the world's bottom edge shown after 500 ms still or for a refusal, item selection by key or click with an icon cursor and a valid or invalid tile outline, right-click or Esc cancel, speech bubbles for traces in reach. A test-only probe kind proves the plumbing end to end; no gameplay kind ships. Verified with lint, lint:art, typecheck, format:check, build, 585 unit tests and 13 e2e specs on main at af77ddc.
+<!-- SECTION:FINAL_SUMMARY:END -->
