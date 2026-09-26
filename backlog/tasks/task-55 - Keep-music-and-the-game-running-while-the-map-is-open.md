@@ -1,11 +1,11 @@
 ---
 id: TASK-55
 title: Keep music and the game running while the map is open
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-26 03:19'
-updated_date: '2026-09-26 03:23'
+updated_date: '2026-09-26 03:24'
 labels: []
 milestone: m-1
 dependencies: []
@@ -20,12 +20,12 @@ Opening the map from the game bar used to be a plain link to /map, so the page r
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Opening the map from the game (Map link or the M key) does not reload the page, reconnect the websocket, or stop music or ambience
-- [ ] #2 The map closes with its Back to the game link, Escape, the M key, and the browser Back button, returning to the game without a reload
-- [ ] #3 While the map is open, movement and action keys do not move or act for the player; after closing, the player moves again
-- [ ] #4 The map fetches fresh data every time it opens
-- [ ] #5 The URL shows /map while the map is open, and loading /map directly still shows the standalone map, with login first when logged out
-- [ ] #6 An e2e test unlocks audio, opens the map, and checks audio output continues and the websocket did not reconnect, then closes it and moves
+- [x] #1 Opening the map from the game (Map link or the M key) does not reload the page, reconnect the websocket, or stop music or ambience
+- [x] #2 The map closes with its Back to the game link, Escape, the M key, and the browser Back button, returning to the game without a reload
+- [x] #3 While the map is open, movement and action keys do not move or act for the player; after closing, the player moves again
+- [x] #4 The map fetches fresh data every time it opens
+- [x] #5 The URL shows /map while the map is open, and loading /map directly still shows the standalone map, with login first when logged out
+- [x] #6 An e2e test unlocks audio, opens the map, and checks audio output continues and the websocket did not reconnect, then closes it and moves
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -44,3 +44,9 @@ Decisions: the map opens as an overlay over the running game (dimmed game visibl
 
 Validation: pnpm lint, typecheck, test (674+1), format:check pass; pnpm e2e 17/17. Mutation check: removing the key pause fails the new e2e on position, and making the Map link a plain navigation fails it on the websocket count (2 vs 1). Screenshot: e2e/.results/map-over-game.png.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+The game bar Map link and the M key now open the map as an overlay over the running game instead of navigating to /map. Music, ambience and the websocket keep going; the URL shows /map via pushState, and the Back to the game link, Escape, M and browser Back all close it without a reload. Game keys are paused while it is open and the map refetches on each open. Loading /map directly still gives the standalone page. Verified with a new e2e (audio output level stays above 0.002 with the map open, one websocket across three open/close cycles, no movement while open, movement after close) plus the full e2e suite (17 passed), unit tests, lint, typecheck and format.
+<!-- SECTION:FINAL_SUMMARY:END -->
