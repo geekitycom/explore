@@ -15,6 +15,11 @@ const MAX_SCALE = 24;
 const PAN_STEP = 40;
 /** Mirrors --paper in style.css. */
 const PAPER = '#fff4dd';
+const INK = '#141b1b';
+const YOU = '#e07aa8';
+const GARDEN = '#e3c16f';
+const LABEL_STROKE = 3;
+const font = (size: number) => `${size}px 'Pixelify Sans', monospace`;
 
 type View = { scale: number; cx: number; cy: number };
 
@@ -103,41 +108,43 @@ export function mapView(data: WorldMap, onBack?: () => void) {
       }
     }
 
-    const marker = (sx: number, sy: number, color: string, label: string) => {
+    const frame = (sx: number, sy: number, color: string) => {
       const { x, y, w, h: hgt } = screenRect(s, ox, oy, sx, sy);
       const pad = 2 * dpr;
       ctx.lineWidth = 4 * dpr;
-      ctx.strokeStyle = '#141b1b';
+      ctx.strokeStyle = INK;
       ctx.strokeRect(x - pad, y - pad, w + 2 * pad, hgt + 2 * pad);
       ctx.lineWidth = 2 * dpr;
       ctx.strokeStyle = color;
       ctx.strokeRect(x - pad, y - pad, w + 2 * pad, hgt + 2 * pad);
-      ctx.font = `${12 * dpr}px 'Pixelify Sans', monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.lineWidth = 3 * dpr;
-      ctx.strokeStyle = '#141b1b';
-      ctx.strokeText(label, x + w / 2, y - pad - 3 * dpr);
-      ctx.fillStyle = color;
-      ctx.fillText(label, x + w / 2, y - pad - 3 * dpr);
     };
-    ctx.font = `${11 * dpr}px 'Pixelify Sans', monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    for (const { x, y, name } of data.names) {
+    for (const { x, y } of data.names) {
       const px = ox + x * s;
       const py = oy + y * s;
-      ctx.fillStyle = '#141b1b';
+      ctx.fillStyle = INK;
       ctx.fillRect(px - 2.5 * dpr, py - 2.5 * dpr, 5 * dpr, 5 * dpr);
       ctx.fillStyle = PAPER;
       ctx.fillRect(px - 1.5 * dpr, py - 1.5 * dpr, 3 * dpr, 3 * dpr);
-      ctx.lineWidth = 3 * dpr;
-      ctx.strokeStyle = '#141b1b';
-      ctx.strokeText(name, px, py - 4 * dpr);
-      ctx.fillText(name, px, py - 4 * dpr);
     }
-    if (data.garden) marker(data.garden.sx, data.garden.sy, '#e3c16f', 'Garden');
-    marker(data.you.sx, data.you.sy, '#e07aa8', 'You');
+    if (data.garden) frame(data.garden.sx, data.garden.sy, GARDEN);
+    frame(data.you.sx, data.you.sy, YOU);
+
+    const measure = (text: string, size: number) => {
+      ctx.font = font(size);
+      return ctx.measureText(text).width;
+    };
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.lineWidth = LABEL_STROKE * dpr;
+    ctx.strokeStyle = INK;
+    for (const label of mapLabels(data, s, ox, oy, dpr, measure)) {
+      ctx.font = font(label.size);
+      ctx.fillStyle = label.color;
+      const cx = label.x + label.w / 2;
+      const bottom = label.y + label.h - (LABEL_STROKE * dpr) / 2;
+      ctx.strokeText(label.text, cx, bottom);
+      ctx.fillText(label.text, cx, bottom);
+    }
   };
 
   const zoomAt = (factor: number, px = canvas.width / 2, py = canvas.height / 2) => {
@@ -259,6 +266,60 @@ export function screenRect(scale: number, ox: number, oy: number, sx: number, sy
     w: Math.round(ox + (sx + 1) * SCREEN_W * scale) - x,
     h: Math.round(oy + (sy + 1) * SCREEN_H * scale) - y,
   };
+}
+
+export type MapLabel = {
+  text: string;
+  color: string;
+  /** Font size in device pixels. */
+  size: number;
+  /** The label's box on the canvas in device pixels, outline included. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+/** Where each map label goes: You, then the garden, then landmark names. */
+export function mapLabels(
+  data: Pick<WorldMap, 'you' | 'garden' | 'names'>,
+  scale: number,
+  ox: number,
+  oy: number,
+  dpr: number,
+  measure: (text: string, size: number) => number,
+): MapLabel[] {
+  const aboveScreen = ({ sx, sy }: { sx: number; sy: number }) => {
+    const r = screenRect(scale, ox, oy, sx, sy);
+    return { cx: r.x + r.w / 2, bottom: r.y - 5 * dpr };
+  };
+  const wanted = [
+    { text: 'You', color: YOU, size: 12 * dpr, ...aboveScreen(data.you) },
+    ...(data.garden
+      ? [{ text: 'Garden', color: GARDEN, size: 12 * dpr, ...aboveScreen(data.garden) }]
+      : []),
+    ...data.names.map(({ x, y, name }) => ({
+      text: name,
+      color: PAPER,
+      size: 11 * dpr,
+      cx: ox + x * scale,
+      bottom: oy + y * scale - 4 * dpr,
+    })),
+  ];
+  const stroke = LABEL_STROKE * dpr;
+  return wanted.map(({ text, color, size, cx, bottom }) => {
+    const w = Math.ceil(measure(text, size) + stroke);
+    const h = Math.ceil(size + stroke);
+    return {
+      text,
+      color,
+      size,
+      x: Math.round(cx - w / 2),
+      y: Math.round(bottom + stroke / 2 - h),
+      w,
+      h,
+    };
+  });
 }
 
 function rasterise(screen: Screen): HTMLCanvasElement {
