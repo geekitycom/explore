@@ -1,7 +1,7 @@
 import { SCREEN_H, SCREEN_W } from '@explore/core';
 import { describe, expect, test } from 'vitest';
 import type { WorldMap } from '../api.ts';
-import { ZOOMS, mapLabels, mapLayout, openView, screenRect, type MapLabel } from './map-view.ts';
+import { mapLabels, mapLayout, screenRect, type MapLabel } from './map-view.ts';
 
 const zooms = [1, 1.25, 1.25 ** 2, 1.25 ** 5, 0.8 * 1.25 ** 9, 24];
 
@@ -41,28 +41,18 @@ describe('the map view', () => {
   const ratios = [1, 1.25, 1.5, 2, 3];
 
   test.each(ratios)(
-    'opens with your screen centred at pixel ratio %d, same size for 2 or 500 screens',
+    'centres your screen at pixel ratio %d on whole pixels, same size for 2 or 500 screens',
     (dpr) => {
       for (const [w, h] of canvases) {
         const [few, many] = [world(2), world(500)].map((data) => {
-          const { s, ox, oy } = mapLayout(openView(data), dpr, w!, h!);
+          const { s, ox, oy } = mapLayout(data.you, dpr, w!, h!);
+          expect([s, ox, oy].every(Number.isInteger)).toBe(true);
           return screenRect(s, ox, oy, you.sx, you.sy);
         });
         expect(many).toEqual(few);
         expect(Math.abs(few!.x + few!.w / 2 - w! / 2)).toBeLessThanOrEqual(1);
         expect(Math.abs(few!.y + few!.h / 2 - h! / 2)).toBeLessThanOrEqual(1);
         expect(few!.w).toBe(SCREEN_W * Math.round(3 * dpr));
-      }
-    },
-  );
-
-  test.each(ratios)(
-    'every zoom step puts tiles on whole device pixels at pixel ratio %d',
-    (dpr) => {
-      for (const [zoom, css] of ZOOMS.entries()) {
-        const { s, ox, oy } = mapLayout({ zoom, cx: 141.37, cy: -62.5 }, dpr, 1001, 777);
-        expect([s, ox, oy].every(Number.isInteger)).toBe(true);
-        expect(Math.abs(s - css * dpr)).toBeLessThanOrEqual(0.5);
       }
     },
   );

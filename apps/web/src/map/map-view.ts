@@ -10,11 +10,8 @@ import type { WorldMap } from '../api.ts';
 import { h } from '../ui/dom.ts';
 import { screenPixels } from './colors.ts';
 
-/** CSS pixels per world tile at each zoom step. The map opens at DEFAULT_ZOOM: 60x45 per screen. */
-export const ZOOMS = [2, 3, 4, 6] as const;
-const DEFAULT_ZOOM = 1;
-const WHEEL_STEP = 100;
-const PAN_STEP = 40;
+/** CSS pixels per world tile: 60x45 per screen, however much is discovered. */
+const TILE_CSS = 3;
 /** Mirrors --paper in style.css. */
 const PAPER = '#fff4dd';
 const INK = '#141b1b';
@@ -23,26 +20,26 @@ const GARDEN = '#e3c16f';
 const LABEL_STROKE = 3;
 const font = (size: number) => `${size}px 'Pixelify Sans', monospace`;
 
-/** A zoom step, and the world point (in tiles) at the centre of the canvas. */
-export type View = { zoom: number; cx: number; cy: number };
-
-/** The map always opens on the player's screen at the same size, however much is discovered. */
-export const openView = ({ you }: Pick<WorldMap, 'you'>): View => ({
-  zoom: DEFAULT_ZOOM,
-  cx: (you.sx + 0.5) * SCREEN_W,
-  cy: (you.sy + 0.5) * SCREEN_H,
-});
-
-/** Device pixels per tile: a whole number, so every tile covers the same pixels and stays crisp. */
-const tilePixels = (zoom: number, dpr: number) => Math.max(1, Math.round(ZOOMS[zoom]! * dpr));
-
-/** Where the world lands on a canvas of the given device-pixel size, origin on a whole pixel. */
-export function mapLayout(view: View, dpr: number, width: number, height: number) {
-  const s = tilePixels(view.zoom, dpr);
-  return { s, ox: Math.round(width / 2 - view.cx * s), oy: Math.round(height / 2 - view.cy * s) };
+/**
+ * Where the world lands on a canvas of the given device-pixel size: the player's screen in the
+ * centre, a whole number of device pixels per tile so every tile stays crisp, origin on a whole
+ * pixel. The map never pans or zooms, so a player sees only what surrounds them.
+ */
+export function mapLayout(
+  you: Pick<WorldMap['you'], 'sx' | 'sy'>,
+  dpr: number,
+  width: number,
+  height: number,
+) {
+  const s = Math.max(1, Math.round(TILE_CSS * dpr));
+  return {
+    s,
+    ox: Math.round(width / 2 - (you.sx + 0.5) * SCREEN_W * s),
+    oy: Math.round(height / 2 - (you.sy + 0.5) * SCREEN_H * s),
+  };
 }
 
-/** An interactive map of the discovered screens, opened on the player's own screen. */
+/** A map of the discovered screens around the player's own screen. */
 export function mapView(data: WorldMap, onBack?: () => void) {
   const layer = layerIdSchema.parse(data.layer);
   const screens = data.screens.map((raw) => decodeScreen(raw));
@@ -51,18 +48,17 @@ export function mapView(data: WorldMap, onBack?: () => void) {
 
   const canvas = h('canvas', {
     class: 'map-canvas',
-    tabindex: '0',
-    'aria-label': `World map with ${screens.length} discovered screens. Drag or use arrow keys to pan, plus and minus to zoom, C to centre on you.`,
+    role: 'img',
+    'aria-label': `World map with ${screens.length} discovered screens, centred on you.`,
   });
   const readout = h('p', { class: 'map-readout', 'aria-live': 'polite' }, '');
   // The canvas is sized from its container, never from itself, so resizing it cannot feed back.
   const stage = h('div', { class: 'map-stage' }, canvas);
   const ctx = canvas.getContext('2d')!;
 
-  let view = openView(data);
   let drawn = 0;
 
-  const layout = () => mapLayout(view, devicePixelRatio, canvas.width, canvas.height);
+  const layout = () => mapLayout(data.you, devicePixelRatio, canvas.width, canvas.height);
   const toWorld = (px: number, py: number) => {
     const { s, ox, oy } = layout();
     return { x: (px - ox) / s, y: (py - oy) / s };
@@ -93,15 +89,6 @@ export function mapView(data: WorldMap, onBack?: () => void) {
         const { x, y, w, h } = screenRect(s, ox, oy, sx, sy);
         ctx.drawImage(tile, x, y, w, h);
         if (x < canvas.width && y < canvas.height && x + w > 0 && y + h > 0) drawn++;
-      }
-    }
-
-    if (ZOOMS[view.zoom]! >= 6) {
-      ctx.strokeStyle = 'rgba(15, 21, 21, 0.35)';
-      ctx.lineWidth = 1;
-      for (const screen of screens) {
-        const { x, y, w, h } = screenRect(s, ox, oy, screen.coord.sx, screen.coord.sy);
-        ctx.strokeRect(x + 0.5, y + 0.5, w, h);
       }
     }
 
@@ -144,46 +131,6 @@ export function mapView(data: WorldMap, onBack?: () => void) {
     }
   };
 
-  /** Steps the zoom, keeping the world point under (px, py) where it is. */
-  const zoomBy = (steps: number, px = canvas.width / 2, py = canvas.height / 2) => {
-    const zoom = Math.min(ZOOMS.length - 1, Math.max(0, view.zoom + steps));
-    if (zoom === view.zoom) return;
-    const before = toWorld(px, py);
-    const s = tilePixels(zoom, devicePixelRatio);
-    view = {
-      zoom,
-      cx: before.x - (px - canvas.width / 2) / s,
-      cy: before.y - (py - canvas.height / 2) / s,
-    };
-    draw();
-  };
-  const pan = (dx: number, dy: number) => {
-    const { s } = layout();
-    view = { ...view, cx: view.cx + dx / s, cy: view.cy + dy / s };
-    draw();
-  };
-  const centre = () => {
-    view = { ...openView(data), zoom: view.zoom };
-    draw();
-    canvas.focus();
-  };
-
-  let wheel = 0;
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    wheel += e.deltaY;
-    if (Math.abs(wheel) < WHEEL_STEP) return;
-    const steps = wheel < 0 ? 1 : -1;
-    wheel = 0;
-    const r = canvas.getBoundingClientRect();
-    zoomBy(steps, (e.clientX - r.left) * devicePixelRatio, (e.clientY - r.top) * devicePixelRatio);
-  });
-  let drag: { x: number; y: number } | undefined;
-  canvas.addEventListener('pointerdown', (e) => {
-    drag = { x: e.clientX, y: e.clientY };
-    canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener('pointerup', () => (drag = undefined));
   canvas.addEventListener('pointermove', (e) => {
     const r = canvas.getBoundingClientRect();
     const w = toWorld(
@@ -194,28 +141,6 @@ export function mapView(data: WorldMap, onBack?: () => void) {
     const sy = Math.floor(w.y / SCREEN_H);
     const known = tiles.has(screenKey({ layer, sx, sy }));
     readout.textContent = `Screen ${sx}, ${sy}${known ? '' : ' (undiscovered)'}`;
-    if (!drag) return;
-    pan((drag.x - e.clientX) * devicePixelRatio, (drag.y - e.clientY) * devicePixelRatio);
-    drag = { x: e.clientX, y: e.clientY };
-  });
-  canvas.addEventListener('keydown', (e) => {
-    const step = PAN_STEP * devicePixelRatio;
-    const actions: Record<string, () => void> = {
-      ArrowLeft: () => pan(-step, 0),
-      ArrowRight: () => pan(step, 0),
-      ArrowUp: () => pan(0, -step),
-      ArrowDown: () => pan(0, step),
-      '+': () => zoomBy(1),
-      '=': () => zoomBy(1),
-      '-': () => zoomBy(-1),
-      c: centre,
-      C: centre,
-      Home: centre,
-    };
-    const action = actions[e.key];
-    if (!action) return;
-    e.preventDefault();
-    action();
   });
   const observer = new ResizeObserver(draw);
 
@@ -227,7 +152,6 @@ export function mapView(data: WorldMap, onBack?: () => void) {
       { class: 'game-bar' },
       h('span', { class: 'who' }, 'World map'),
       h('p', { class: 'status' }, `${screens.length} screens discovered`),
-      h('button', { type: 'button', class: 'link', onclick: centre }, 'Centre on me'),
       h(
         'a',
         {
@@ -251,17 +175,15 @@ export function mapView(data: WorldMap, onBack?: () => void) {
     mount() {
       observer.observe(stage);
       draw();
-      canvas.focus();
     },
     dispose: () => observer.disconnect(),
     /**
-     * Test hook: the view, device pixels per tile, where the player's screen sits on the canvas,
+     * Test hook: device pixels per tile, where the player's screen sits on the canvas,
      * how many discovered screens are in sight, every discovered screen, and the names on them.
      */
     state: () => {
       const { s, ox, oy } = layout();
       return {
-        ...view,
         tilePixels: s,
         canvas: { w: canvas.width, h: canvas.height },
         you: screenRect(s, ox, oy, data.you.sx, data.you.sy),

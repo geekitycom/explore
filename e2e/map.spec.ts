@@ -73,9 +73,6 @@ test('the map shows screens players stood on, and logged-out visitors log in fir
   await expect.poll(() => mapScreens(page)).toEqual(expect.arrayContaining(['0,0', '0,1']));
   await page.screenshot({ path: 'e2e/.results/map.png' });
 
-  await page.getByLabel(/^World map with/).focus();
-  await page.keyboard.press('+');
-  await page.keyboard.press('ArrowLeft');
   await page.getByRole('link', { name: 'Back to the game' }).click();
   await expect(page.getByLabel('Game world')).toBeVisible();
 
@@ -107,7 +104,7 @@ test('the map opens over the game, keeping the music and the connection', async 
   expect(sockets).toBe(1);
 
   await page.keyboard.press('m');
-  await expect(map).toBeFocused();
+  await expect(map).toBeVisible();
   await expect(page).toHaveURL(/\/map$/);
   await page.keyboard.down('ArrowDown');
   await page.waitForTimeout(1500);
@@ -188,16 +185,21 @@ test('the map opens on you at one size however much is discovered, and shows mor
   expect(centred(wide)).toBe(true);
   await page.screenshot({ path: 'e2e/.results/map-overlay-1600.png' });
 
-  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowLeft');
-  expect(centred(await mapState(page))).toBe(false);
-  await page.keyboard.press('c');
-  expect(centred(await mapState(page))).toBe(true);
-  await page.keyboard.press('-');
-  expect((await mapState(page)).tilePixels).toBe(2);
-  await page.getByRole('button', { name: 'Centre on me' }).click();
-  const back = await mapState(page);
-  expect(centred(back)).toBe(true);
-  expect(back.tilePixels).toBe(2);
+  // Nothing a player does moves or zooms the map: it stays on them at one size.
+  const map = page.getByLabel(/^World map with/);
+  const box = (await map.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 50, box.y + 50, { steps: 5 });
+  await page.mouse.up();
+  await page.mouse.wheel(0, -500);
+  await page.mouse.wheel(0, 500);
+  await map.click();
+  for (const key of ['ArrowLeft', 'ArrowUp', '+', '=', '-', 'c', 'Home']) {
+    await page.keyboard.press(key);
+  }
+  expect(await mapState(page)).toEqual(wide);
+  await expect(page.getByRole('button', { name: 'Centre on me' })).toHaveCount(0);
 
   await page.goto('/map');
   await page.waitForFunction(() => 'exploreMap' in window);
