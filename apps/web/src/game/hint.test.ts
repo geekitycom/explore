@@ -40,7 +40,7 @@ describe('hintText', () => {
   });
 
   test('a message shows at once while moving, then yields to the prompt', () => {
-    const message = { text: 'Too far away. Walk closer.', at: base.now };
+    const message = { text: 'Too far away. Walk closer.', until: base.now + MESSAGE_MS };
     const shown = { text: message.text, actionable: false };
     expect(hintText({ ...base, message })).toEqual(shown);
     expect(hintText({ ...base, message, now: base.now + MESSAGE_MS - 1 })).toEqual(shown);

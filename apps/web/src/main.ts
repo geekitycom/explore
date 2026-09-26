@@ -1,4 +1,4 @@
-import { fetchMap, fetchMe, logout, type User } from './api.ts';
+import { fetchMap, fetchMe, logout, type User, type Visit } from './api.ts';
 import { avatarSheet, walkFrameRect } from './art/avatars.ts';
 import { ambientMix, createAmbience } from './audio/ambience.ts';
 import { createAudioEngine } from './audio/engine.ts';
@@ -13,6 +13,7 @@ import { authView, type AuthMode } from './ui/auth.ts';
 import { avatarStep } from './ui/avatar-step.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
+import { friendsMenu } from './ui/friends.ts';
 import { BAR_PX_H, inventoryBar } from './ui/inventory-bar.ts';
 import { profileEditor } from './ui/profile-editor.ts';
 import { soundSettings } from './ui/sound-settings.ts';
@@ -21,15 +22,19 @@ import '@fontsource/pixelify-sans/latin-400.css';
 import '@fontsource/pixelify-sans/latin-600.css';
 import './style.css';
 
-type Place = 'game' | 'map';
+/**
+ * The URL says where the player is: `/` is home, `/worlds/:id` is a visit, and `/map` after
+ * either opens the map. A reload keeps a visit, and Back leaves it.
+ */
+type Route = { worldId: number | undefined; map: boolean };
 
 type MapOverlay = { el: HTMLElement; dispose?: () => void };
 
 type View =
-  | { kind: 'auth'; mode: AuthMode; then: Place }
-  | { kind: 'avatar'; user: User; then: Place }
-  | { kind: 'game'; user: User }
-  | { kind: 'map'; user: User };
+  | { kind: 'auth'; mode: AuthMode; then: Route }
+  | { kind: 'avatar'; user: User; then: Route }
+  | { kind: 'game'; user: User; worldId: number | undefined; notice?: string }
+  | { kind: 'map'; user: User; worldId: number | undefined };
 
 const STATUS_TEXT: Record<GameStatus, string> = {
   connecting: 'Connecting…',
@@ -37,6 +42,29 @@ const STATUS_TEXT: Record<GameStatus, string> = {
   reconnecting: 'Connection lost. Reconnecting…',
   replaced: 'You opened the game in another tab. This one is paused.',
   refused: 'That world is not open to you.',
+  sentHome: 'Going home…',
+};
+
+/** How long the arrival line and a notice about being sent home stay up. */
+const NOTICE_MS = 6000;
+
+function parseRoute(pathname: string): Route {
+  const visit = /^\/worlds\/(\d+)(\/map)?$/.exec(pathname);
+  if (visit) return { worldId: Number(visit[1]), map: visit[2] !== undefined };
+  return { worldId: undefined, map: pathname === '/map' };
+}
+
+function pathFor({ worldId, map }: Route): string {
+  const world = worldId === undefined ? '' : `/worlds/${worldId}`;
+  return `${world}${map ? '/map' : ''}` || '/';
+}
+
+/** The host's name travels in the history entry, so a reload of a visit still knows it. */
+const hostNameInHistory = (): string | undefined => {
+  const state: unknown = history.state;
+  const host =
+    state !== null && typeof state === 'object' && 'host' in state ? state.host : undefined;
+  return typeof host === 'string' ? host : undefined;
 };
 
 const root = document.querySelector<HTMLElement>('#app')!;
@@ -63,8 +91,11 @@ Object.assign(window, {
 
 let stopGame: (() => void) | undefined;
 
-function gameView(initialUser: User) {
+function gameView(initialUser: User, worldId: number | undefined, notice: string | undefined) {
   let user = initialUser;
+  const here = worldId ?? user.home;
+  const visiting = here !== user.home;
+  const hostName = visiting ? hostNameInHistory() : undefined;
   const canvas = h('canvas', { class: 'game-canvas', 'aria-label': 'Game world' });
   const who = h('span', { class: 'who' }, user.displayName);
   const status = h('p', { class: 'status', role: 'status' });
@@ -76,6 +107,20 @@ function gameView(initialUser: User) {
   });
   const hud = { bar: inventoryBar(), hint, world: h('div', { class: 'world' }, canvas, hint) };
   const stage = h('div', { class: 'stage' }, hud.world, hud.bar.el);
+
+  /** The one way out of a world: to a friend's world, or home, with a line to show on arrival. */
+  const travelTo = (route: Route, state: unknown, arrivalNotice?: string) => {
+    history.pushState(state, '', pathFor(route));
+    show({
+      kind: 'game',
+      user,
+      worldId: route.worldId,
+      ...(arrivalNotice && { notice: arrivalNotice }),
+    });
+  };
+  const visit = (world: Visit) => travelTo({ worldId: world.id, map: false }, { host: world.host });
+  const goHome = (reason?: string) => travelTo({ worldId: undefined, map: false }, null, reason);
+
   const view = h(
     'main',
     { class: 'game' },
@@ -94,11 +139,15 @@ function gameView(initialUser: User) {
         },
       ),
       soundSettings(audio),
+      friendsMenu({ home: user.home, here, hostName, onVisit: visit, onGoHome: goHome }),
+      ...(visiting
+        ? [h('button', { type: 'button', class: 'link', onclick: () => goHome() }, 'Go home')]
+        : []),
       h(
         'a',
         {
           class: 'link',
-          href: '/map',
+          href: pathFor({ worldId, map: true }),
           onclick: (e) => {
             if (e instanceof MouseEvent && (e.metaKey || e.ctrlKey || e.shiftKey)) return;
             e.preventDefault();
@@ -113,7 +162,9 @@ function gameView(initialUser: User) {
           type: 'button',
           class: 'link',
           onclick: () =>
-            void logout().then(() => show({ kind: 'auth', mode: 'login', then: 'game' })),
+            void logout().then(() =>
+              show({ kind: 'auth', mode: 'login', then: { worldId: undefined, map: false } }),
+            ),
         },
         'Log out',
       ),
@@ -130,30 +181,45 @@ function gameView(initialUser: User) {
         count: slot.dataset.count === undefined ? undefined : Number(slot.dataset.count),
       })),
     }),
+    exploreWorld: () => ({ here, home: user.home, visiting, hostName }),
   });
   let wake: ReturnType<typeof wakeUp> | undefined;
-  const game = startGame(
+  const game = startGame({
     user,
-    canvasRenderer(canvas, stage, art, BAR_PX_H),
+    worldId: here,
+    renderer: canvasRenderer(canvas, stage, art, BAR_PX_H),
     canvas,
     hud,
-    (s) => {
+    onStatus: (s) => {
+      if (s === 'refused' && visiting) {
+        goHome("That world isn't open to you right now, so you're back home.");
+        return;
+      }
       status.textContent = STATUS_TEXT[s];
     },
-    ({ screen }, patch) => {
+    onScreen: ({ screen }, patch) => {
       music.play(tuneFor(screen.biome, patch));
       ambience.set(ambientMix(screen));
     },
-    () => {
-      music.stop();
-      wake?.dispose();
-      wake = wakeUp(() => {
-        audio.unlock();
-        game.wake();
-      });
-      hud.world.append(wake.el);
+    onArrive: (arrival) => {
+      if (arrival === 'wake') {
+        music.stop();
+        wake?.dispose();
+        wake = wakeUp(() => {
+          audio.unlock();
+          game.wake();
+        });
+        hud.world.append(wake.el);
+      } else if (arrival === 'visit') {
+        game.say(`You arrive in ${hostName ?? 'your friend'}'s world.`, NOTICE_MS);
+      }
+      if (notice) {
+        game.say(notice, NOTICE_MS);
+        notice = undefined;
+      }
     },
-  );
+    onSentHome: goHome,
+  });
 
   let overlay: MapOverlay | undefined;
   const openMap = () => {
@@ -165,7 +231,7 @@ function gameView(initialUser: User) {
     game.pauseKeys(true);
     view.inert = true;
     root.append(opened.el);
-    void fetchMap(user.home).then((data) => {
+    void fetchMap(here).then((data) => {
       if (overlay !== opened) return;
       const map = mapView(data, () => history.back());
       opened.el.replaceChildren(map.el);
@@ -182,11 +248,19 @@ function gameView(initialUser: User) {
     view.inert = false;
     game.pauseKeys(false);
   };
-  // The URL is the map's source of truth, so the browser's Back and Forward open and close it too.
-  const syncMap = () => (location.pathname === '/map' ? openMap() : closeMap());
+  // The URL is the source of truth, so Back and Forward open and close the map and end a visit.
+  const syncRoute = () => {
+    const route = parseRoute(location.pathname);
+    if ((route.worldId ?? user.home) !== here) {
+      show({ kind: 'game', user, worldId: route.worldId });
+      return;
+    }
+    if (route.map) openMap();
+    else closeMap();
+  };
   const toMap = () => {
-    history.pushState(null, '', '/map');
-    syncMap();
+    history.pushState(history.state, '', pathFor({ worldId, map: true }));
+    syncRoute();
   };
   const mapKeys = (e: KeyboardEvent) => {
     if (typing(e) || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -196,11 +270,11 @@ function gameView(initialUser: User) {
       else toMap();
     }
   };
-  window.addEventListener('popstate', syncMap);
+  window.addEventListener('popstate', syncRoute);
   window.addEventListener('keydown', mapKeys);
 
   stopGame = () => {
-    window.removeEventListener('popstate', syncMap);
+    window.removeEventListener('popstate', syncRoute);
     window.removeEventListener('keydown', mapKeys);
     closeMap();
     wake?.dispose();
@@ -228,7 +302,7 @@ function show(view: View) {
       return;
     case 'map':
       root.replaceChildren(h('p', { class: 'loading' }, 'Loading the map…'));
-      void fetchMap(view.user.home).then((data) => {
+      void fetchMap(view.worldId ?? view.user.home).then((data) => {
         const map = mapView(data);
         root.replaceChildren(map.el);
         map.mount();
@@ -237,17 +311,18 @@ function show(view: View) {
       });
       return;
     case 'game':
-      gameView(view.user);
+      gameView(view.user, view.worldId, view.notice);
       return;
   }
 }
 
-/** Where a signed-in player goes next: the avatar step until they have chosen one, then `place`. */
-function enter(user: User, place: Place) {
-  if (!user.avatarChosen) show({ kind: 'avatar', user, then: place });
-  else show(place === 'map' ? { kind: 'map', user } : { kind: 'game', user });
+/** Where a signed-in player goes next: the avatar step until they have chosen one, then `route`. */
+function enter(user: User, route: Route) {
+  if (!user.avatarChosen) show({ kind: 'avatar', user, then: route });
+  else if (route.map) show({ kind: 'map', user, worldId: route.worldId });
+  else show({ kind: 'game', user, worldId: route.worldId });
 }
 
-const place: Place = location.pathname === '/map' ? 'map' : 'game';
-if (initialUser) enter(initialUser, place);
-else show({ kind: 'auth', mode: 'login', then: place });
+const route = parseRoute(location.pathname);
+if (initialUser) enter(initialUser, route);
+else show({ kind: 'auth', mode: 'login', then: route });

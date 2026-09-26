@@ -22,7 +22,7 @@ import { itemIcon } from '../art/traces.ts';
 import { bubbleLayer, bubbleViews, namePoint } from '../ui/bubbles.ts';
 import type { InventoryBar } from '../ui/inventory-bar.ts';
 import { namingDialog, type Composer } from '../ui/naming-dialog.ts';
-import { hintText, type Hint, type Message } from './hint.ts';
+import { MESSAGE_MS, hintText, type Hint, type Message } from './hint.ts';
 import type { KeyAction } from './input.ts';
 import type { GameState } from './state.ts';
 
@@ -151,8 +151,8 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
     canvas.style.cursor = item ? cursorFor(item) : '';
   };
 
-  const say = (text: string, now: number) => {
-    message = { text, at: now };
+  const say = (text: string, now: number, forMs = MESSAGE_MS) => {
+    message = { text, until: now + forMs };
     showHint({ text, actionable: false });
   };
 
@@ -258,6 +258,7 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
   return {
     key,
     refused,
+    say,
     /** Where a press on the world is walking the player to, if one is. */
     walking: (): Point | undefined => (live?.press.kind === 'walk' ? live.point : undefined),
     /** Call once per animation frame with the frame's clock. */

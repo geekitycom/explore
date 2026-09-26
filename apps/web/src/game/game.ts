@@ -1,4 +1,10 @@
-import { MOVE_INTERVAL_MS, type BiomeCell, type Place, type Pose } from '@explore/core';
+import {
+  MOVE_INTERVAL_MS,
+  type Arrival,
+  type BiomeCell,
+  type Place,
+  type Pose,
+} from '@explore/core';
 import type { User } from '../api.ts';
 import { createHands, type Aim, type Hud, type Point } from './hands.ts';
 import { keyboard } from './input.ts';
@@ -15,19 +21,36 @@ export type Renderer = {
 
 export type GameStatus = 'connecting' | ConnectionStatus;
 
+export type GameHooks = {
+  onStatus: (s: GameStatus) => void;
+  onScreen: (place: Place, patch: BiomeCell) => void;
+  /**
+   * The first screen of a connection, and any later screen that is a fresh arrival. TASK-67's
+   * arrival portal attaches here.
+   */
+  onArrive: (arrival: Arrival) => void;
+  /** The host closed their world; the caller takes the player home. TASK-67's departure portal attaches here. */
+  onSentHome: (reason: string) => void;
+};
+
 const samePose = (a: Pose, b: Pose) =>
   a.x === b.x && a.y === b.y && a.dir === b.dir && a.moving === b.moving;
 
-/** Runs one player's session: input, prediction, networking, and the frame loop. */
-export function startGame(
-  initialUser: User,
-  renderer: Renderer,
-  canvas: HTMLCanvasElement,
-  hud: Hud,
-  onStatus: (s: GameStatus) => void,
-  onScreen: (place: Place, patch: BiomeCell) => void,
-  onWaking: () => void,
-) {
+/** Runs one player's session in `worldId`: input, prediction, networking, and the frame loop. */
+export function startGame({
+  user: initialUser,
+  worldId,
+  renderer,
+  canvas,
+  hud,
+  ...hooks
+}: {
+  user: User;
+  worldId: number;
+  renderer: Renderer;
+  canvas: HTMLCanvasElement;
+  hud: Hud;
+} & GameHooks) {
   let user = initialUser;
   let state: GameState = { phase: 'connecting' };
   let lastSent: Pose | undefined;
@@ -42,19 +65,19 @@ export function startGame(
   const keys = keyboard(hands.key);
   Object.assign(window, { exploreState: () => state, exploreUser: () => user });
   const conn = connect({
-    worldId: initialUser.home,
+    worldId,
     onMessage: (message) => {
       const was = state.phase;
       state = applyMessage(state, message);
       if (message.t === 'refused') hands.refused(message.reason, performance.now());
+      if (message.t === 'sentHome') hooks.onSentHome(message.reason);
       if (message.t === 'screen' || message.t === 'correct') lastSent = undefined;
-      if (state.phase === 'waking') {
-        if (was !== 'waking') onWaking();
-      } else if (message.t === 'screen' && state.phase !== 'connecting') {
-        onScreen(state.place, state.patch);
+      if (message.t === 'screen' && state.phase !== 'connecting') {
+        if (was === 'connecting' || message.arrival !== 'none') hooks.onArrive(message.arrival);
+        if (state.phase !== 'waking') hooks.onScreen(state.place, state.patch);
       }
     },
-    onStatus,
+    onStatus: hooks.onStatus,
   });
 
   let previous = performance.now();
@@ -95,8 +118,10 @@ export function startGame(
     wake: () => {
       if (state.phase !== 'waking') return;
       state = { ...state, phase: 'playing' };
-      onScreen(state.place, state.patch);
+      hooks.onScreen(state.place, state.patch);
     },
+    /** A line in the hint bar for `forMs`, or the usual message time. */
+    say: (text: string, forMs?: number) => hands.say(text, performance.now(), forMs),
     setUser: (saved: User) => {
       user = saved;
     },

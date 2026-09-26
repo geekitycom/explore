@@ -70,15 +70,41 @@ export async function saveProfile(profile: { displayName: string; avatar: Avatar
   return (await request<{ user: User }>('PUT', '/api/me/profile', profile)).user;
 }
 
+/** A player in the world right now, at their feet, in world tiles. */
+export type MapPlayer = { id: number; name: string; x: number; y: number; you: boolean };
+
 export type WorldMap = {
   layer: string;
   you: { layer: string; sx: number; sy: number };
   garden: { layer: string; sx: number; sy: number } | null;
   /** Named landmarks, at their signposts, in world tiles. */
   names: { x: number; y: number; name: string }[];
+  players: MapPlayer[];
   screens: unknown[];
 };
 
 export async function fetchMap(worldId: number): Promise<WorldMap> {
   return request<WorldMap>('GET', `/api/worlds/${worldId}/map`);
+}
+
+/** Whether a world is open for visitors, and the code that lets them in while it is. */
+export type Visitors = { code: string | null };
+
+export function fetchVisitors(worldId: number): Promise<Visitors> {
+  return request<Visitors>('GET', `/api/worlds/${worldId}/visitors`);
+}
+
+export function openVisitors(worldId: number): Promise<Visitors> {
+  return request<Visitors>('POST', `/api/worlds/${worldId}/visitors`);
+}
+
+export function closeVisitors(worldId: number): Promise<void> {
+  return request<undefined>('DELETE', `/api/worlds/${worldId}/visitors`);
+}
+
+/** The world a friend's code opens, now open to this player. */
+export type Visit = { id: number; host: string };
+
+export async function redeemCode(code: string): Promise<Visit> {
+  return (await request<{ world: Visit }>('POST', '/api/visits', { code })).world;
 }

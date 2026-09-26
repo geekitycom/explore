@@ -30,6 +30,7 @@ describe('the map view', () => {
     you,
     garden: { layer: 'overworld', sx: 0, sy: 0 },
     names: [],
+    players: [],
     screens: Array.from({ length: count }, (_, i) => ({ sx: i % 25, sy: Math.floor(i / 25) })),
   });
   const canvases = [
@@ -66,11 +67,19 @@ describe('map labels', () => {
     y: sy * SCREEN_H + ty,
     name,
   });
-  const cases: [string, Pick<WorldMap, 'you' | 'garden' | 'names'>][] = [
-    ['the player in the garden', { you: at(0, 0), garden: at(0, 0), names: [] }],
-    ...[1, 4, 8, 14].map((ty): [string, Pick<WorldMap, 'you' | 'garden' | 'names'>] => [
+  type Data = Pick<WorldMap, 'you' | 'garden' | 'names' | 'players'>;
+  const standing = (id: number, sx: number, sy: number, name: string, you = false) => ({
+    id,
+    name,
+    x: (sx + 0.5) * SCREEN_W,
+    y: (sy + 0.6) * SCREEN_H,
+    you,
+  });
+  const cases: [string, Data][] = [
+    ['the player in the garden', { you: at(0, 0), garden: at(0, 0), names: [], players: [] }],
+    ...[1, 4, 8, 14].map((ty): [string, Data] => [
       `the player on a landmark's screen, signpost on row ${ty}`,
-      { you: at(2, 1), garden: at(0, 0), names: [named(2, 1, ty, 'Hare Stones')] },
+      { you: at(2, 1), garden: at(0, 0), names: [named(2, 1, ty, 'Hare Stones')], players: [] },
     ]),
     [
       'adjacent named screens',
@@ -82,6 +91,20 @@ describe('map labels', () => {
           named(4, 0, 2, 'Old Crow Hollow'),
           named(3, 1, 1, 'Saltmarsh Graves'),
           named(1, 0, 1, 'Hare Stones'),
+        ],
+        players: [],
+      },
+    ],
+    [
+      'the host and two visitors crowding a named screen',
+      {
+        you: at(0, 0),
+        garden: at(0, 0),
+        names: [named(0, 0, 3, 'Hare Stones')],
+        players: [
+          standing(1, 0, 0, 'Ann', true),
+          standing(2, 0, 0, 'Benjamin the Bold'),
+          standing(3, 0, 0, 'Cat'),
         ],
       },
     ],
@@ -98,7 +121,9 @@ describe('map labels', () => {
         const ox = 613.37;
         const oy = 291.81;
         const labels = mapLabels(data, s, ox, oy, dpr, measure);
-        expect(labels).toHaveLength(2 + data.names.length);
+        const others = data.players.filter((p) => !p.you);
+        expect(labels).toHaveLength(2 + data.names.length + others.length);
+        for (const p of others) expect(labels.map((l) => l.text)).toContain(p.name);
         for (const l of labels) expect([l.x, l.y, l.w, l.h].every(Number.isInteger)).toBe(true);
         const clashes = labels.flatMap((a, i) =>
           labels.slice(i + 1).flatMap((b) => (overlap(a, b) ? [`${a.text} / ${b.text}`] : [])),

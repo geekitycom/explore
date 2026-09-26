@@ -16,6 +16,8 @@ const TILE_CSS = 3;
 const PAPER = '#fff4dd';
 const INK = '#141b1b';
 const YOU = '#e07aa8';
+/** Mirrors --focus in style.css. */
+const OTHERS = '#3aa3c9';
 const GARDEN = '#e3c16f';
 const LABEL_STROKE = 3;
 const font = (size: number) => `${size}px 'Pixelify Sans', monospace`;
@@ -49,7 +51,7 @@ export function mapView(data: WorldMap, onBack?: () => void) {
   const canvas = h('canvas', {
     class: 'map-canvas',
     role: 'img',
-    'aria-label': `World map with ${screens.length} discovered screens, centred on you.`,
+    'aria-label': `World map with ${screens.length} discovered screens and ${data.players.length} players, centred on you.`,
   });
   const readout = h('p', { class: 'map-readout', 'aria-live': 'polite' }, '');
   // The canvas is sized from its container, never from itself, so resizing it cannot feed back.
@@ -112,6 +114,14 @@ export function mapView(data: WorldMap, onBack?: () => void) {
     }
     if (data.garden) frame(data.garden.sx, data.garden.sy, GARDEN);
     frame(data.you.sx, data.you.sy, YOU);
+    for (const player of data.players) {
+      const px = ox + player.x * s;
+      const py = oy + player.y * s;
+      ctx.fillStyle = INK;
+      ctx.fillRect(px - 4 * dpr, py - 4 * dpr, 8 * dpr, 8 * dpr);
+      ctx.fillStyle = player.you ? YOU : OTHERS;
+      ctx.fillRect(px - 2.5 * dpr, py - 2.5 * dpr, 5 * dpr, 5 * dpr);
+    }
 
     const measure = (text: string, size: number) => {
       ctx.font = font(size);
@@ -190,6 +200,7 @@ export function mapView(data: WorldMap, onBack?: () => void) {
         drawn,
         screens: screens.map((sc) => sc.coord),
         names: data.names,
+        players: data.players,
       };
     },
   };
@@ -224,11 +235,12 @@ export type MapLabel = {
 };
 
 /**
- * Where each map label goes. Labels claim their spot in order (You, the garden, then landmark
- * names), and one that would touch a label already placed rises above it.
+ * Where each map label goes. Labels claim their spot in order (You, the garden, the other players
+ * by display name, then landmark names), and one that would touch a label already placed rises
+ * above it.
  */
 export function mapLabels(
-  data: Pick<WorldMap, 'you' | 'garden' | 'names'>,
+  data: Pick<WorldMap, 'you' | 'garden' | 'names' | 'players'>,
   scale: number,
   ox: number,
   oy: number,
@@ -244,6 +256,15 @@ export function mapLabels(
     ...(data.garden
       ? [{ text: 'Garden', color: GARDEN, size: 12 * dpr, ...aboveScreen(data.garden) }]
       : []),
+    ...data.players
+      .filter((p) => !p.you)
+      .map(({ x, y, name }) => ({
+        text: name,
+        color: OTHERS,
+        size: 11 * dpr,
+        cx: ox + x * scale,
+        bottom: oy + y * scale - 6 * dpr,
+      })),
     ...data.names.map(({ x, y, name }) => ({
       text: name,
       color: PAPER,
