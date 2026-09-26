@@ -1,0 +1,108 @@
+# Geekity Explore as a dockge stack.
+#
+# Dockge is a web UI over docker compose. Create a stack, paste this file in as
+# its compose.yaml and put the .env beside it (dockge has an editor for both).
+# There is no checkout of this repository on the server, so the image is
+# pulled from ghcr.io and never built there.
+#
+# Before the first start, in the stack directory (for example
+# /opt/stacks/explore), create the directory the game keeps its accounts and
+# worlds in and give it to uid 1000, the user the container runs as:
+#
+#   mkdir -p data && sudo chown 1000:1000 data
+#
+# Docker creates a missing bind-mount source owned by root, and the server then
+# fails to start with EACCES.
+#
+# The .env needs one line at least:
+#
+#   EXPLORE_TAG=0.1.0
+#
+# See README.md, "Deploying with Docker".
+
+services:
+  explore:
+    # The tag comes from .env, and is required: unset, compose refuses to
+    # start rather than defaulting to anything, because a stack that chooses
+    # its own version is one you cannot roll back by naming the one you came
+    # from. `EXPLORE_TAG=latest` is a fine answer (ghcr.io carries that tag
+    # too) as long as it is written down in .env rather than assumed.
+    image: ghcr.io/geekitycom/explore:${EXPLORE_TAG:?set EXPLORE_TAG in .env to the version to run}
+    restart: unless-stopped
+
+    # A small init as PID 1 reaps zombies and forwards SIGTERM to node, which
+    # saves every player and closes every database before it exits.
+    init: true
+    # Room for that on a busy server; docker's default is 10 seconds.
+    stop_grace_period: 30s
+
+    mem_limit: 512m
+    pids_limit: 256
+    security_opt: ['no-new-privileges:true']
+    cap_drop: [ALL]
+
+    # The json-file driver keeps every line forever unless it is told not to.
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    ports:
+      # 127.0.0.1 only. Docker writes its own firewall rules ahead of ufw and
+      # firewalld, so publishing on every interface would put the game on the
+      # internet beside Caddy instead of behind it. With TRUST_PROXY on, a
+      # direct client could then name any address in X-Forwarded-For and walk
+      # past the signup and login throttles.
+      #
+      # The container always listens on 3000 (PORT below); only the host side
+      # is configurable.
+      - '127.0.0.1:${EXPLORE_HOST_PORT:-3000}:3000'
+
+    # Every variable in .env reaches the container. The server reads these
+    # from it, all optional:
+    #
+    #   SESSION_TIMEOUT_MS  A player with no connection for this long wakes up
+    #                       in the garden next time. Default 600000 (10 min).
+    #   LLM_BASE_URL        Text generation (epitaphs) through an OpenAI-
+    #   LLM_MODEL           compatible API. Both must be set to turn it on;
+    #                       unset, the built-in text is used.
+    #   LLM_API_KEY         Bearer token for that API. A secret: keep it in
+    #                       .env, never in this file.
+    #   LLM_TIMEOUT_MS      Time before a request gives up. Default 15000.
+    env_file:
+      - .env
+
+    # Values that belong to running in this container, not to the operator.
+    # `environment` wins over `env_file`.
+    environment:
+      # Session cookies are Secure. Caddy serves the game over https.
+      NODE_ENV: production
+      # Rate limits read the client address from the X-Forwarded-For Caddy sets.
+      TRUST_PROXY: 'true'
+      # Fixed so the port mapping above and the healthcheck agree with it.
+      PORT: '3000'
+      # The mount below. main.db holds accounts, worlds/<id>.db each world.
+      DATA_DIR: /data
+
+    volumes:
+      # Must exist and be owned by uid 1000 before the first start.
+      - ./data:/data
+
+    # The image carries the same check. It is repeated here so it is visible in
+    # the stack. Only the status code counts. The port is read inside node on
+    # purpose: compose would substitute a `$PORT` here from the host's
+    # environment.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 5s
