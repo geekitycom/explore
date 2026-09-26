@@ -7,7 +7,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -24,6 +24,7 @@ jobs:
       - run: pnpm build
 
   e2e:
+    # Google Chrome, which the e2e suite drives, has no Linux arm64 build.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
