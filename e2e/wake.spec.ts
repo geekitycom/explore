@@ -5,7 +5,7 @@ import { playing, signUp, unique, wakeUp } from './helpers.ts';
 import { SESSION_TIMEOUT_MS } from './session.ts';
 
 const MESSAGE =
-  'You wake up in a secret garden. You feel the grass between your toes. Press [space] to start.';
+  'You wake up in a secret garden. You feel the grass between your toes. Click to start.';
 
 type Snapshot = {
   phase: string;

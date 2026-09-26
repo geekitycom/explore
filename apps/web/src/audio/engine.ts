@@ -19,7 +19,11 @@ export function createAudioEngine() {
   };
 
   const unlock = () => {
-    if (buses) return;
+    if (buses) {
+      // A touch's pointerdown is no user activation, so a context made then may start suspended.
+      if (buses.ctx.state === 'suspended' && !document.hidden) void buses.ctx.resume();
+      return;
+    }
     const ctx = new AudioContext();
     const music = ctx.createGain();
     const effects = ctx.createGain();
@@ -28,11 +32,10 @@ export function createAudioEngine() {
     buses = { ctx, music, effects };
     apply();
     for (const fn of waiting.splice(0)) fn(buses);
-    removeEventListener('keydown', unlock);
-    removeEventListener('pointerdown', unlock);
   };
   addEventListener('keydown', unlock);
   addEventListener('pointerdown', unlock);
+  addEventListener('click', unlock);
 
   document.addEventListener('visibilitychange', () => {
     if (!buses) return;
