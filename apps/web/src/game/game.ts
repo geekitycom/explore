@@ -91,6 +91,7 @@ export function startGame(
     setAvatar: (avatar: Avatar) => {
       user = { ...user, avatar };
     },
+    pauseKeys: keys.pause,
     stop: () => {
       cancelAnimationFrame(frameId);
       keys.dispose();

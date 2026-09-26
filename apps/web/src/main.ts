@@ -6,6 +6,7 @@ import { tuneFor } from './audio/mood.ts';
 import { createMusic } from './audio/music.ts';
 import { loadArt } from './art/load.ts';
 import { startGame, type GameStatus } from './game/game.ts';
+import { typing } from './game/input.ts';
 import { canvasRenderer } from './game/render.ts';
 import { mapView } from './map/map-view.ts';
 import { authView, type AuthMode } from './ui/auth.ts';
@@ -17,6 +18,8 @@ import { soundSettings } from './ui/sound-settings.ts';
 import './style.css';
 
 type Place = 'game' | 'map';
+
+type MapOverlay = { el: HTMLElement; dispose?: () => void };
 
 type View =
   { kind: 'auth'; mode: AuthMode; then: Place } | { kind: 'game'; user: User } | { kind: 'map' };
@@ -76,7 +79,19 @@ function gameView(user: User) {
         },
       ),
       soundSettings(audio),
-      h('a', { class: 'link', href: '/map' }, 'Map'),
+      h(
+        'a',
+        {
+          class: 'link',
+          href: '/map',
+          onclick: (e) => {
+            if (e instanceof MouseEvent && (e.metaKey || e.ctrlKey || e.shiftKey)) return;
+            e.preventDefault();
+            toMap();
+          },
+        },
+        'Map',
+      ),
       h(
         'button',
         {
@@ -114,7 +129,55 @@ function gameView(user: User) {
       ambience.set(ambientMix(screen));
     },
   );
+
+  let overlay: MapOverlay | undefined;
+  const openMap = () => {
+    if (overlay) return;
+    const opened: MapOverlay = {
+      el: h('div', { class: 'map-overlay' }, h('p', { class: 'loading' }, 'Loading the map…')),
+    };
+    overlay = opened;
+    game.pauseKeys(true);
+    view.inert = true;
+    root.append(opened.el);
+    void fetchMap().then((data) => {
+      if (overlay !== opened) return;
+      const map = mapView(data, () => history.back());
+      opened.el.replaceChildren(map.el);
+      map.mount();
+      opened.dispose = map.dispose;
+      Object.assign(window, { exploreMap: map.state });
+    });
+  };
+  const closeMap = () => {
+    if (!overlay) return;
+    overlay.dispose?.();
+    overlay.el.remove();
+    overlay = undefined;
+    view.inert = false;
+    game.pauseKeys(false);
+  };
+  // The URL is the map's source of truth, so the browser's Back and Forward open and close it too.
+  const syncMap = () => (location.pathname === '/map' ? openMap() : closeMap());
+  const toMap = () => {
+    history.pushState(null, '', '/map');
+    syncMap();
+  };
+  const mapKeys = (e: KeyboardEvent) => {
+    if (typing(e) || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.code === 'KeyM' || (overlay && e.code === 'Escape')) {
+      e.preventDefault();
+      if (overlay) history.back();
+      else toMap();
+    }
+  };
+  window.addEventListener('popstate', syncMap);
+  window.addEventListener('keydown', mapKeys);
+
   stopGame = () => {
+    window.removeEventListener('popstate', syncMap);
+    window.removeEventListener('keydown', mapKeys);
+    closeMap();
     game.stop();
     music.stop();
     ambience.stop();

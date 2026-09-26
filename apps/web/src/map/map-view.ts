@@ -19,7 +19,7 @@ const PAPER = '#fff4dd';
 type View = { scale: number; cx: number; cy: number };
 
 /** An interactive map of every discovered screen, one pixel per tile at scale 1. */
-export function mapView(data: WorldMap) {
+export function mapView(data: WorldMap, onBack?: () => void) {
   const layer = layerIdSchema.parse(data.layer);
   const screens = data.screens.map((raw) => decodeScreen(raw));
   const tiles = new Map<string, HTMLCanvasElement>();
@@ -214,7 +214,19 @@ export function mapView(data: WorldMap) {
       { class: 'game-bar' },
       h('span', { class: 'who' }, 'World map'),
       h('p', { class: 'status' }, `${screens.length} screens discovered`),
-      h('a', { class: 'link', href: '/' }, 'Back to the game'),
+      h(
+        'a',
+        {
+          class: 'link',
+          href: '/',
+          onclick: (e) => {
+            if (!onBack) return;
+            e.preventDefault();
+            onBack();
+          },
+        },
+        'Back to the game',
+      ),
     ),
     stage,
     readout,

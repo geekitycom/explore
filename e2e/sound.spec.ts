@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
-import { signUp } from './helpers.ts';
+import { probeOutput, signUp } from './helpers.ts';
 
 type AudioSnapshot = {
   state: string;
@@ -78,29 +78,8 @@ test('ambience plays on the effects bus and obeys mute and the effects volume', 
 }) => {
   await page.addInitScript(() => {
     localStorage.setItem('explore.sound', JSON.stringify({ muted: false, music: 0, effects: 0.7 }));
-    const node = AudioNode.prototype as unknown as {
-      connect: (this: AudioNode, ...args: unknown[]) => unknown;
-    };
-    const connect = node.connect;
-    let analyser: AnalyserNode | undefined;
-    node.connect = function (dest, ...rest) {
-      if (dest instanceof AudioDestinationNode) {
-        analyser ??= this.context.createAnalyser();
-        connect.call(this, analyser);
-      }
-      return connect.call(this, dest, ...rest);
-    };
-    Object.assign(window, {
-      outputLevel: () => {
-        if (!analyser) return 0;
-        const samples = new Float32Array(analyser.fftSize);
-        analyser.getFloatTimeDomainData(samples);
-        return Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
-      },
-    });
   });
-  const level = () =>
-    page.evaluate(() => (window as unknown as { outputLevel: () => number }).outputLevel());
+  const level = await probeOutput(page);
 
   await signUp(page, `amb${Date.now().toString(36)}`);
   await expect(page.getByLabel('Game world')).toBeVisible();

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { playing, signUp } from './helpers.ts';
+import { playing, probeOutput, signUp } from './helpers.ts';
 
 type Coord = { sx: number; sy: number };
 
@@ -64,4 +64,53 @@ test('the map shows screens players stood on, and logged-out visitors log in fir
   await page.getByRole('button', { name: 'Log in' }).click();
   await expect(page.getByLabel(/^World map with/)).toBeVisible();
   await expect(page).toHaveURL(/\/map$/);
+});
+
+test('the map opens over the game, keeping the music and the connection', async ({ page }) => {
+  const level = await probeOutput(page);
+  let sockets = 0;
+  page.on('websocket', () => sockets++);
+  const tune = () =>
+    page.evaluate(
+      () => (window as unknown as { exploreAudio: () => { tune?: string } }).exploreAudio().tune,
+    );
+  const map = page.getByLabel(/^World map with/);
+  const game = page.getByLabel('Game world');
+
+  await signUp(page, `mapsnd${Date.now().toString(36)}`);
+  await playing(page);
+  await page.keyboard.press('Shift');
+  await expect.poll(tune).toBe('garden:1');
+  await expect.poll(level, { timeout: 10_000 }).toBeGreaterThan(0.002);
+  expect(sockets).toBe(1);
+
+  await page.keyboard.press('m');
+  await expect(map).toBeFocused();
+  await expect(page).toHaveURL(/\/map$/);
+  await page.keyboard.down('ArrowDown');
+  await page.waitForTimeout(1500);
+  await page.keyboard.up('ArrowDown');
+  expect(await coord(page)).toMatchObject({ sx: 0, sy: 0 });
+  expect(await level()).toBeGreaterThan(0.002);
+  expect(await tune()).toBe('garden:1');
+  await page.screenshot({ path: 'e2e/.results/map-over-game.png' });
+
+  await page.keyboard.press('Escape');
+  await expect(map).toBeHidden();
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('link', { name: 'Map' }).click();
+  await expect(map).toBeVisible();
+  await page.goBack();
+  await expect(map).toBeHidden();
+  await page.keyboard.press('m');
+  await expect(map).toBeVisible();
+  await page.keyboard.press('m');
+  await expect(map).toBeHidden();
+  await expect(game).toBeVisible();
+
+  await page.keyboard.down('ArrowDown');
+  await expect.poll(() => coord(page), { intervals: [20] }).toMatchObject({ sx: 0, sy: 1 });
+  await page.keyboard.up('ArrowDown');
+  expect(await level()).toBeGreaterThan(0.002);
+  expect(sockets).toBe(1);
 });

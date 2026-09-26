@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import type { DatabaseSync } from 'node:sqlite';
 import type { Page } from '@playwright/test';
 import { TILE, type ScreenCoord, type Tile } from '../packages/core/src/index.ts';
@@ -38,4 +39,32 @@ export async function teleport(
   ).run(coord.layer, coord.sx, coord.sy, (at.tx + 0.5) * TILE, (at.ty + 1) * TILE - 2, id);
   await page.goto('/');
   await playing(page);
+}
+
+/** Taps everything reaching the speakers; call before the page loads, then poll the RMS level. */
+export async function probeOutput(page: Page) {
+  await page.addInitScript(() => {
+    const node = AudioNode.prototype as unknown as {
+      connect: (this: AudioNode, ...args: unknown[]) => unknown;
+    };
+    const connect = node.connect;
+    let analyser: AnalyserNode | undefined;
+    node.connect = function (dest, ...rest) {
+      if (dest instanceof AudioDestinationNode) {
+        analyser ??= this.context.createAnalyser();
+        connect.call(this, analyser);
+      }
+      return connect.call(this, dest, ...rest);
+    };
+    Object.assign(window, {
+      outputLevel: () => {
+        if (!analyser) return 0;
+        const samples = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(samples);
+        return Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
+      },
+    });
+  });
+  return () =>
+    page.evaluate(() => (window as unknown as { outputLevel: () => number }).outputLevel());
 }

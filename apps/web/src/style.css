@@ -600,3 +600,22 @@ legend {
 .game-bar a.link {
   color: inherit;
 }
+
+.map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  padding: 24px;
+  background: rgb(20 27 27 / 0.6);
+}
+
+.map-overlay > .map {
+  height: 100%;
+  border: 3px solid var(--ink-soft);
+}
+
+@media (max-width: 600px) {
+  .map-overlay {
+    padding: 0;
+  }
+}

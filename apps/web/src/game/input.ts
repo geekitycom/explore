@@ -31,13 +31,17 @@ function keyAction(code: string): KeyAction | undefined {
 const within = (target: EventTarget | null, selector: string) =>
   target instanceof Element && target.closest(selector) !== null;
 
+export const typing = (event: KeyboardEvent) =>
+  within(event.target, 'input, textarea, [contenteditable]');
+
 /** Tracks held movement keys and reports action keys. Releases everything on blur so a key can't stick down. */
 export function keyboard(onAction: (action: KeyAction) => void) {
   const held = new Set<Dir>();
   let lastPressed: Dir | undefined;
+  let paused = false;
 
   const down = (event: KeyboardEvent) => {
-    if (within(event.target, 'input, textarea, [contenteditable]')) return;
+    if (paused || typing(event)) return;
     const dir = KEY_DIRS[event.code];
     if (dir) {
       event.preventDefault();
@@ -65,6 +69,11 @@ export function keyboard(onAction: (action: KeyAction) => void) {
   return {
     held: held as ReadonlySet<Dir>,
     lastPressed: () => lastPressed,
+    /** While paused, keys are left to whatever sits over the game, and nothing stays held. */
+    pause: (on: boolean) => {
+      paused = on;
+      held.clear();
+    },
     dispose: () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
