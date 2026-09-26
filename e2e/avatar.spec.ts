@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { displayNameOf, playing, signUp, unique } from './helpers.ts';
+import { displayNameOf, openForVisitors, playing, signUp, unique, visit } from './helpers.ts';
 
 type Avatar = { hairStyle: string; shirt: string };
 type Snapshot = {
@@ -32,8 +32,7 @@ const othersAvatars = (page: Page) =>
     ].map(({ name, avatar }) => ({ name, hairStyle: avatar.hairStyle, shirt: avatar.shirt })),
   );
 
-// Two accounts cannot share a world until TASK-64.3 opens worlds to visitors: restored by TASK-64.3.
-test.fixme('a player renames and restyles in game and others on the screen see it live', async ({
+test('a player renames and restyles in game and others on the screen see it live', async ({
   browser,
 }) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()]);
@@ -42,7 +41,10 @@ test.fixme('a player renames and restyles in game and others on the screen see i
   pb.on('websocket', () => benSockets++);
   const [na, nb] = [unique('ann'), unique('ben')];
   await enter(pa, na);
+  const code = await openForVisitors(pa);
   await enter(pb, nb);
+  await visit(pb, code);
+  const socketsOnArrival = benSockets;
   await expect
     .poll(() => othersAvatars(pb))
     .toEqual([{ name: displayNameOf(na), hairStyle: 'spiky', shirt: 'green' }]);
@@ -65,7 +67,7 @@ test.fixme('a player renames and restyles in game and others on the screen see i
   await expect
     .poll(() => othersAvatars(pb))
     .toEqual([{ name: 'Annie', hairStyle: 'bun', shirt: 'purple' }]);
-  expect(benSockets).toBe(1);
+  expect(benSockets).toBe(socketsOnArrival);
   await pb.screenshot({ path: 'e2e/.results/avatar-seen-by-other.png' });
 
   await pa.getByRole('button', { name: 'Log out' }).click();

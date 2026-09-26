@@ -123,3 +123,36 @@ export async function probeOutput(page: Page) {
   return () =>
     page.evaluate(() => (window as unknown as { outputLevel: () => number }).outputLevel());
 }
+
+const friendsDialog = (page: Page) => page.getByRole('dialog', { name: 'Play with friends' });
+
+/** Opens the player's world from the Friends dialog and returns the code it shows. */
+export async function openForVisitors(page: Page): Promise<string> {
+  await page.getByRole('button', { name: 'Friends' }).click();
+  const dialog = friendsDialog(page);
+  await dialog.getByRole('button', { name: 'Open for visitors' }).click();
+  const code = (await dialog.getByLabel('Visit code').textContent())?.trim() ?? '';
+  expect(code).toMatch(/^[A-Z]{5}$/);
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  return code;
+}
+
+/** Closes the player's world to visitors from the Friends dialog. */
+export async function closeToVisitors(page: Page) {
+  await page.getByRole('button', { name: 'Friends' }).click();
+  const dialog = friendsDialog(page);
+  await dialog.getByRole('button', { name: 'Close to visitors' }).click();
+  await expect(dialog.getByRole('button', { name: 'Open for visitors' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Done' }).click();
+}
+
+/** Types a friend's code into the Friends dialog; resolves once the player can move in their world. */
+export async function visit(page: Page, code: string) {
+  await page.getByRole('button', { name: 'Friends' }).click();
+  const dialog = friendsDialog(page);
+  await dialog.getByLabel('Their code').fill(code);
+  await dialog.getByRole('button', { name: 'Go' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/worlds\/\d+$/);
+  await playing(page);
+}

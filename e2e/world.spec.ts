@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { displayNameOf, playing, signUp, unique } from './helpers.ts';
+import { displayNameOf, openForVisitors, playing, signUp, unique, visit } from './helpers.ts';
 
 type Snapshot = {
   phase: string;
@@ -31,13 +31,14 @@ async function hold(page: Page, key: string, ms: number) {
   await page.keyboard.up(key);
 }
 
-// Two accounts cannot share a world until TASK-64.3 opens worlds to visitors: restored by TASK-64.3.
-test.fixme('two players in the garden see each other walk', async ({ browser }) => {
+test('two players in the garden see each other walk', async ({ browser }) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()]);
   const [pa, pb] = await Promise.all([a.newPage(), b.newPage()]);
   const [na, nb] = [unique('ann'), unique('ben')];
   await enter(pa, na);
+  const code = await openForVisitors(pa);
   await enter(pb, nb);
+  await visit(pb, code);
 
   await expect
     .poll(async () => (await snapshot(pa)).others.map((o) => o.name))
