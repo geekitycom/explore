@@ -34,8 +34,19 @@ const ACCENT = '#d14b34';
 
 type Actor = { avatar: Avatar; name: string; x: number; y: number; pose: Pose };
 
-/** Draws the game at the largest integer scale that fits `bounds`. */
-export function canvasRenderer(canvas: HTMLCanvasElement, bounds: HTMLElement, art: Art): Renderer {
+/** Mirror .game-canvas's border in style.css. */
+const BORDER = 3;
+
+/**
+ * Draws the game at the largest integer scale at which it, and `belowPx` rows of frame under it,
+ * fit `bounds`. Publishes that scale to CSS as `--scale` on `bounds`.
+ */
+export function canvasRenderer(
+  canvas: HTMLCanvasElement,
+  bounds: HTMLElement,
+  art: Art,
+  belowPx: number,
+): Renderer {
   const ctx = canvas.getContext('2d')!;
   const terrains = new WeakMap<Screen, HTMLCanvasElement>();
   const scenes = new WeakMap<Place, { scene: Scene; period: number }>();
@@ -44,9 +55,14 @@ export function canvasRenderer(canvas: HTMLCanvasElement, bounds: HTMLElement, a
 
   const fit = () => {
     const box = bounds.getBoundingClientRect();
-    scale = Math.max(1, Math.floor(Math.min(box.width / SCREEN_PX_W, box.height / SCREEN_PX_H)));
+    const room = { w: box.width - 2 * BORDER, h: box.height - 3 * BORDER };
+    scale = Math.max(
+      1,
+      Math.floor(Math.min(room.w / SCREEN_PX_W, room.h / (SCREEN_PX_H + belowPx))),
+    );
     canvas.width = SCREEN_PX_W * scale;
     canvas.height = SCREEN_PX_H * scale;
+    bounds.style.setProperty('--scale', String(scale));
   };
   const observer = new ResizeObserver(fit);
   observer.observe(bounds);

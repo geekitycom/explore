@@ -210,7 +210,7 @@ legend {
 
 .game {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   grid-template-columns: minmax(0, 1fr);
   height: 100vh;
   background: var(--ink);
@@ -238,7 +238,7 @@ legend {
 
 .stage {
   display: grid;
-  place-items: center;
+  place-content: center;
   min-height: 0;
   overflow: hidden;
 }
@@ -353,17 +353,45 @@ legend {
   --bar-dark: #345a52;
   --bar-face: #74a334;
   --bar-light: #adbc3a;
-  --slot: min(3.25rem, calc((100vw - 32px - 6px - 9 * 0.4rem) / 10));
+  --px: calc(var(--scale, 1) * 1px);
+  --slot: calc(26 * var(--px));
+  --grain: color-mix(in srgb, var(--bar-dark) 45%, transparent);
+  --peg: radial-gradient(
+    circle,
+    var(--bar-light) 0 calc(1 * var(--px)),
+    var(--bar-dark) calc(1 * var(--px)) calc(2 * var(--px)),
+    transparent calc(2 * var(--px))
+  );
+  contain: inline-size;
   display: grid;
   grid-template-columns: repeat(10, var(--slot));
   justify-content: center;
-  gap: 0.4rem;
-  padding: 0.6rem 16px;
-  background: var(--bar-face);
-  border: 3px solid var(--ink);
+  align-content: center;
+  gap: calc(4 * var(--px));
+  height: calc(var(--bar-px-h) * var(--px) + 3px);
+  background:
+    var(--peg) calc(6 * var(--px)) calc(6 * var(--px)) / calc(4 * var(--px)) calc(4 * var(--px))
+      no-repeat,
+    var(--peg) calc(6 * var(--px)) calc(100% - 6 * var(--px)) / calc(4 * var(--px))
+      calc(4 * var(--px)) no-repeat,
+    var(--peg) calc(100% - 6 * var(--px)) calc(6 * var(--px)) / calc(4 * var(--px))
+      calc(4 * var(--px)) no-repeat,
+    var(--peg) calc(100% - 6 * var(--px)) calc(100% - 6 * var(--px)) / calc(4 * var(--px))
+      calc(4 * var(--px)) no-repeat,
+    repeating-linear-gradient(
+      175deg,
+      transparent 0 calc(5 * var(--px)),
+      var(--grain) calc(5 * var(--px)) calc(6 * var(--px)),
+      transparent calc(6 * var(--px)) calc(11 * var(--px)),
+      var(--grain) calc(11 * var(--px)) calc(11.5 * var(--px))
+    ),
+    var(--bar-face);
+  border: 3px solid var(--ink-soft);
+  border-top: 0;
   box-shadow:
-    inset 3px 3px 0 var(--bar-light),
-    inset -3px -3px 0 var(--bar-dark);
+    inset 0 calc(2 * var(--px)) 0 var(--bar-light),
+    inset calc(2 * var(--px)) 0 0 var(--bar-light),
+    inset calc(-2 * var(--px)) calc(-2 * var(--px)) 0 var(--bar-dark);
 }
 
 .slot {
@@ -374,10 +402,11 @@ legend {
   height: var(--slot);
   padding: 0;
   background: var(--bar-dark);
-  border: 3px solid var(--ink);
+  border: max(2px, var(--px)) solid var(--ink);
   box-shadow:
-    inset 3px 3px 0 #141b1b80,
-    inset -2px -2px 0 var(--bar-light);
+    inset calc(2 * var(--px)) calc(2 * var(--px)) 0 #141b1b80,
+    inset calc(-1 * var(--px)) calc(-1 * var(--px)) 0 var(--bar-light),
+    0 var(--px) 0 var(--bar-light);
   cursor: pointer;
 }
 

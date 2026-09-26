@@ -16,6 +16,9 @@ import {
 import { itemIcon } from '../art/traces.ts';
 import { h } from './dom.ts';
 
+/** The bar's height in game pixels; it scales with the view it sits under. */
+export const BAR_PX_H = 40;
+
 export type BarSlot = {
   readonly slot: Slot;
   /** The key that uses it: "1".."9", then "0". */
@@ -83,9 +86,10 @@ function slotView({ slot, key, stack, selected }: BarSlot): HTMLButtonElement {
   return button;
 }
 
-/** The carved panel below the game view. Redraws only when what it shows changes. */
+/** The carved panel that closes the bottom of the game view. Redraws only when what it shows changes. */
 export function inventoryBar() {
   const el = h('nav', { class: 'inventory-bar', 'aria-label': 'Inventory' });
+  el.style.setProperty('--bar-px-h', String(BAR_PX_H));
   let shown: { inventory: Inventory; selected: Item | undefined; biome: Biome } | undefined;
 
   return {

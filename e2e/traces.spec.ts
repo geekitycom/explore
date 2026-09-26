@@ -12,6 +12,22 @@ type Coord = { layer: string; sx: number; sy: number };
 const hud = (page: Page) =>
   page.evaluate(() => (window as unknown as { exploreHud: () => Hud }).exploreHud());
 
+/** The bar is the bottom of the game frame: exactly as wide as the view and flush under it. */
+const expectBarUnderView = (page: Page) =>
+  expect
+    .poll(() =>
+      page.evaluate(() => {
+        const view = document.querySelector('.game-canvas')!.getBoundingClientRect();
+        const bar = document.querySelector('.inventory-bar')!.getBoundingClientRect();
+        return {
+          left: bar.left - view.left,
+          width: bar.width - view.width,
+          gap: bar.top - view.bottom,
+        };
+      }),
+    )
+    .toEqual({ left: 0, width: 0, gap: 0 });
+
 const coord = (page: Page) =>
   page.evaluate(
     () =>
@@ -29,6 +45,7 @@ test('the inventory bar and the hint bar frame the world', async ({ page }) => {
   const { slots } = await hud(page);
   expect(slots.map((s) => s.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
   expect(slots.every((s) => s.count === undefined)).toBe(true);
+  await expectBarUnderView(page);
 
   await page.keyboard.down('ArrowLeft');
   await page.waitForTimeout(50);
@@ -64,6 +81,7 @@ test('the inventory bar and the hint bar frame the world', async ({ page }) => {
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBeLessThanOrEqual(360);
   await expect(page.locator('.slot').last()).toBeInViewport();
+  await expectBarUnderView(page);
   await page.screenshot({ path: 'e2e/.results/inventory-phone.png' });
 });
 
@@ -86,5 +104,6 @@ test('the inventory bar takes its colours from the biome', async ({ page }) => {
     .poll(() => bar.evaluate((el) => getComputedStyle(el).getPropertyValue('--bar-face').trim()))
     .toBe('#EF914F');
   await expect(bar).toHaveCSS('background-color', 'rgb(239, 145, 79)');
+  await expectBarUnderView(page);
   await page.screenshot({ path: 'e2e/.results/inventory-desert.png' });
 });

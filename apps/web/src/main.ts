@@ -12,7 +12,7 @@ import { authView, type AuthMode } from './ui/auth.ts';
 import { avatarEditor } from './ui/avatar-editor.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
-import { inventoryBar } from './ui/inventory-bar.ts';
+import { BAR_PX_H, inventoryBar } from './ui/inventory-bar.ts';
 import { soundSettings } from './ui/sound-settings.ts';
 import './style.css';
 
@@ -58,7 +58,7 @@ function gameView(user: User) {
   const status = h('p', { class: 'status', role: 'status' });
   const hint = h('p', { class: 'hint-bar', role: 'status', hidden: true });
   const hud = { bar: inventoryBar(), hint, world: h('div', { class: 'world' }, canvas, hint) };
-  const stage = h('div', { class: 'stage' }, hud.world);
+  const stage = h('div', { class: 'stage' }, hud.world, hud.bar.el);
   const view = h(
     'main',
     { class: 'game' },
@@ -89,7 +89,6 @@ function gameView(user: User) {
       ),
     ),
     stage,
-    hud.bar.el,
   );
   root.replaceChildren(view);
   Object.assign(window, {
@@ -104,7 +103,7 @@ function gameView(user: User) {
   });
   const game = startGame(
     user,
-    canvasRenderer(canvas, stage, art),
+    canvasRenderer(canvas, stage, art, BAR_PX_H),
     canvas,
     hud,
     (s) => {
