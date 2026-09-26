@@ -33,7 +33,7 @@ const PAPER = '#fff4dd';
 const FOCUS = '#3aa3c9';
 const ACCENT = '#d14b34';
 
-/** `alpha` below 1 is a traveller part way through a portal. */
+/** `alpha` below 1 is a traveller part way through a portal, drawn faded and unnamed. */
 type Actor = { avatar: Avatar; name: string; x: number; y: number; pose: Pose; alpha: number };
 
 const facing = (dx: number, dy: number): Pose['dir'] =>
@@ -41,20 +41,22 @@ const facing = (dx: number, dy: number): Pose['dir'] =>
 
 /**
  * `actor` as a portal carries them at `clock`: faded by how far they have come through, and
- * placed between where they stand and the portal's mouth, walking when they move.
+ * placed between where they stand and the portal's mouth, walking when they move. With `glide`
+ * off, for reduced motion, they only fade where they stand.
  */
-function carried(actor: Actor, portal: Portal, clock: number): Actor | undefined {
+function carried(actor: Actor, portal: Portal, clock: number, glide: boolean): Actor | undefined {
   const look = travellerLook(portal, clock);
   if (!look) return actor;
   if (look.shown <= 0) return undefined;
   const mouth = portalFeet(portal.tile);
   const dx = mouth.x - actor.x;
   const dy = mouth.y - actor.y;
-  const walking = look.along > 0 && look.along < 1;
+  const along = glide ? look.along : 0;
+  const walking = along > 0 && along < 1;
   return {
     ...actor,
-    x: actor.x + dx * look.along,
-    y: actor.y + dy * look.along,
+    x: actor.x + dx * along,
+    y: actor.y + dy * along,
     pose: walking
       ? {
           ...actor.pose,
@@ -135,9 +137,8 @@ export function canvasRenderer(
   };
 
   /** Outlined text centred above the screen point (x, y), as over a player's head. */
-  const label = (text: string, x: number, y: number, alpha: number) => {
+  const label = (text: string, x: number, y: number) => {
     ctx.save();
-    ctx.globalAlpha = alpha;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const size = Math.max(10, 4 * scale);
     ctx.font = `${size}px 'Pixelify Sans', monospace`;
@@ -194,7 +195,7 @@ export function canvasRenderer(
         if (portal.traveller !== 'you')
           theirs.set(portal.traveller.id, { portal, view: portal.traveller });
       const actors = [
-        yours ? carried(self, yours, clock) : self,
+        yours ? carried(self, yours, clock, motion) : self,
         ...[...state.others.values()]
           .filter((p) => !theirs.has(p.id))
           .map((p) => ({
@@ -215,7 +216,7 @@ export function canvasRenderer(
             pose: drawn ?? view,
             alpha: 1,
           };
-          return carried(actor, portal, clock);
+          return carried(actor, portal, clock, motion);
         }),
       ].filter((a): a is Actor => a !== undefined);
       const portals = state.portals.flatMap((portal) => {
@@ -256,8 +257,9 @@ export function canvasRenderer(
       );
       if (aim) outline(aim);
       for (const a of actors) {
+        if (a.alpha < 1) continue;
         const at = namePoint(a.x, a.y);
-        label(a.name, at.x, at.y, a.alpha);
+        label(a.name, at.x, at.y);
       }
 
       if (state.phase === 'travelling') {

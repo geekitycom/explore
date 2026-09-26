@@ -1,17 +1,19 @@
 import { OUTLINE, RAMPS, TILE, type Tile } from '@explore/core';
 
 /** Half the open portal's width and height in pixels: an upright oval a little taller than a player. */
-const RX = 6;
-const RY = 9;
+const RX = 7;
+const RY = 10;
 /** The oval's lowest pixel sits this far above the bottom of its tile, where feet stand. */
 const LIFT = 1;
 /** Dark to light, the swirl's colours: the water ramp's blues opening onto a white core. */
 const SWIRL = [...RAMPS.water.slice(0, 5), RAMPS.snow[3], RAMPS.snow[4]] as const;
-const GLOW = RAMPS.water[4];
+const GLOW = RAMPS.water[5];
+/** Just inside the outline, the rim burns brightest. */
+const RIM = RAMPS.water[4];
 const CORE = RAMPS.snow[4];
 /** Spiral arms, how far each winds from rim to centre, and turns per second. */
-const ARMS = 2;
-const TWIST = 1.1;
+const ARMS = 3;
+const TWIST = 1.3;
 const SPIN = 0.9;
 /** Below this size the portal is still the glowing dot it opens from. */
 const DOT_SIZE = 0.15;
@@ -34,13 +36,12 @@ const px = (ctx: CanvasRenderingContext2D, x: number, y: number, color: string) 
 /** The glowing dot a portal opens from: a white core in a cyan cross with a faint halo. */
 function drawDot(ctx: CanvasRenderingContext2D, x: number, y: number, grow: number, clock: number) {
   const pulse = 0.5 + 0.5 * Math.sin(clock * 18);
-  const reach = grow < 0.5 ? 1 : 2;
+  const reach = grow < 0.4 ? 1 : 2;
   ctx.save();
-  ctx.globalAlpha *= 0.35 + 0.25 * pulse;
-  for (let d = -reach - 1; d <= reach + 1; d++) {
-    px(ctx, x + d, y, GLOW);
-    if (d !== 0) px(ctx, x, y + d, GLOW);
-  }
+  ctx.globalAlpha *= 0.3 + 0.25 * pulse;
+  for (let dy = -reach - 1; dy <= reach + 1; dy++)
+    for (let dx = -reach - 1; dx <= reach + 1; dx++)
+      if (Math.abs(dx) + Math.abs(dy) <= reach + 1) px(ctx, x + dx, y + dy, GLOW);
   ctx.restore();
   for (let d = -reach; d <= reach; d++) {
     px(ctx, x + d, y, GLOW);
@@ -48,9 +49,20 @@ function drawDot(ctx: CanvasRenderingContext2D, x: number, y: number, grow: numb
   }
   px(ctx, x, y, CORE);
   if (reach > 1) {
-    px(ctx, x - 1, y, CORE);
-    px(ctx, x + 1, y, CORE);
-    px(ctx, x, y - 1, CORE);
+    for (const [dx, dy] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ] as const)
+      px(ctx, x + dx, y + dy, CORE);
+    for (const [dx, dy] of [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ] as const)
+      px(ctx, x + dx, y + dy, GLOW);
   }
 }
 
@@ -79,15 +91,22 @@ export function drawPortal(
   const ry = Math.max(2, Math.round(RY * size));
   const turn = spin ? clock * SPIN : 0;
 
-  ctx.save();
-  ctx.globalAlpha *= spin ? 0.3 + 0.1 * Math.sin(clock * 6) : 0.3;
-  for (let dy = -ry - 2; dy <= ry + 1; dy++) {
-    for (let dx = -rx - 2; dx <= rx + 1; dx++) {
-      if (inside(dx, dy, rx + 1.5, ry + 1.5) && !inside(dx, dy, rx, ry))
-        px(ctx, centre.x + dx, centre.y + dy, GLOW);
+  const glow = spin ? 0.5 + 0.15 * Math.sin(clock * 6) : 0.5;
+  for (const [reach, strength] of [
+    [1, glow],
+    [2.2, glow * 0.45],
+  ] as const) {
+    ctx.save();
+    ctx.globalAlpha *= strength;
+    for (let dy = -ry - 3; dy <= ry + 2; dy++) {
+      for (let dx = -rx - 3; dx <= rx + 2; dx++) {
+        const outer = inside(dx, dy, rx + reach, ry + reach);
+        const inner = inside(dx, dy, rx + reach - 1.2, ry + reach - 1.2);
+        if (outer && !inner && !inside(dx, dy, rx, ry)) px(ctx, centre.x + dx, centre.y + dy, GLOW);
+      }
     }
+    ctx.restore();
   }
-  ctx.restore();
 
   for (let dy = -ry; dy < ry; dy++) {
     for (let dx = -rx; dx < rx; dx++) {
@@ -101,12 +120,21 @@ export function drawPortal(
         px(ctx, centre.x + dx, centre.y + dy, OUTLINE);
         continue;
       }
+      const nearRim =
+        !inside(dx - 2, dy, rx, ry) ||
+        !inside(dx + 2, dy, rx, ry) ||
+        !inside(dx, dy - 2, rx, ry) ||
+        !inside(dx, dy + 2, rx, ry);
+      if (nearRim) {
+        px(ctx, centre.x + dx, centre.y + dy, RIM);
+        continue;
+      }
       const u = (dx + 0.5) / rx;
       const v = (dy + 0.5) / ry;
       const r = Math.hypot(u, v);
       const angle = Math.atan2(v, u) / (2 * Math.PI);
       const arm = (((angle * ARMS + r * TWIST - turn) % 1) + 1) % 1;
-      const level = (1 - r) * 4.2 + (arm < 0.45 ? 2 : 0);
+      const level = 0.6 + (1 - r) * 3.6 + (arm < 0.38 ? 2.4 : 0);
       const color = SWIRL[Math.max(0, Math.min(SWIRL.length - 1, Math.floor(level)))]!;
       px(ctx, centre.x + dx, centre.y + dy, color);
     }

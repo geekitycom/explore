@@ -3,6 +3,7 @@ import {
   BIOME_PHOTO_PALETTES,
   BIOME_RAMPS,
   CAIRN_MAX,
+  DEFAULT_AVATAR,
   FENCES,
   FENCE_KINDS,
   FLORA,
@@ -48,6 +49,8 @@ import { loadArt, type Art } from './load.ts';
 import { bakeTerrain } from './terrain.ts';
 import { butterflies, fishes, twinkles } from './life.ts';
 import { buildScene, drawScene, type Actor } from './scene.ts';
+import { drawPortal, portalFeet } from './portal.ts';
+import { PORTAL_MS, portalLook, travellerLook, type Portal } from '../game/portal.ts';
 
 const SCALE = 3;
 const WALK_ORDER: readonly Dir[] = ['s', 'n', 'w', 'e'];
@@ -545,7 +548,83 @@ const SECTIONS = {
   fences: showFences,
   avatars: showAvatars,
   motion: showMotion,
+  portal: showPortal,
 };
+
+/** Portal tiles in the garden: on grass, and on the sand by the pond. */
+const PORTAL_SPOTS = [
+  { label: 'grass', tile: { tx: 12, ty: 10 } },
+  { label: 'sand', tile: { tx: 6, ty: 5 } },
+] as const;
+const PORTAL_FRAMES_MS = [100, 250, 400, 550, 800, 950, 1100, 1250, 1500, 1750];
+
+/** The portal through its stages, with the visitor stepping out in front of it, on the garden. */
+function showPortal(art: Art) {
+  const scene = buildScene(bare(secretGarden()), art, Date.now());
+  const avatar = DEFAULT_AVATAR;
+  for (const { label, tile } of PORTAL_SPOTS) {
+    for (const [kind, motion] of [
+      ['arrive', true],
+      ['depart', true],
+      ['arrive', false],
+    ] as const) {
+      const row = section(
+        `Portal: ${kind} on ${label}${motion ? '' : ', reduced motion'} (ms since it began)`,
+      );
+      const portal: Portal = { kind, tile, start: 0, traveller: 'you' };
+      const stand = { x: (tile.tx + 0.5) * TILE, y: (tile.ty + 1) * TILE + 10 };
+      for (const ms of PORTAL_FRAMES_MS.filter((t) => t < PORTAL_MS)) {
+        const ctx = figure(row, `${ms}`, 6 * TILE, 5 * TILE, 4);
+        ctx.translate(-(tile.tx - 2.5) * TILE, -(tile.ty - 2) * TILE);
+        const look = portalLook(portal, ms)!;
+        const who = travellerLook(portal, ms);
+        const mouth = portalFeet(tile);
+        const along = who?.along ?? 0;
+        const at = {
+          x: stand.x + (mouth.x - stand.x) * along,
+          y: stand.y + (mouth.y - stand.y) * along,
+        };
+        const actors: Actor[] = [
+          {
+            x: 0,
+            y: 0,
+            moving: false,
+            sortY: (tile.ty + 1) * TILE,
+            draw: () => {
+              ctx.save();
+              ctx.globalAlpha = motion ? 1 : look.size;
+              drawPortal(ctx, tile, motion ? look.size : 1, ms / 1000, motion);
+              ctx.restore();
+            },
+          },
+          {
+            ...at,
+            moving: false,
+            sortY: at.y + 2,
+            draw: () => {
+              if (who && who.shown <= 0) return;
+              const src = walkFrameRect(kind === 'arrive' ? 's' : 'n', 0);
+              ctx.globalAlpha = who?.shown ?? 1;
+              ctx.drawImage(
+                avatarSheet(avatar, art),
+                src.x,
+                src.y,
+                src.w,
+                src.h,
+                Math.round(at.x - TILE / 2),
+                Math.round(at.y + 2 - TILE),
+                TILE,
+                TILE,
+              );
+              ctx.globalAlpha = 1;
+            },
+          },
+        ];
+        drawScene(ctx, scene, art, 0, actors, false);
+      }
+    }
+  }
+}
 function showMotion(art: Art) {
   const params = new URLSearchParams(location.search);
   const base = Number(params.get('t') ?? 0);
