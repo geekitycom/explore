@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-25 21:47'
-updated_date: '2026-09-26 01:26'
+updated_date: '2026-09-26 01:45'
 labels: []
 milestone: m-5
 dependencies:
@@ -18,7 +18,7 @@ ordinal: 5000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Players pick flowers from the flower patches that grow in the world and carry them to graves (TASK-48.3). The species picked is the species left, so poppies on a tundra grave show that someone carried them from a meadow. Picking is the limit: there is no daily allowance. A picked plant regrows after a couple of days, and picking does not remove it for other players. Each grave holds one set of flowers at a time; they stay fresh for a few days, then wilt, then disappear, and only then can someone leave new ones.
+Players pick flowers from the flower patches that grow in the world and carry them to graves (TASK-48.3). The species picked is the species left, so poppies on a tundra grave show that someone carried them from a meadow. Picking is the limit: there is no daily allowance. A picked plant is picked for everyone and regrows through sprout and bud stages over a couple of days, so a patch of sprouts shows that someone was just there. Each grave holds one set of flowers at a time; they stay fresh for a few days, then wilt, then disappear, and only then can someone leave new ones.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
@@ -51,6 +51,8 @@ Defaults chosen: regrowDays 2 (sprout the first day, bud the second), grave flow
 Verified: pnpm lint, lint:art, typecheck, format:check, test (600 tests incl. packages/core/src/traces/kinds/flowers.test.ts with an injected now, mutation-checked), pnpm e2e 13 passed. Live run against a local server (scripted Playwright, clock faked client-side for later days) screenshots in /private/tmp/claude-501/-Users-andrewshell-code-geekity-explore/5fcbf254-9b57-47b2-a2bf-c0a00fadf132/scratchpad/task-50.4: 1-pick-prompt, 2-picked-sprout-and-bouquet, 3-refusal-regrowing, 4-refusal-not-a-grave, 5-grave-fresh, 6-refusal-grave-has-flowers, 7-grave-wilted, 8-grave-gone, 9-regrow-bud, 10-regrow-bloom (each with a -zoom crop), gallery-flowers.png (art.html?section=flowers).
 
 Correction: the unit test count is 595 (594 plus the perf test), not 600.
+
+User confirmed on 2026-09-25: picked flowers regrow for everyone (shared state), as built.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
