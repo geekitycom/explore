@@ -39,6 +39,14 @@ function inside(verts: readonly (readonly [number, number])[], x: number, y: num
 }
 
 export function rock(p: RockParams, rng: Rng): Sprite {
+  const { canvas, rx } = rockBody(p, rng);
+  canvas.outline();
+  canvas.shadow(TILE / 2 + 0.5, TILE - 0.8, rx + 1, 1.2);
+  return canvas.toSprite();
+}
+
+/** The rock's lit and shaded pixels on its tile, with no outline or shadow yet. */
+export function rockBody(p: RockParams, rng: Rng): { canvas: Canvas; rx: number } {
   const stone = ramp(p.stone);
   const L = stone.length - 1;
   const c = new Canvas(TILE, TILE);
@@ -108,7 +116,5 @@ export function rock(p: RockParams, rng: Rng): Sprite {
     }
   }
   c.despeckle();
-  c.outline();
-  c.shadow(TILE / 2 + 0.5, TILE - 0.8, rx + 1, 1.2);
-  return c.toSprite();
+  return { canvas: c, rx };
 }

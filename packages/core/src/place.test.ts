@@ -93,6 +93,10 @@ test('LIMITS is the one table of per-kind limits', () => {
       "probe": {
         "carry": 2,
       },
+      "rock": {
+        "cairn": 12,
+        "carry": 3,
+      },
     }
   `);
 });

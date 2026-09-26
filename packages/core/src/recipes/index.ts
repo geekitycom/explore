@@ -2,6 +2,7 @@ import { createRng, type Rng } from '../rng.ts';
 import type { Sprite } from '../sprite.ts';
 import { bones, type BonesParams } from './bones.ts';
 import { cactus, type CactusParams } from './cactus.ts';
+import { cairn, type CairnParams } from './cairn.ts';
 import { fence, type FenceParams } from './fence.ts';
 import { grave, type GraveParams } from './grave.ts';
 import {
@@ -21,6 +22,7 @@ import { rock, type RockParams } from './rock.ts';
 import { rosette, type RosetteParams } from './rosette.ts';
 import { tree, type TreeParams } from './tree.ts';
 
+export { CAIRN_MAX } from './cairn.ts';
 export { clamp } from './draw.ts';
 export { LINK } from './fence.ts';
 
@@ -28,6 +30,7 @@ export type {
   BonesParams,
   BushParams,
   CactusParams,
+  CairnParams,
   FenceParams,
   FlowerForm,
   FlowerParams,
@@ -53,6 +56,7 @@ type FamilyParams = {
   fence: FenceParams;
   bones: BonesParams;
   grave: GraveParams;
+  cairn: CairnParams;
 };
 
 export type Family = keyof FamilyParams;
@@ -75,6 +79,7 @@ const FAMILIES: { [F in Family]: (params: FamilyParams[F], rng: Rng) => Sprite }
   fence,
   bones,
   grave,
+  cairn,
 };
 
 export const RECIPE_FAMILIES = Object.keys(FAMILIES) as Family[];
@@ -111,4 +116,5 @@ export const SAMPLE_RECIPES: { [F in Family]: Recipe & { family: F } } = {
     family: 'grave',
     params: { form: 'headstone', material: 'stone', earth: 'grass', moss: 'sage' },
   },
+  cairn: { family: 'cairn', params: { stones: ['stone', 'granite', 'stone', 'sand', 'stone'] } },
 };

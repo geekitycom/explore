@@ -60,12 +60,13 @@ function opaqueColours(s: Sprite): Set<Hex> {
 }
 
 describe('recipes', () => {
-  test('cover the twelve families', () => {
+  test('cover the thirteen families', () => {
     expect(RECIPE_FAMILIES.sort()).toEqual(
       [
         'bones',
         'bush',
         'cactus',
+        'cairn',
         'fence',
         'flower',
         'grass',
@@ -128,7 +129,7 @@ describe('recipes', () => {
   test('a species only uses its own ramps and the outline, so every seed reads as that species', () => {
     for (const recipe of species()) {
       const own = new Set<Hex>([OUTLINE]);
-      for (const value of Object.values(recipe.params)) {
+      for (const value of Object.values(recipe.params).flat()) {
         if (isRamp(value)) for (const hex of RAMPS[value]) own.add(hex);
       }
       for (const seed of SEEDS) {
