@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@claude'
 created_date: '2026-09-26 12:59'
-updated_date: '2026-09-26 13:39'
+updated_date: '2026-09-26 13:51'
 labels:
   - testing
 dependencies: []
@@ -49,6 +49,8 @@ Measured on the M-series Mac, full parallel unit run (JSON reporter):
 - Causes: scrypt at production cost per login (inject scryptCost); vi.waitFor 50 ms polling; per-pixel expect calls and deep toEqual on 300k-byte screens; a 256-screen road plan whose road() scans every segment; fence test redrawing once per byte; exhaustive seeds x ramp swaps; 2 shuffled regenerations of 144 screens; 4-screen margins where 1 is needed.
 - Every changed test was checked by injecting its defect (tool: scratchpad mutate.mjs applies an edit, runs vitest -t, restores). Old and new tests caught the same defects; a few injected defects were caught by neither, which is unchanged.
 - Decision: project list moved inline with extends: true, because glob projects did not inherit the root setupFiles.
+
+CI arm64 check job (run 36245904783, commit 69b5073) passed. pnpm test step took 25 s, down from 39 s on c0413b7. Slowest unit test there was 671 ms (lakes, forests, meadows). Follow-up TASK-61 covers more headroom for the world-generation tests.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
