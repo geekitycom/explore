@@ -53,6 +53,31 @@ export function landmarkOn(world: World, { layer, sx, sy }: ScreenCoord): Landma
   return { poi: poi.kind, area: { x: poi.x - x0, y: poi.y - y0, rx, ry } };
 }
 
+/** The kind of landmark whose footprint holds this tile, such as the graveyard around a grave. */
+export function landmarkAround(
+  world: World,
+  { layer, sx, sy }: ScreenCoord,
+  tile: Tile,
+): Landmark['poi'] | undefined {
+  const x0 = sx * SCREEN_W;
+  const y0 = sy * SCREEN_H;
+  const [x, y] = [x0 + tile.tx, y0 + tile.ty];
+  return networkOf(world, layer)
+    .poisIn({ x0: x, y0: y, x1: x + 1, y1: y + 1 })
+    .filter(isLandmark)
+    .map((poi) => ({ poi, off: offCentre(areaOf(poi, x0, y0), tile) }))
+    .filter(({ off }) => off <= 1)
+    .sort((a, b) => a.off - b.off)
+    .at(0)?.poi.kind;
+}
+
+const areaOf = ({ x, y, reach: [rx, ry] }: Poi, x0: number, y0: number): Area => ({
+  x: x - x0,
+  y: y - y0,
+  rx,
+  ry,
+});
+
 /** How far a tile's centre lies from the area's, where 1 is the area's rim. */
 const offCentre = ({ x, y, rx, ry }: Area, { tx, ty }: Tile) =>
   ((tx + 0.5 - x) / rx) ** 2 + ((ty + 0.5 - y) / ry) ** 2;

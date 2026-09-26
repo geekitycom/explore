@@ -21,6 +21,7 @@ import {
   type ScreenCoord,
 } from '@explore/core';
 import { Chunks } from './chunks.ts';
+import { epitaphWriter, type WriteText } from './epitaphs.ts';
 import { loadInventory } from './inventory.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import { TraceStore, perform, reportTrace } from './traces.ts';
@@ -56,15 +57,24 @@ const tileOf = ({ tx, ty }: { tx: number; ty: number }) => ({ tx, ty });
 
 export type Game = ReturnType<typeof createGame>;
 
-export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => number } = {}) {
+export function createGame(
+  db: DatabaseSync,
+  { now = Date.now, writeText }: { now?: () => number; writeText?: WriteText | undefined } = {},
+) {
   ensureGarden(db);
   const chunks = new Chunks(db);
   const presence = new Presence();
   const store = new TraceStore(db, presence);
+  const epitaphs = writeText && epitaphWriter(store, writeText);
   const online = new Map<number, Player>();
 
   const roomAt = (coord: ScreenCoord, userId: number) =>
-    presence.room(coord, () => store.open(coord, chunks.screenAt(coord, userId), loadWorld(db)));
+    presence.room(coord, () => {
+      const world = loadWorld(db);
+      const place = store.open(coord, chunks.screenAt(coord, userId), world);
+      epitaphs?.request(place, world);
+      return place;
+    });
 
   const save = (player: Player) => {
     savePlayerState(db, player.user.id, {
@@ -207,6 +217,7 @@ export function createGame(db: DatabaseSync, { now = Date.now }: { now?: () => n
      */
     stop(): void {
       chunks.stop();
+      epitaphs?.stop();
       for (const player of online.values()) save(player);
       online.clear();
     },

@@ -29,7 +29,7 @@ Behind a reverse proxy, set `TRUST_PROXY=true` so login and signup rate limits k
 
 ## Text generation
 
-The server can write short game text, such as epitaphs, with a language model through any OpenAI-compatible chat completions API. It is optional. With no provider set, the game uses its built-in text. The server prints which model it uses at startup and never logs or sends the API key to clients.
+The server can write short game text, such as epitaphs, with a language model through any OpenAI-compatible chat completions API. It is optional. With no provider set, the game uses its built-in text. Each grave shows a built-in epitaph from the world seed until the model has written its own, once, when a player first opens its screen; a failed try is retried after a restart. The server prints which model it uses at startup and never logs or sends the API key to clients.
 
 | Variable         | What it sets                                                                                                   |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -64,6 +64,7 @@ LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=google/gemini-3.8-flash LLM_
 | `pnpm test`                           | Vitest across all packages                                                                                                                                                                  |
 | `pnpm e2e`                            | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                                                 |
 | `pnpm world:wipe --yes`               | Delete the generated world and saved positions (accounts stay), roll a new world seed, and restore the garden. Stop the server first. Uses `DB_PATH`, default `apps/server/data/explore.db` |
+| `pnpm epitaphs`                       | List every grave's epitaph. `--set sx,sy tx,ty "words"` replaces one, `--clear sx,sy tx,ty` puts back its built-in epitaph for good. Uses `DB_PATH`                                         |
 | `pnpm --filter @explore/core preview` | Render a large area of the world to a PNG for tuning generation                                                                                                                             |
 
 ## Layout

@@ -161,13 +161,27 @@ export function promptAt(here: Here): Prompt | undefined {
 
 export type Said = { readonly tile: Tile; readonly kind: TraceKindName; readonly bubble: Bubble };
 
-/** The bubbles of traces on tiles in reach. */
+/**
+ * The bubbles of traces on tiles in reach, one per tile: the first kind's in registry order, with
+ * the words of any other kind on that tile as its second line. So a grave reads its epitaph and
+ * then who left flowers on it.
+ */
 export function bubblesAt(here: Here): Said[] {
-  const said: Said[] = [];
-  for (const trace of here.place.traces.values()) {
-    if (!inReach(here.me.pose, trace)) continue;
-    const bubble = kindNamed(trace.kind).bubble?.(trace, here.now);
-    if (bubble) said.push({ tile: { tx: trace.tx, ty: trace.ty }, kind: trace.kind, bubble });
+  const byTile = new Map<string, Said>();
+  for (const kind of kindsInOrder()) {
+    for (const trace of here.place.traces.values()) {
+      if (trace.kind !== kind.kind || !inReach(here.me.pose, trace)) continue;
+      const bubble = kind.bubble?.(trace, here.now);
+      if (!bubble) continue;
+      const key = `${trace.tx},${trace.ty}`;
+      const first = byTile.get(key);
+      if (!first) {
+        byTile.set(key, { tile: { tx: trace.tx, ty: trace.ty }, kind: trace.kind, bubble });
+        continue;
+      }
+      const line = [first.bubble.line, bubble.text].filter(Boolean).join(' · ');
+      byTile.set(key, { ...first, bubble: { ...first.bubble, line } });
+    }
   }
-  return said;
+  return [...byTile.values()];
 }

@@ -1,3 +1,4 @@
+export { epitaph } from './epitaph.ts';
 export { flowers } from './flowers.ts';
 export { landmark } from './landmark.ts';
 export { picked } from './picked.ts';

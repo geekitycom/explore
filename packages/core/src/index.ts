@@ -28,3 +28,4 @@ export * from './traces/kind.ts';
 export * from './traces/registry.ts';
 export { LINE_MAX, NAME_MAX, siteOf } from './traces/kinds/landmark.ts';
 export type { Plan } from './traces/kind.ts';
+export { EPITAPH_MAX, graveName, seedEpitaph } from './traces/kinds/epitaph.ts';

@@ -2,7 +2,6 @@ import { DatabaseSync } from 'node:sqlite';
 import { expect, test, type Page } from '@playwright/test';
 import {
   OVERWORLD,
-  TILE,
   bare,
   inArea,
   isWalkable,
@@ -10,10 +9,9 @@ import {
   type Area,
   type Screen,
   type ScreenCoord,
-  type Tile,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { playing, signUp, unique } from './helpers.ts';
+import { playing, signUp, teleport, unique } from './helpers.ts';
 
 type Hud = { hint: string | undefined };
 type Site = { tx: number; ty: number; area: Area };
@@ -43,21 +41,6 @@ function landmarkScreen(seed: WorldSeed): ScreenCoord {
     }
   }
   throw new Error('no landmark near the garden');
-}
-
-/**
- * Moves a signed-out player by rewriting their saved position, then signs them back in there.
- * The server saves a position when the socket closes, so the page leaves first.
- */
-async function teleport(page: Page, db: DatabaseSync, user: string, coord: ScreenCoord, at: Tile) {
-  await page.goto('about:blank');
-  await page.waitForTimeout(500);
-  const { id } = db.prepare('SELECT id FROM users WHERE username = ?').get(user) as { id: number };
-  db.prepare(
-    `UPDATE player_state SET layer = ?, sx = ?, sy = ?, x = ?, y = ?, dir = 'n' WHERE user_id = ?`,
-  ).run(coord.layer, coord.sx, coord.sy, (at.tx + 0.5) * TILE, (at.ty + 1) * TILE - 2, id);
-  await page.goto('/');
-  await playing(page);
 }
 
 test('the first to reach a landmark names it for everyone and the map', async ({ page }) => {

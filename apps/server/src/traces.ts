@@ -14,7 +14,10 @@ import {
   type Place,
   type Screen,
   type ScreenCoord,
+  type Tile,
   type Trace,
+  type TraceKindName,
+  type TraceNamed,
   type TraceAddress,
   type TraceChange,
   type World,
@@ -70,6 +73,21 @@ export class TraceStore {
     }
     this.commit(coord, settled, null);
     return place;
+  }
+
+  /** The stored trace, which a later deploy or an admin may have changed under an open room. */
+  get<K extends TraceKindName>(
+    { layer, sx, sy }: ScreenCoord,
+    { tx, ty }: Tile,
+    kind: K,
+  ): TraceNamed<K> | undefined {
+    const row = this.#db
+      .prepare(
+        'SELECT data FROM traces WHERE layer = ? AND sx = ? AND sy = ? AND tx = ? AND ty = ? AND kind = ?',
+      )
+      .get(layer, sx, sy, tx, ty, kind) as { data: string } | undefined;
+    const trace = row && parseRow(row.data);
+    return trace?.kind === kind ? (trace as TraceNamed<K>) : undefined;
   }
 
   /**

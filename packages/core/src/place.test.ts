@@ -83,6 +83,7 @@ describe('traceSchema', () => {
 test('LIMITS is the one table of per-kind limits', () => {
   expect(LIMITS).toMatchInlineSnapshot(`
     {
+      "epitaph": {},
       "flowers": {
         "freshDays": 3,
         "goneDays": 5,

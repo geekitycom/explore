@@ -8,6 +8,7 @@
     "start": "node src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
     "world:wipe": "node src/wipe-world.ts",
+    "epitaphs": "node src/epitaph-admin.ts",
     "names": "node src/landmark-names.ts"
   },
   "dependencies": {
