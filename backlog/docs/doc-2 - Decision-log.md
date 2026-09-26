@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-25 14:51'
+updated_date: '2026-09-26 13:51'
 ---
 # Decision log
 
@@ -19,7 +19,7 @@ One Node process with a SQLite file. Presence is in memory. Screen creation need
 Unique case-insensitive username, scrypt-hashed password, cookie session. No email.
 
 ## D4. Avatars built from parts and colors (product, 2026-09-24)
-Signup includes choosing skin, hair style, hair color, shirt color, and pants color. The sprite is composited from layers with a 4-direction walk animation.
+Players choose skin, hair style, hair color, shirt color, and pants color in an avatar step right after creating their account (TASK-59; it was part of the sign-up form before). The sprite is composited from layers with a 4-direction walk animation.
 
 ## D5. Hand-built secret garden at (0,0) with openings on all four sides (product, 2026-09-24)
 
