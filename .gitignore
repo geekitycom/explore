@@ -10,3 +10,4 @@ coverage/
 .claude/worktrees/
 e2e/.results/
 world-preview.png
+screenshots/.results/

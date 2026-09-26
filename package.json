@@ -19,6 +19,7 @@
     "test": "vitest run --exclude '**/*.perf.test.ts' && vitest run perf.test",
     "test:watch": "vitest",
     "e2e": "playwright test",
+    "screenshots": "playwright test -c playwright.screenshots.config.ts",
     "docker:build-push": "./scripts/docker-build-push.sh",
     "docker:dry-run": "./scripts/docker-build-push.sh --dry-run",
     "docker:smoke": "./scripts/docker-smoke.sh",
