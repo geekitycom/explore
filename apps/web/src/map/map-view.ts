@@ -10,8 +10,8 @@ import type { WorldMap } from '../api.ts';
 import { h } from '../ui/dom.ts';
 import { screenPixels } from './colors.ts';
 
-/** CSS pixels per world tile: 60x45 per screen, however much is discovered. */
-const TILE_CSS = 3;
+/** CSS pixels per world tile: 120x90 per screen, however much is discovered. */
+const TILE_CSS = 6;
 /** Mirrors --paper in style.css. */
 const PAPER = '#fff4dd';
 const INK = '#141b1b';

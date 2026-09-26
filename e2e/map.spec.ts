@@ -148,8 +148,8 @@ test('the map opens on you at one size however much is discovered, and shows mor
   await page.waitForFunction(() => 'exploreMap' in window);
   await expect.poll(async () => (await mapState(page)).drawn).toBeGreaterThan(0);
   const few = await mapState(page);
-  expect(few.tilePixels).toBe(3);
-  expect(few.you).toMatchObject({ w: 60, h: 45 });
+  expect(few.tilePixels).toBe(6);
+  expect(few.you).toMatchObject({ w: 120, h: 90 });
   expect(centred(few)).toBe(true);
   await page.keyboard.press('Escape');
 
@@ -205,7 +205,7 @@ test('the map opens on you at one size however much is discovered, and shows mor
   await page.waitForFunction(() => 'exploreMap' in window);
   await expect.poll(async () => (await mapState(page)).drawn).toBeGreaterThan(0);
   const standalone = await mapState(page);
-  expect(standalone.tilePixels).toBe(3);
+  expect(standalone.tilePixels).toBe(6);
   expect(centred(standalone)).toBe(true);
   await page.screenshot({ path: 'e2e/.results/map-standalone-1600.png' });
   await page.setViewportSize({ width: 960, height: 600 });

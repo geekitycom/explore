@@ -53,7 +53,7 @@ describe('the map view', () => {
         expect(many).toEqual(few);
         expect(Math.abs(few!.x + few!.w / 2 - w! / 2)).toBeLessThanOrEqual(1);
         expect(Math.abs(few!.y + few!.h / 2 - h! / 2)).toBeLessThanOrEqual(1);
-        expect(few!.w).toBe(SCREEN_W * Math.round(3 * dpr));
+        expect(few!.w).toBe(SCREEN_W * Math.round(6 * dpr));
       }
     },
   );
