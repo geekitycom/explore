@@ -23,6 +23,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 20% 10%, #bfd05099 0 12%, transparent 13%),
     radial-gradient(circle at 80% 70%, #bfd05066 0 10%, transparent 11%), var(--grass-dark);
@@ -209,6 +210,7 @@ legend {
   .auth {
     margin: 0;
     min-height: 100vh;
+    min-height: 100dvh;
     border: 0;
     box-shadow: none;
     padding: 1.25rem 16px;
@@ -225,8 +227,21 @@ legend {
   grid-template-rows: auto 1fr;
   grid-template-columns: minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh;
   background: var(--ink);
   color: var(--paper);
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.game input,
+.game textarea,
+.game dialog {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .game-bar {
@@ -257,6 +272,7 @@ legend {
 
 .world {
   position: relative;
+  touch-action: none;
 }
 
 .game-canvas {
@@ -581,6 +597,7 @@ legend {
   display: grid;
   grid-template-rows: auto 1fr auto;
   height: 100vh;
+  height: 100dvh;
   background: var(--ink);
   color: var(--paper);
 }
