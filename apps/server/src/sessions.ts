@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { parse } from 'hono/utils/cookie';
-import { rowToUser, type User, type UserRow } from './users.ts';
+import { rowToUser, USER_COLUMNS, type User, type UserRow } from './users.ts';
 
 export const SESSION_COOKIE = 'session';
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -41,7 +41,7 @@ export function sessionUser(
   if (!token) return undefined;
   const row = db
     .prepare(
-      `SELECT users.id, users.username, users.avatar FROM sessions
+      `SELECT ${USER_COLUMNS} FROM sessions
        JOIN users ON users.id = sessions.user_id
        WHERE sessions.token_hash = ? AND sessions.expires_at > ?`,
     )

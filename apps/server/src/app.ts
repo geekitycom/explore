@@ -50,7 +50,7 @@ const password = z
   .min(8, 'Password must be at least 8 characters')
   .max(200, 'Password must be at most 200 characters');
 
-const signupBody = z.object({ username, password, avatar: avatarSchema });
+const signupBody = z.object({ username, password });
 const loginBody = z.object({ username: z.string().max(200), password: z.string().max(200) });
 const avatarBody = z.object({ avatar: avatarSchema });
 
@@ -149,7 +149,6 @@ export function createApp({
     const user = insertUser(db, {
       username: body.username,
       passwordHash: await hashPassword(body.password, scryptCost),
-      avatar: body.avatar,
     });
     if (!user) throw new ApiError(409, 'username_taken', 'That username is taken', 'username');
     startSession(c, user);

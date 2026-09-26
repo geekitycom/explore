@@ -1,4 +1,4 @@
-import { DEFAULT_AVATAR, GARDEN_COORD, parseInventory } from '@explore/core';
+import { GARDEN_COORD, parseInventory } from '@explore/core';
 import { expect, test } from 'vitest';
 import { openDatabase } from './db.ts';
 import { Presence } from './presence.ts';
@@ -11,7 +11,7 @@ const traceCount = (db: ReturnType<typeof openDatabase>) =>
 
 test('a trace lands only together with the inventory it was spent from', () => {
   const db = openDatabase(':memory:');
-  const user = insertUser(db, { username: 'ann', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const user = insertUser(db, { username: 'ann', passwordHash: 'x' })!;
   const store = new TraceStore(db, new Presence());
   const spent = parseInventory([{ kind: 'probe', variant: 'probe', count: 1 }]);
 

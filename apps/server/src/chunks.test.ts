@@ -2,7 +2,6 @@ import type { DatabaseSync } from 'node:sqlite';
 import {
   CHUNK_H,
   CHUNK_W,
-  DEFAULT_AVATAR,
   GARDEN_COORD,
   GENERATOR_VERSION,
   LATTICE_H,
@@ -45,8 +44,8 @@ function setup() {
     generated.push(screenKey(coord));
     return generateScreen(world, coord, older);
   });
-  const alice = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
-  const bob = insertUser(db, { username: 'bob', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
+  const bob = insertUser(db, { username: 'bob', passwordHash: 'x' })!;
   stops.push(() => {
     chunks.stop();
     db.close();
@@ -182,7 +181,7 @@ it('finishes a chunk being prefetched when a player arrives, instead of starting
 it('forgets a chunk whose generation failed, so the next approach builds it afresh', async () => {
   const db = openDatabase(':memory:');
   ensureGarden(db);
-  const alice = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
   let failures = 0;
   const chunks = new Chunks(db, (world, coord) => {
     if (failures === 0 && coord.sx === -3 && coord.sy === -4) {

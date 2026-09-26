@@ -19,7 +19,7 @@ export default defineConfig({
   },
   webServer: {
     command: `pnpm --filter @explore/web build && node apps/server/src/main.ts`,
-    env: { PORT: String(PORT), DB_PATH: dbPath },
+    env: { PORT: String(PORT), DB_PATH: dbPath, TRUST_PROXY: 'true' },
     url: `http://localhost:${PORT}/api/me`,
     reuseExistingServer: false,
     stdout: 'pipe',

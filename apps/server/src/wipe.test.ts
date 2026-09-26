@@ -17,14 +17,7 @@ import {
   recordVisit,
   savePlayerState,
 } from './world.ts';
-import {
-  CHUNK_H,
-  CHUNK_W,
-  DEFAULT_AVATAR,
-  GARDEN_COORD,
-  parseInventory,
-  secretGarden,
-} from '@explore/core';
+import { CHUNK_H, CHUNK_W, GARDEN_COORD, parseInventory, secretGarden } from '@explore/core';
 import { loadInventory, saveInventory } from './inventory.ts';
 import { Presence } from './presence.ts';
 import { TraceStore } from './traces.ts';
@@ -43,7 +36,6 @@ test('wiping keeps accounts, forgets the world and its traces, rolls a new seed,
   const user = insertUser(db, {
     username: 'wanderer',
     passwordHash: await hashPassword('correct horse'),
-    avatar: DEFAULT_AVATAR,
   })!;
   const { token } = createSession(db, user.id);
   const east = { ...GARDEN_COORD, sx: 1 };

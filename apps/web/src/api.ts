@@ -1,6 +1,6 @@
 import type { Avatar } from '@explore/core';
 
-export type User = { id: number; username: string; avatar: Avatar };
+export type User = { id: number; username: string; avatar: Avatar; avatarChosen: boolean };
 
 export class ApiError extends Error {
   readonly code: string;
@@ -40,9 +40,8 @@ export async function fetchMe(): Promise<User | undefined> {
   }
 }
 
-export async function signup(username: string, password: string, avatar: Avatar): Promise<User> {
-  return (await request<{ user: User }>('POST', '/api/signup', { username, password, avatar }))
-    .user;
+export async function signup(username: string, password: string): Promise<User> {
+  return (await request<{ user: User }>('POST', '/api/signup', { username, password })).user;
 }
 
 export async function login(username: string, password: string): Promise<User> {

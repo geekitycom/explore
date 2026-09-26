@@ -11,6 +11,7 @@ import { canvasRenderer } from './game/render.ts';
 import { mapView } from './map/map-view.ts';
 import { authView, type AuthMode } from './ui/auth.ts';
 import { avatarEditor } from './ui/avatar-editor.ts';
+import { avatarStep } from './ui/avatar-step.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
 import { BAR_PX_H, inventoryBar } from './ui/inventory-bar.ts';
@@ -22,7 +23,10 @@ type Place = 'game' | 'map';
 type MapOverlay = { el: HTMLElement; dispose?: () => void };
 
 type View =
-  { kind: 'auth'; mode: AuthMode; then: Place } | { kind: 'game'; user: User } | { kind: 'map' };
+  | { kind: 'auth'; mode: AuthMode; then: Place }
+  | { kind: 'avatar'; user: User; then: Place }
+  | { kind: 'game'; user: User }
+  | { kind: 'map' };
 
 const STATUS_TEXT: Record<GameStatus, string> = {
   connecting: 'Connecting…',
@@ -192,12 +196,13 @@ function show(view: View) {
       root.replaceChildren(
         authView({
           mode: view.mode,
-          drawAvatar,
           onSwitch: (mode) => show({ kind: 'auth', mode, then: view.then }),
-          onAuthenticated: (user) =>
-            show(view.then === 'map' ? { kind: 'map' } : { kind: 'game', user }),
+          onAuthenticated: (user) => enter(user, view.then),
         }),
       );
+      return;
+    case 'avatar':
+      root.replaceChildren(avatarStep(view.user, drawAvatar, (user) => enter(user, view.then)));
       return;
     case 'map':
       root.replaceChildren(h('p', { class: 'loading' }, 'Loading the map…'));
@@ -215,6 +220,12 @@ function show(view: View) {
   }
 }
 
+/** Where a signed-in player goes next: the avatar step until they have chosen one, then `place`. */
+function enter(user: User, place: Place) {
+  if (!user.avatarChosen) show({ kind: 'avatar', user, then: place });
+  else show(place === 'map' ? { kind: 'map' } : { kind: 'game', user });
+}
+
 const place: Place = location.pathname === '/map' ? 'map' : 'game';
-if (!initialUser) show({ kind: 'auth', mode: place === 'map' ? 'login' : 'signup', then: place });
-else show(place === 'map' ? { kind: 'map' } : { kind: 'game', user: initialUser });
+if (initialUser) enter(initialUser, place);
+else show({ kind: 'auth', mode: 'login', then: place });

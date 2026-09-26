@@ -87,7 +87,7 @@ async function signup(base: string, username: string): Promise<string> {
   const res = await fetch(`http://${base}/api/signup`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username, password: 'correct horse battery', avatar: DEFAULT_AVATAR }),
+    body: JSON.stringify({ username, password: 'correct horse battery' }),
   });
   expect(res.status).toBe(201);
   return /^session=[^;]*/.exec(res.headers.get('set-cookie') ?? '')![0];
@@ -832,8 +832,7 @@ describe('game', () => {
       game.stop();
       db.close();
     });
-    const user = (username: string) =>
-      insertUser(db, { username, passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+    const user = (username: string) => insertUser(db, { username, passwordHash: 'x' })!;
     const [alice, bob] = [user('alice'), user('bob')];
     const inbox = (sent: ServerMessage[]): Conn => ({
       send: (message) => sent.push(message),
@@ -854,7 +853,7 @@ describe('game', () => {
     const db = openDatabase(':memory:');
     let clock = 0;
     const game = createGame(db, { now: () => (clock += 100) });
-    const alice = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+    const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
     const player = game.connect(alice, { send: () => {}, close: () => {} });
     game.receive(player, JSON.stringify({ t: 'move', x: 162, y: 202, dir: 'e', moving: true }));
 

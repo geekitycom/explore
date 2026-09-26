@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import {
-  DEFAULT_AVATAR,
   EPITAPH_MAX,
   OVERWORLD,
   SCREEN_H,
@@ -20,7 +19,7 @@ import { cleanEpitaph, listEpitaphs, setEpitaph, type WriteText } from './epitap
 import { createGame } from './play.ts';
 import type { TextRequest, TextResult } from './text-gen.ts';
 import type { Player } from './presence.ts';
-import { insertUser, rowToUser, type UserRow } from './users.ts';
+import { insertUser, rowToUser, USER_COLUMNS, type UserRow } from './users.ts';
 import { getScreen, loadWorld, savePlayerState } from './world.ts';
 
 describe('cleanEpitaph', () => {
@@ -93,7 +92,7 @@ function open(path: string, writeText?: WriteText) {
   const join = (userId: number): Inbox => {
     const inbox: Inbox = [];
     const user = rowToUser(
-      db.prepare('SELECT id, username, avatar FROM users WHERE id = ?').get(userId) as UserRow,
+      db.prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(userId) as UserRow,
     );
     const player = game.connect(user, { send: (m) => inbox.push(m), close: () => {} });
     players.set(userId, player);
@@ -106,8 +105,7 @@ function open(path: string, writeText?: WriteText) {
 /** A database whose two players, alice (1) and bob (2), stand on a graveyard's screen. */
 function atGraveyard(path: string) {
   const db = openDatabase(path);
-  for (const username of ['alice', 'bob'])
-    insertUser(db, { username, passwordHash: 'x', avatar: DEFAULT_AVATAR });
+  for (const username of ['alice', 'bob']) insertUser(db, { username, passwordHash: 'x' });
   const coord = graveyardScreen(db);
   for (const id of [1, 2])
     savePlayerState(db, id, { coord, pose: { x: 4, y: 4, dir: 's', moving: false } });

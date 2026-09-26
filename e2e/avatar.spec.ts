@@ -58,7 +58,6 @@ test('a player restyles in game and others on the screen see it live', async ({ 
   await pb.screenshot({ path: 'e2e/.results/avatar-seen-by-other.png' });
 
   await pa.getByRole('button', { name: 'Log out' }).click();
-  await pa.getByRole('button', { name: 'Log in' }).click();
   await pa.getByLabel('Username').fill(na);
   await pa.getByLabel('Password').fill('correct horse');
   await pa.getByRole('button', { name: 'Log in' }).click();

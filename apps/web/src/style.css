@@ -7,6 +7,9 @@
   --grass-dark: #74a334;
   --accent: #d14b34;
   --focus: #3aa3c9;
+  --water: #548789;
+  --snow: #b8dce5;
+  --gold: #f1c471;
   color-scheme: light;
   font-family: 'Pixelify Sans', ui-monospace, monospace;
   color: var(--ink);
@@ -53,6 +56,15 @@ input {
   background: var(--paper);
   border: 4px solid var(--ink);
   box-shadow: 0 6px 0 var(--ink-soft);
+}
+
+.auth-signup {
+  padding-top: calc(2rem + 14px);
+  background: linear-gradient(var(--water) 0 14px, var(--snow) 14px);
+}
+
+.auth-signup .primary {
+  background: var(--gold);
 }
 
 .auth h1 {

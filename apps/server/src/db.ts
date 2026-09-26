@@ -108,6 +108,7 @@ const migrations: readonly string[] = [
     items TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );`,
+  `ALTER TABLE users ADD COLUMN avatar_chosen INTEGER NOT NULL DEFAULT 1;`,
 ];
 
 /**

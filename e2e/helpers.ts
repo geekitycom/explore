@@ -6,11 +6,25 @@ import { TILE, type ScreenCoord, type Tile } from '../packages/core/src/index.ts
 export const unique = (tag: string) =>
   `${tag}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
 
-export async function signUp(page: Page, name: string) {
+let signupAddress = 0;
+
+/**
+ * Fills and submits the create-account form, leaving the new player on the avatar step. Each
+ * account comes from its own address, so the suite never trips the per-address signup limit.
+ */
+export async function createAccount(page: Page, name: string, retyped = 'correct horse') {
+  await page.setExtraHTTPHeaders({ 'x-forwarded-for': `198.51.100.${++signupAddress % 256}` });
   await page.goto('/');
+  await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByLabel('Username').fill(name);
-  await page.getByLabel('Password').fill('correct horse');
+  await page.getByLabel('Password', { exact: true }).fill('correct horse');
+  await page.getByLabel('Password again').fill(retyped);
   await page.getByRole('button', { name: 'Create account' }).click();
+}
+
+export async function signUp(page: Page, name: string) {
+  await createAccount(page, name);
+  await page.getByRole('button', { name: 'Start exploring' }).click();
 }
 
 export const playing = (page: Page) =>

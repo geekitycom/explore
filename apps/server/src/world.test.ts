@@ -54,7 +54,7 @@ it('creates a screen once from the world seed, seamless with the garden, and kee
   const db = openDatabase(path);
   ensureGarden(db);
   ensureGarden(db);
-  const user = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const user = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
 
   const east = encodeScreen(getOrCreateScreen(db, EAST, user.id));
   expect(encodeScreen(getOrCreateScreen(db, EAST, user.id))).toEqual(east);
@@ -76,7 +76,7 @@ it('creates a screen once from the world seed, seamless with the garden, and kee
 it('stores screens at the same sx, sy on different layers separately', () => {
   const db = openDatabase(':memory:');
   ensureGarden(db);
-  const user = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const user = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
   const cellarOrigin = { layer: CELLAR, sx: 0, sy: 0 };
 
   const cellar = getOrCreateScreen(db, cellarOrigin, user.id);
@@ -93,7 +93,7 @@ it('stores screens at the same sx, sy on different layers separately', () => {
 
 it('saves and resumes the layer a player is on', () => {
   const db = openDatabase(':memory:');
-  const user = insertUser(db, { username: 'alice', passwordHash: 'x', avatar: DEFAULT_AVATAR })!;
+  const user = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
   const pose = { x: 40, y: 50, dir: 'w' as const, moving: false };
   savePlayerState(db, user.id, { coord: { layer: CELLAR, sx: 2, sy: -1 }, pose });
   expect(loadPlayerState(db, user.id)).toEqual({ coord: { layer: CELLAR, sx: 2, sy: -1 }, pose });
