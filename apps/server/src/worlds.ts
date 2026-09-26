@@ -43,7 +43,21 @@ export function worldOwnedBy(db: MainDb, username: string): WorldId | undefined 
   return row?.id;
 }
 
-/** Whether a player may enter a world. Only its owner may, until TASK-64.3 opens worlds to visitors. */
-export function mayEnter(db: MainDb, user: User, worldId: WorldId): boolean {
-  return homeWorld(db, user.id) === worldId;
+export type Admission = 'owner' | 'visitor';
+
+/** Who has come in with a world's current code (visitors.ts, held by the world host). */
+export type Visitors = { admits(worldId: WorldId, userId: number): boolean };
+
+/**
+ * The single access rule: a world admits its owner always, and a visitor while it is open and
+ * they came in with its current code. Undefined means the door is shut to this player.
+ */
+export function admission(
+  db: MainDb,
+  visitors: Visitors,
+  user: User,
+  worldId: WorldId,
+): Admission | undefined {
+  if (homeWorld(db, user.id) === worldId) return 'owner';
+  return visitors.admits(worldId, user.id) ? 'visitor' : undefined;
 }

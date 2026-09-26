@@ -8,6 +8,12 @@ export const AUTH_LIMITS = {
   failedLoginsPerUsername: { max: 10, windowMs: 15 * MINUTE },
 } satisfies Record<string, Limit>;
 
+/** Guesses at visit codes: 23^5 codes against these budgets is not a brute force anyone finishes. */
+export const VISIT_LIMITS = {
+  codesPerUser: { max: 10, windowMs: 15 * MINUTE },
+  codesPerAddress: { max: 30, windowMs: 15 * MINUTE },
+} satisfies Record<string, Limit>;
+
 export type RateLimiter = ReturnType<typeof createRateLimiter>;
 
 export function createRateLimiter({ max, windowMs }: Limit) {

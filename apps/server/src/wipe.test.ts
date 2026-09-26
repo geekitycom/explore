@@ -66,7 +66,7 @@ test('wiping forgets the world and its traces, rolls a new seed, and restores th
   expect(getScreen(db, east)).toBeUndefined();
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());
   expect(loadPlayerState(db, user.id)).toBeUndefined();
-  expect(JSON.parse(worldMapJson(db, user.id))).toMatchObject({ screens: [] });
+  expect(JSON.parse(worldMapJson(db, user.id, []))).toMatchObject({ screens: [] });
 
   expect(wipeWorld(db)).toEqual({ screens: 1, players: 0, traces: 0 });
   expect(getScreen(db, GARDEN_COORD)).toEqual(secretGarden());

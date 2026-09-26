@@ -17,7 +17,7 @@ import {
   type ScryptCost,
 } from './password.ts';
 import type { Player } from './presence.ts';
-import { AUTH_LIMITS, createRateLimiter, type RateLimiter } from './rate-limit.ts';
+import { AUTH_LIMITS, VISIT_LIMITS, createRateLimiter, type RateLimiter } from './rate-limit.ts';
 import {
   createSession,
   deleteSession,
@@ -26,9 +26,17 @@ import {
   sessionUser,
 } from './sessions.ts';
 import { findUserCredentials, insertUser, updateProfile, type User } from './users.ts';
-import { ensureHomeWorld, mayEnter, worldIdSchema, type WorldId } from './worlds.ts';
+import { visitCodeSchema } from './visitors.ts';
+import {
+  admission,
+  ensureHomeWorld,
+  homeWorld,
+  worldIdSchema,
+  type Admission,
+  type WorldId,
+} from './worlds.ts';
 
-type Env = { Variables: { user: User; worldId: WorldId } };
+type Env = { Variables: { user: User; worldId: WorldId; admission: Admission } };
 
 class ApiError extends Error {
   readonly status: ContentfulStatusCode;
@@ -52,10 +60,13 @@ const password = z
   .max(200, 'Password must be at most 200 characters');
 
 const REFUSED_MESSAGE = 'That world is not open to you';
+const UNKNOWN_CODE_MESSAGE =
+  "That code doesn't open any world right now. Check it with your friend.";
 
 const signupBody = z.object({ username, displayName: displayNameSchema, password });
 const loginBody = z.object({ username: z.string().max(200), password: z.string().max(200) });
 const profileBody = z.object({ displayName: displayNameSchema, avatar: avatarSchema });
+const visitBody = z.object({ code: visitCodeSchema });
 
 async function parseBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer<T>> {
   const json: unknown = await c.req.json().catch(() => {
@@ -76,15 +87,15 @@ async function parseBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.
 export function createApp({
   db,
   host,
-  admit = mayEnter,
+  admit = (user, worldId) => admission(db, host, user, worldId),
   secureCookies = false,
   trustProxy = false,
   scryptCost = SCRYPT_COST,
 }: {
   db: MainDb;
   host: WorldHost;
-  /** Who may enter which world; tests widen it to put two players in one world. */
-  admit?: (db: MainDb, user: User, worldId: WorldId) => boolean;
+  /** Who may enter which world, and as what; tests widen it to put two players in one world. */
+  admit?: (user: User, worldId: WorldId) => Admission | undefined;
   secureCookies?: boolean;
   /** Behind a reverse proxy, key rate limits on the client address it reports. */
   trustProxy?: boolean;
@@ -112,6 +123,8 @@ export function createApp({
   const signupsByAddress = createRateLimiter(AUTH_LIMITS.signupsPerAddress);
   const loginsByAddress = createRateLimiter(AUTH_LIMITS.loginsPerAddress);
   const failedLoginsByUsername = createRateLimiter(AUTH_LIMITS.failedLoginsPerUsername);
+  const codesByAddress = createRateLimiter(VISIT_LIMITS.codesPerAddress);
+  const codesByUser = createRateLimiter(VISIT_LIMITS.codesPerUser);
 
   const throttle = (c: Context, limiter: RateLimiter, key: string) => {
     const ms = limiter.retryAfterMs(key);
@@ -187,8 +200,12 @@ export function createApp({
     return c.json(account(found.user));
   });
 
+  /** Logging out also closes the player's world to visitors, wherever else they are signed in. */
   app.post('/api/logout', (c) => {
     const token = sessionToken(c.req.header('cookie'));
+    const user = sessionUser(db, c.req.header('cookie'));
+    const home = user && homeWorld(db, user.id);
+    if (home !== undefined) host.closeToVisitors(home);
     if (token) deleteSession(db, token);
     deleteCookie(c, SESSION_COOKIE, { path: '/', secure: secureCookies });
     return c.body(null, 204);
@@ -204,10 +221,17 @@ export function createApp({
   /** Reads `:id` from the path; a world the player may not enter, or no world at all, is 403. */
   const requireWorld = createMiddleware<Env>(async (c, next) => {
     const parsed = worldIdSchema.safeParse(c.req.param('id'));
-    if (!parsed.success || !admit(db, c.get('user'), parsed.data)) {
-      throw new ApiError(403, 'forbidden', REFUSED_MESSAGE);
-    }
+    const role = parsed.success ? admit(c.get('user'), parsed.data) : undefined;
+    if (!parsed.success || !role) throw new ApiError(403, 'forbidden', REFUSED_MESSAGE);
     c.set('worldId', parsed.data);
+    c.set('admission', role);
+    await next();
+  });
+
+  const requireOwner = createMiddleware<Env>(async (c, next) => {
+    if (c.get('admission') !== 'owner') {
+      throw new ApiError(403, 'forbidden', 'Only the owner can open or close a world');
+    }
     await next();
   });
 
@@ -221,11 +245,44 @@ export function createApp({
     return c.json(account(user));
   });
 
-  app.get('/api/worlds/:id/map', requireUser, requireWorld, (c) =>
-    c.body(worldMapJson(host.open(c.get('worldId')).db, c.get('user').id), 200, {
+  app.get('/api/worlds/:id/map', requireUser, requireWorld, (c) => {
+    const world = host.open(c.get('worldId'));
+    return c.body(worldMapJson(world.db, c.get('user').id, world.game.roster()), 200, {
       'content-type': 'application/json',
-    }),
+    });
+  });
+
+  const visitorsJson = (worldId: WorldId) => {
+    const opening = host.opening(worldId);
+    return { code: opening.state === 'open' ? opening.code : null };
+  };
+
+  app.get('/api/worlds/:id/visitors', requireUser, requireWorld, requireOwner, (c) =>
+    c.json(visitorsJson(c.get('worldId'))),
   );
+
+  app.post('/api/worlds/:id/visitors', requireUser, requireWorld, requireOwner, (c) => {
+    host.openToVisitors(c.get('worldId'), c.get('user'));
+    return c.json(visitorsJson(c.get('worldId')));
+  });
+
+  app.delete('/api/worlds/:id/visitors', requireUser, requireWorld, requireOwner, (c) => {
+    host.closeToVisitors(c.get('worldId'));
+    return c.body(null, 204);
+  });
+
+  /** Every guess counts against the address and the account, so codes cannot be brute-forced. */
+  app.post('/api/visits', requireUser, async (c) => {
+    countAttempt(c, codesByAddress);
+    const userKey = String(c.get('user').id);
+    throttle(c, codesByUser, userKey);
+    codesByUser.hit(userKey);
+    const { code } = await parseBody(c, visitBody);
+    const world = host.redeemCode(code, c.get('user').id);
+    if (!world) throw new ApiError(404, 'unknown_code', UNKNOWN_CODE_MESSAGE);
+    codesByUser.reset(userKey);
+    return c.json({ world });
+  });
 
   app.all('/api/*', () => {
     throw new ApiError(404, 'not_found', 'No such endpoint');
@@ -237,18 +294,24 @@ export function createApp({
     nodeWs.upgradeWebSocket((c: Context<Env>) => {
       const user = c.get('user');
       const parsed = worldIdSchema.safeParse(c.req.param('id'));
-      const worldId = parsed.success && admit(db, user, parsed.data) ? parsed.data : undefined;
+      const role = parsed.success ? admit(user, parsed.data) : undefined;
+      const worldId = parsed.success && role ? parsed.data : undefined;
       let player: Player | undefined;
       return {
         onOpen(_event, ws) {
-          if (worldId === undefined) {
+          if (worldId === undefined || !role) {
             ws.close(REFUSED_CLOSE_CODE, REFUSED_MESSAGE);
             return;
           }
-          player = host.connect(worldId, user, {
-            send: (message) => ws.send(JSON.stringify(message)),
-            close: (code, reason) => ws.close(code, reason),
-          });
+          player = host.connect(
+            worldId,
+            user,
+            {
+              send: (message) => ws.send(JSON.stringify(message)),
+              close: (code, reason) => ws.close(code, reason),
+            },
+            role,
+          );
         },
         onMessage(event: { data: unknown }) {
           if (player && worldId !== undefined && typeof event.data === 'string') {

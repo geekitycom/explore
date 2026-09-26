@@ -36,7 +36,7 @@ const remote = (player: PlayerView): Remote => ({ ...player, drawX: player.x, dr
 export function applyMessage(state: GameState, message: ServerMessage): GameState {
   if (message.t === 'screen') {
     return {
-      phase: message.wake || state.phase === 'waking' ? 'waking' : 'playing',
+      phase: message.arrival === 'wake' || state.phase === 'waking' ? 'waking' : 'playing',
       place: placeOf(decodeScreen(message.screen), parseTraces(message.traces)),
       inventory: parseInventory(message.inventory),
       patch: message.patch,
@@ -86,6 +86,7 @@ export function applyMessage(state: GameState, message: ServerMessage): GameStat
     case 'inventory':
       return { ...state, inventory: parseInventory(message.stacks) };
     case 'refused':
+    case 'sentHome':
       return state;
   }
 }

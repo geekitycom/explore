@@ -8,7 +8,7 @@ import { createApp } from './app.ts';
 import { openMainDatabase, type MainDb } from './db.ts';
 import { createWorldHost, type WorldHost } from './host.ts';
 import { hashPassword, verifyPassword } from './password.ts';
-import { AUTH_LIMITS } from './rate-limit.ts';
+import { AUTH_LIMITS, VISIT_LIMITS } from './rate-limit.ts';
 import { SESSION_TTL_MS, sessionUser } from './sessions.ts';
 import { getScreen, loadWorld } from './world.ts';
 import type { WorldId } from './worlds.ts';
@@ -486,5 +486,57 @@ describe('worlds', () => {
     });
     expect((await send('GET', '/api/worlds/abc/map', undefined, bob.cookie)).status).toBe(403);
     expect((await send('GET', '/api/worlds/2/map')).status).toBe(401);
+  });
+});
+
+describe('visit code guesses', () => {
+  const { codesPerUser, codesPerAddress } = VISIT_LIMITS;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  const guess = (cookie: string, code: string, address?: string) =>
+    send('POST', '/api/visits', { code }, cookie, address);
+
+  it('throttles one account after its share of guesses, whatever the address, until the window passes', async () => {
+    const { cookie } = await signup('Alice');
+    const { cookie: bobCookie } = await signup('Bob');
+    for (let i = 0; i < codesPerUser.max; i++) {
+      expect((await guess(cookie, 'ABCDE', `198.51.100.${i}`)).status).toBe(404);
+    }
+    const throttled = await guess(cookie, 'ABCDE', '192.0.2.99');
+    expect(throttled.status).toBe(429);
+    expect(throttled.headers.get('retry-after')).toBe(String(codesPerUser.windowMs / 1000));
+    expect(await throttled.json()).toMatchObject({ error: { code: 'rate_limited' } });
+    expect((await guess(bobCookie, 'ABCDE', '192.0.2.99')).status).toBe(404);
+
+    vi.setSystemTime(Date.now() + codesPerUser.windowMs);
+    expect((await guess(cookie, 'ABCDE')).status).toBe(404);
+  });
+
+  it('throttles one address after its share of guesses across accounts', async () => {
+    const cookies = [];
+    for (let i = 0; i < 4; i++) cookies.push((await signup(`user${i}`, `User ${i}`)).cookie);
+    for (let i = 0; i < codesPerAddress.max; i++) {
+      expect((await guess(cookies[i % 4]!, 'ABCDE')).status).toBe(404);
+    }
+    expect((await guess(cookies[0]!, 'ABCDE')).status).toBe(429);
+    expect((await guess(cookies[0]!, 'ABCDE', '198.51.100.7')).status).toBe(404);
+  });
+
+  it("forgets an account's guesses once one opens a door", async () => {
+    const { cookie } = await signup('Alice');
+    const { cookie: bobCookie } = await signup('Bob');
+    const opened = await send('POST', '/api/worlds/1/visitors', undefined, cookie);
+    const { code } = (await opened.json()) as { code: string };
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < codesPerUser.max - 1; i++) {
+        expect((await guess(bobCookie, 'ABCDE', `198.51.100.${i}`)).status).toBe(404);
+      }
+      expect((await guess(bobCookie, code, '192.0.2.99')).status).toBe(200);
+    }
   });
 });

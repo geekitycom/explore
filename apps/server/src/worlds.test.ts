@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { openMainDatabase } from './db.ts';
 import { userNamed } from './testing.ts';
 import { insertUser } from './users.ts';
-import { ensureHomeWorld, homeWorld, mayEnter, worldIdSchema, worldOwnedBy } from './worlds.ts';
+import { admission, ensureHomeWorld, homeWorld, worldIdSchema, worldOwnedBy } from './worlds.ts';
 
 test('ensuring a home world creates it once, however often it is asked for', () => {
   const db = openMainDatabase(':memory:');
@@ -33,15 +33,23 @@ test('a world id is never reused once its row is gone', () => {
   db.close();
 });
 
-test('only the owner may enter a world', () => {
+test('a world admits its owner always, and anyone else only while its opening admits them', () => {
   const db = openMainDatabase(':memory:');
   const alice = insertUser(db, { username: 'alice', displayName: 'alice', passwordHash: 'x' })!;
   const bob = insertUser(db, { username: 'bob', displayName: 'bob', passwordHash: 'x' })!;
   const home = ensureHomeWorld(db, alice.id);
-  expect(mayEnter(db, alice, home)).toBe(true);
-  expect(mayEnter(db, bob, home)).toBe(false);
-  expect(mayEnter(db, userNamed(99, 'nobody'), home)).toBe(false);
-  expect(mayEnter(db, alice, worldIdSchema.parse('404'))).toBe(false);
+  const shut = { admits: () => false };
+  expect(admission(db, shut, alice, home)).toBe('owner');
+  expect(admission(db, shut, bob, home)).toBeUndefined();
+  expect(admission(db, shut, userNamed(99, 'nobody'), home)).toBeUndefined();
+  expect(admission(db, shut, alice, worldIdSchema.parse('404'))).toBeUndefined();
+
+  const bobIsIn = {
+    admits: (worldId: number, userId: number) => worldId === home && userId === bob.id,
+  };
+  expect(admission(db, bobIsIn, bob, home)).toBe('visitor');
+  expect(admission(db, bobIsIn, alice, home)).toBe('owner');
+  expect(admission(db, bobIsIn, userNamed(99, 'nobody'), home)).toBeUndefined();
   db.close();
 });
 

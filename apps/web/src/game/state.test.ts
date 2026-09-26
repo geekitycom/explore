@@ -1,4 +1,5 @@
 import {
+  type Arrival,
   DEFAULT_AVATAR,
   allTraces,
   encodeScreen,
@@ -23,7 +24,7 @@ const bob: PlayerView = {
 };
 const you = { x: 160, y: 200, dir: 'n' as const, moving: false };
 
-const screenMessage = (traces: TraceRecord[] = [], wake = false): ServerMessage => ({
+const screenMessage = (traces: TraceRecord[] = [], arrival: Arrival = 'none'): ServerMessage => ({
   t: 'screen',
   screen: garden,
   traces,
@@ -31,7 +32,7 @@ const screenMessage = (traces: TraceRecord[] = [], wake = false): ServerMessage 
   you,
   others: [bob],
   inventory: [],
-  wake,
+  arrival,
 });
 
 function playing(traces: TraceRecord[] = []): GameState {
@@ -56,11 +57,17 @@ describe('applyMessage', () => {
     expect([...state.others.keys()]).toEqual([2]);
   });
 
+  test("a visitor's arrival starts play at once, with no wake-up", () => {
+    const visiting = applyMessage({ phase: 'connecting' }, screenMessage([], 'visit'));
+    expect(visiting.phase).toBe('playing');
+    expect(applyMessage(playing(), { t: 'sentHome', reason: 'closed' })).toEqual(playing());
+  });
+
   test('a new session holds still until the player wakes, even through a reconnect', () => {
-    const waking = applyMessage({ phase: 'connecting' }, screenMessage([], true));
+    const waking = applyMessage({ phase: 'connecting' }, screenMessage([], 'wake'));
     expect(waking.phase).toBe('waking');
     expect(applyMessage(waking, screenMessage()).phase).toBe('waking');
-    expect(applyMessage(playing(), screenMessage([], true)).phase).toBe('waking');
+    expect(applyMessage(playing(), screenMessage([], 'wake')).phase).toBe('waking');
   });
 
   test('join, moved, and leave track other players', () => {

@@ -23,6 +23,7 @@ import {
   placeOf,
   REASONS,
   REFUSED_CLOSE_CODE,
+  SENT_HOME_CLOSE_CODE,
   secretGarden,
   siteOf,
   type Avatar,
@@ -39,13 +40,13 @@ import WebSocket from 'ws';
 import { createApp } from './app.ts';
 import { openMainDatabase, openWorldDatabase, type MainDb, type WorldDb } from './db.ts';
 import { createWorldHost, type WorldHost } from './host.ts';
-import { saveInventory } from './inventory.ts';
+import { loadInventory, saveInventory } from './inventory.ts';
 import { clearName, landmarkNames } from './names.ts';
 import { createGame, type Game } from './play.ts';
 import type { Conn } from './presence.ts';
 import { userNamed } from './testing.ts';
 import type { User } from './users.ts';
-import { mayEnter, type WorldId } from './worlds.ts';
+import type { WorldId } from './worlds.ts';
 import { loadPlayerState, loadWorld, savePlayerState } from './world.ts';
 
 /** Alice signs up first in every test, so her world is the first one registered. */
@@ -68,20 +69,25 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
 
-/** Unless a test says otherwise, everyone may enter every world, as TASK-64.3's invitations will allow. */
-async function start(dir?: string, admit: Admit = () => true): Promise<Running> {
+/**
+ * Unless a test says otherwise, everyone enters every world as its owner, so multiplayer tests
+ * need no invitation; `'real'` applies the actual rule (owner, or a visitor with the code).
+ */
+async function start(dir?: string, admit: Admit | 'real' = () => 'owner'): Promise<Running> {
   const main = openMainDatabase(dir ? join(dir, 'main.db') : ':memory:');
   if (dir) mkdirSync(join(dir, 'worlds'), { recursive: true });
   let clock = 0;
   // Every clock read is a tick later, so each move sees at least one report interval pass.
+  const tick = () => (clock += 100);
   const host = createWorldHost({
     pathOf: (id) => (dir ? join(dir, 'worlds', `${id}.db`) : ':memory:'),
-    game: { now: () => (clock += 100) },
+    game: { now: tick },
+    now: tick,
   });
   const { app, injectWebSocket } = createApp({
     db: main,
     host,
-    admit,
+    ...(admit === 'real' ? {} : { admit }),
     scryptCost: { N: 2 ** 4, r: 1, p: 1 },
   });
   let server!: Server;
@@ -192,6 +198,7 @@ type WorldMap = {
   you: { sx: number; sy: number };
   garden: { sx: number; sy: number } | null;
   names: { x: number; y: number; name: string }[];
+  players: { id: number; name: string; x: number; y: number; you: boolean }[];
   screens: ScreenRecord[];
 };
 
@@ -267,7 +274,7 @@ describe('world socket', () => {
       you: SPAWN,
       others: [],
       inventory: [],
-      wake: true,
+      arrival: 'wake',
     });
   });
 
@@ -849,7 +856,7 @@ describe('sessions', () => {
     const { clock, firstScreen } = open();
     clock.t = TIMEOUT;
     const { screen } = firstScreen(alice);
-    expect(screen.wake).toBe(true);
+    expect(screen.arrival).toBe('wake');
     expect(screen.screen).toEqual(encodeScreen(secretGarden()));
     expect(screen.you).toEqual(SPAWN);
   });
@@ -864,7 +871,7 @@ describe('sessions', () => {
 
     clock.t = 5000 + TIMEOUT - 1;
     const again = firstScreen(alice);
-    expect(again.screen.wake).toBe(false);
+    expect(again.screen.arrival).toBe('none');
     expect(again.screen.you).toEqual(STOOD);
   });
 
@@ -881,7 +888,7 @@ describe('sessions', () => {
     const restarted = open();
     restarted.clock.t = 3 * TIMEOUT + 1000;
     const { screen } = restarted.firstScreen(alice);
-    expect(screen.wake).toBe(false);
+    expect(screen.arrival).toBe('none');
     expect(screen.you).toEqual(STOOD);
   });
 });
@@ -933,7 +940,7 @@ describe('worlds', () => {
   const BOB_WORLD = 2 as WorldId;
 
   it('lets a player into their own world only, closing a socket into another with a code', async () => {
-    const { base } = await start(undefined, mayEnter);
+    const { base } = await start(undefined, 'real');
     await signup(base, 'alice');
     const bobCookie = await signup(base, 'bob');
     const me = (await (
@@ -960,7 +967,7 @@ describe('worlds', () => {
   });
 
   it('keeps players in different worlds apart: no presence, moves, traces, or screens cross', async () => {
-    const { base, db, host } = await start(undefined, mayEnter);
+    const { base, db, host } = await start(undefined, 'real');
     const aliceCookie = await signup(base, 'alice');
     const bobCookie = await signup(base, 'bob');
     saveInventory(db, 1, PROBES);
@@ -985,5 +992,229 @@ describe('worlds', () => {
       n: 0,
     });
     expect(loadWorld(host.open(BOB_WORLD).db).seed).not.toBe(loadWorld(db).seed);
+  });
+});
+
+describe('visitors', () => {
+  const BOB_WORLD = 2 as WorldId;
+  const CODE = /^[A-HJKMNP-Z]{5}$/;
+
+  const visitors = (base: string, cookie: string, method: string, worldId = ALICE_WORLD) =>
+    fetch(`http://${base}/api/worlds/${worldId}/visitors`, { method, headers: { cookie } });
+
+  async function openWorld(base: string, cookie: string, worldId = ALICE_WORLD): Promise<string> {
+    const res = await visitors(base, cookie, 'POST', worldId);
+    expect(res.status).toBe(200);
+    const { code } = (await res.json()) as { code: string };
+    expect(code).toMatch(CODE);
+    return code;
+  }
+
+  const redeem = (base: string, cookie: string, code: string) =>
+    fetch(`http://${base}/api/visits`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+
+  it('opens with a code a friend joins by; both see each other, in the garden and on the map', async () => {
+    const { base } = await start(undefined, 'real');
+    const aliceCookie = await signup(base, 'alice');
+    const alice = await connect(base, aliceCookie);
+    await nextOf(alice, 'screen');
+    expect(await (await visitors(base, aliceCookie, 'GET')).json()).toEqual({ code: null });
+
+    const code = await openWorld(base, aliceCookie);
+    expect(await (await visitors(base, aliceCookie, 'GET')).json()).toEqual({ code });
+    expect(await (await visitors(base, aliceCookie, 'POST')).json()).toEqual({ code });
+
+    const bobCookie = await signup(base, 'bob');
+    const early = await connect(base, bobCookie, ALICE_WORLD);
+    expect((await early.closed).code).toBe(REFUSED_CLOSE_CODE);
+
+    const redeemed = await redeem(base, bobCookie, ` ${code.toLowerCase()} `);
+    expect(redeemed.status).toBe(200);
+    expect(await redeemed.json()).toEqual({ world: { id: ALICE_WORLD, host: 'Alice' } });
+
+    const bob = await connect(base, bobCookie, ALICE_WORLD);
+    const arrival = await nextOf(bob, 'screen');
+    expect(arrival).toMatchObject({
+      arrival: 'visit',
+      screen: encodeScreen(secretGarden()),
+      others: [{ id: 1, name: 'Alice', ...SPAWN }],
+    });
+    const garden = placeOf(secretGarden(), []);
+    expect(canOccupy(garden, arrival.you.x, arrival.you.y)).toBe(true);
+    expect(await alice.next()).toMatchObject({ t: 'join', player: { id: 2, name: 'Bob' } });
+
+    const bobsView = await fetchMap(base, bobCookie, ALICE_WORLD);
+    expect(bobsView.players).toEqual([
+      { id: 1, name: 'Alice', x: SPAWN.x / TILE, y: SPAWN.y / TILE, you: false },
+      { id: 2, name: 'Bob', x: arrival.you.x / TILE, y: arrival.you.y / TILE, you: true },
+    ]);
+    const alicesView = await fetchMap(base, aliceCookie);
+    expect(alicesView.players.map((p) => [p.name, p.you])).toEqual([
+      ['Alice', true],
+      ['Bob', false],
+    ]);
+    expect((await fetchMap(base, bobCookie, BOB_WORLD)).players).toEqual([]);
+  });
+
+  it('refuses a wrong code and a code from before a close with a friendly message', async () => {
+    const { base } = await start(undefined, 'real');
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    const unknown = await redeem(base, bobCookie, 'ABCDE');
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({
+      error: {
+        code: 'unknown_code',
+        message: "That code doesn't open any world right now. Check it with your friend.",
+      },
+    });
+    const malformed = await redeem(base, bobCookie, 'AB1');
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toEqual({
+      error: {
+        code: 'validation',
+        message: 'A code is 5 letters. Check it with your friend.',
+        field: 'code',
+      },
+    });
+
+    const first = await openWorld(base, aliceCookie);
+    expect((await visitors(base, aliceCookie, 'DELETE')).status).toBe(204);
+    expect((await redeem(base, bobCookie, first)).status).toBe(404);
+    const second = await openWorld(base, aliceCookie);
+    expect(second).not.toBe(first);
+    expect((await redeem(base, bobCookie, first)).status).toBe(404);
+    expect((await redeem(base, bobCookie, second)).status).toBe(200);
+  });
+
+  it('closing sends every visitor home at once with the reason, and the world shuts behind them', async () => {
+    const { base } = await start(undefined, 'real');
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    const carolCookie = await signup(base, 'carol');
+    const alice = await connect(base, aliceCookie);
+    await nextOf(alice, 'screen');
+    const code = await openWorld(base, aliceCookie);
+    for (const cookie of [bobCookie, carolCookie])
+      expect((await redeem(base, cookie, code)).status).toBe(200);
+    const bob = await connect(base, bobCookie, ALICE_WORLD);
+    await nextOf(bob, 'screen');
+    const carol = await connect(base, carolCookie, ALICE_WORLD);
+    await nextOf(carol, 'screen');
+    await nextOf(alice, 'join');
+    await nextOf(alice, 'join');
+    await nextOf(bob, 'join');
+
+    expect((await visitors(base, aliceCookie, 'DELETE')).status).toBe(204);
+    const reason = "Alice closed their world, so you're back home.";
+    expect(await bob.next()).toEqual({ t: 'sentHome', reason });
+    expect(await carol.next()).toEqual({ t: 'sentHome', reason });
+    expect((await bob.closed).code).toBe(SENT_HOME_CLOSE_CODE);
+    expect((await carol.closed).code).toBe(SENT_HOME_CLOSE_CODE);
+    expect(await nextOf(alice, 'leave')).toEqual({ t: 'leave', id: 2 });
+    expect(await nextOf(alice, 'leave')).toEqual({ t: 'leave', id: 3 });
+    expect(await (await visitors(base, aliceCookie, 'GET')).json()).toEqual({ code: null });
+
+    const again = await connect(base, bobCookie, ALICE_WORLD);
+    expect((await again.closed).code).toBe(REFUSED_CLOSE_CODE);
+    expect(
+      (await fetch(`http://${base}/api/worlds/1/map`, { headers: { cookie: bobCookie } })).status,
+    ).toBe(403);
+    await expectNothingPending(alice);
+  });
+
+  it('logging out sends visitors home', async () => {
+    const { base } = await start(undefined, 'real');
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    const alice = await connect(base, aliceCookie);
+    await nextOf(alice, 'screen');
+    expect((await redeem(base, bobCookie, await openWorld(base, aliceCookie))).status).toBe(200);
+    const bob = await connect(base, bobCookie, ALICE_WORLD);
+    await nextOf(bob, 'screen');
+
+    const out = await fetch(`http://${base}/api/logout`, {
+      method: 'POST',
+      headers: { cookie: aliceCookie },
+    });
+    expect(out.status).toBe(204);
+    expect(await bob.next()).toMatchObject({ t: 'sentHome' });
+    expect((await bob.closed).code).toBe(SENT_HOME_CLOSE_CODE);
+  });
+
+  it('going to visit a friend closes your own world to visitors', async () => {
+    const { base } = await start(undefined, 'real');
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    const carolCookie = await signup(base, 'carol');
+    const alice = await connect(base, aliceCookie);
+    await nextOf(alice, 'screen');
+    const bobHome = await connect(base, bobCookie, BOB_WORLD);
+    await nextOf(bobHome, 'screen');
+    const bobsCode = await openWorld(base, bobCookie, BOB_WORLD);
+    expect((await redeem(base, carolCookie, bobsCode)).status).toBe(200);
+    const carol = await connect(base, carolCookie, BOB_WORLD);
+    await nextOf(carol, 'screen');
+    await nextOf(bobHome, 'join');
+
+    expect((await redeem(base, bobCookie, await openWorld(base, aliceCookie))).status).toBe(200);
+    const bobAway = await connect(base, bobCookie, ALICE_WORLD);
+    await nextOf(bobAway, 'screen');
+    expect(await carol.next()).toEqual({
+      t: 'sentHome',
+      reason: "Bob closed their world, so you're back home.",
+    });
+    expect(await (await visitors(base, bobCookie, 'GET', BOB_WORLD)).json()).toEqual({
+      code: null,
+    });
+  });
+
+  it("keeps what a visitor does in the host's world there; their own world is unchanged", async () => {
+    const { base, db, host } = await start(undefined, 'real');
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    const alice = await connect(base, aliceCookie);
+    await nextOf(alice, 'screen');
+    saveInventory(db, 2, PROBES);
+    // Bob stood here on an earlier walk this session, so he resumes beside the probe tile.
+    const stood: Pose = { ...PROBE_STAND, dir: 'e', moving: false };
+    savePlayerState(db, 2, { coord: GARDEN_COORD, pose: stood }, 0);
+    expect((await redeem(base, bobCookie, await openWorld(base, aliceCookie))).status).toBe(200);
+
+    const bob = await connect(base, bobCookie, ALICE_WORLD);
+    const arrival = await nextOf(bob, 'screen');
+    expect(arrival).toMatchObject({ arrival: 'none', you: stood, inventory: [...PROBES] });
+    bob.send({ t: 'use', slot: 0, ...PROBE_TILE });
+    expect(await nextOf(bob, 'traces')).toMatchObject({ t: 'traces' });
+    await bob.close();
+
+    expect(loadPlayerState(db, 2)).toMatchObject({ pose: stood });
+    expect(loadInventory(db, 2)).toEqual([
+      ...parseInventory([{ kind: 'probe', variant: 'probe', count: 1 }]),
+    ]);
+    expect(db.prepare('SELECT count(*) AS n FROM traces').get()).toEqual({ n: 1 });
+    const home = host.open(BOB_WORLD).db;
+    expect(loadPlayerState(home, 2)).toBeUndefined();
+    expect(loadInventory(home, 2)).toEqual([]);
+    expect(home.prepare('SELECT count(*) AS n FROM traces').get()).toEqual({ n: 0 });
+  });
+
+  it('lets only the owner open, read, or close a world, and only when logged in', async () => {
+    const { base } = await start(undefined, 'real');
+    const aliceCookie = await signup(base, 'alice');
+    const bobCookie = await signup(base, 'bob');
+    expect((await redeem(base, bobCookie, await openWorld(base, aliceCookie))).status).toBe(200);
+    for (const method of ['GET', 'POST', 'DELETE']) {
+      const res = await visitors(base, bobCookie, method);
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ error: { code: 'forbidden' } });
+      expect((await visitors(base, 'session=nope', method)).status).toBe(401);
+    }
+    expect((await fetch(`http://${base}/api/visits`, { method: 'POST' })).status).toBe(401);
+    expect((await visitors(base, aliceCookie, 'GET')).status).toBe(200);
   });
 });

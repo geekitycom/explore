@@ -15,6 +15,8 @@ export const MOVE_INTERVAL_MS = 100;
 export const REPLACED_CLOSE_CODE = 4000;
 /** WebSocket close code the server sends when the player may not enter the world they asked for. */
 export const REFUSED_CLOSE_CODE = 4403;
+/** WebSocket close code the server sends after telling a visitor to go home. */
+export const SENT_HOME_CLOSE_CODE = 4001;
 
 const dirSchema = z.enum(DIRS);
 const coordinate = (max: number) =>
@@ -58,6 +60,12 @@ export type TraceChangeRecord =
   { put: TraceRecord } | { drop: { tx: number; ty: number; kind: string } };
 export type StackRecord = z.input<typeof inventorySchema>[number];
 
+/**
+ * How the player came to be on the screen. `wake` starts a new session in the garden (D24);
+ * `visit` is a visitor's first step into someone else's world; `none` is a resume or a walk.
+ */
+export type Arrival = 'none' | 'wake' | 'visit';
+
 export type ServerMessage =
   | {
       t: 'screen';
@@ -67,12 +75,13 @@ export type ServerMessage =
       you: Pose;
       others: PlayerView[];
       inventory: StackRecord[];
-      /** A new session: the player wakes up in the garden. */
-      wake: boolean;
+      arrival: Arrival;
     }
   | { t: 'traces'; changes: TraceChangeRecord[] }
   | { t: 'inventory'; stacks: StackRecord[] }
   | { t: 'refused'; reason: string }
+  /** The host closed their world; the socket closes next and the visitor goes home. */
+  | { t: 'sentHome'; reason: string }
   | { t: 'join'; player: PlayerView }
   | { t: 'leave'; id: number }
   | ({ t: 'moved'; id: number } & Pose)

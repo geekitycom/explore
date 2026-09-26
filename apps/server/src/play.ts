@@ -2,6 +2,7 @@ import {
   GARDEN_COORD,
   GARDEN_SPAWN,
   REPLACED_CLOSE_CODE,
+  SENT_HOME_CLOSE_CODE,
   SCREEN_PX_H,
   SCREEN_PX_W,
   WALK_SPEED,
@@ -14,19 +15,23 @@ import {
   screenBiome,
   seamOpenings,
   slotOf,
+  type Arrival,
   type ClientMessage,
   type Dir,
   type Pose,
   type ScreenCoord,
 } from '@explore/core';
+import { visitorPose } from './arrival.ts';
 import { Chunks } from './chunks.ts';
 import type { WorldDb } from './db.ts';
 import { epitaphWriter, type WriteText } from './epitaphs.ts';
 import { loadInventory } from './inventory.ts';
+import type { Roster } from './map.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import { TraceStore, perform, reportTrace } from './traces.ts';
 import type { User } from './users.ts';
 import { loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
+import type { Admission } from './worlds.ts';
 
 /** How far past the speed cap a move may be, absorbing network jitter. */
 const SPEED_SLACK = 1.5;
@@ -57,6 +62,13 @@ function parseClientMessage(raw: string): ClientMessage | undefined {
 
 const tileOf = ({ tx, ty }: { tx: number; ty: number }) => ({ tx, ty });
 
+/**
+ * How a player comes in. `sessionSince` is when their current session began, on any world (the
+ * world host tracks it); a position saved before that, less the timeout, is from an earlier
+ * session and is not resumed. Left out, this world alone decides, as before there were visitors.
+ */
+export type Entry = { role: Admission; sessionSince: number };
+
 export type Game = ReturnType<typeof createGame>;
 
 export function createGame(
@@ -65,7 +77,14 @@ export function createGame(
     now = Date.now,
     writeText,
     sessionTimeoutMs = SESSION_TIMEOUT_MS,
-  }: { now?: () => number; writeText?: WriteText | undefined; sessionTimeoutMs?: number } = {},
+    random = Math.random,
+  }: {
+    now?: () => number;
+    writeText?: WriteText | undefined;
+    sessionTimeoutMs?: number;
+    /** Picks the visitor's arrival tile; uniform on [0, 1). */
+    random?: () => number;
+  } = {},
 ) {
   const chunks = new Chunks(db);
   const presence = new Presence();
@@ -91,7 +110,7 @@ export function createGame(
 
   const isLive = (player: Player) => online.get(player.user.id) === player;
 
-  const sendScreen = (player: Player, wake = false) => {
+  const sendScreen = (player: Player, arrival: Arrival = 'none') => {
     const { screen } = player.room.place;
     recordVisit(db, screen.coord);
     const others = presence.enter(player);
@@ -103,9 +122,24 @@ export function createGame(
       you: player.pose,
       others,
       inventory: [...player.inventory],
-      wake,
+      arrival,
     });
     chunks.prefetchAround(screen.coord, player.user.id);
+  };
+
+  /** A player's first screen of this connection. TASK-67's arrival portal starts here. */
+  const arrive = (player: Player, arrival: Arrival) => sendScreen(player, arrival);
+
+  /**
+   * Sends visitors back to their own worlds: every one hears it before anyone leaves the screen.
+   * TASK-67's departure portal starts here.
+   */
+  const sendHome = (visitors: Player[], reason: string) => {
+    for (const player of visitors) player.conn.send({ t: 'sentHome', reason });
+    for (const player of visitors) {
+      disconnect(player);
+      player.conn.close(SENT_HOME_CLOSE_CODE, 'sent home');
+    }
   };
 
   const correct = (player: Player) =>
@@ -153,24 +187,38 @@ export function createGame(
   }
 
   return {
-    connect(user: User, conn: Conn): Player {
+    connect(
+      user: User,
+      conn: Conn,
+      { role, sessionSince }: Entry = { role: 'owner', sessionSince: now() },
+    ): Player {
       const previous = online.get(user.id);
       if (previous) {
         disconnect(previous);
         previous.conn.close(REPLACED_CLOSE_CODE, 'replaced');
       }
       const saved = loadPlayerState(db, user.id);
-      const resumed = saved && now() - saved.seenAt < sessionTimeoutMs ? saved : undefined;
+      const resumed = saved && saved.seenAt > sessionSince - sessionTimeoutMs ? saved : undefined;
+      const room = roomAt(resumed?.coord ?? GARDEN_COORD, user.id);
+      const pose =
+        resumed?.pose ??
+        (role === 'visitor'
+          ? visitorPose(
+              room.place,
+              [...room.players].map((p) => p.pose),
+              random,
+            )
+          : { ...GARDEN_SPAWN, moving: false });
       const player: Player = {
         user,
         conn,
-        room: roomAt(resumed?.coord ?? GARDEN_COORD, user.id),
-        pose: resumed?.pose ?? { ...GARDEN_SPAWN, moving: false },
+        room,
+        pose,
         acceptedAt: now(),
         inventory: loadInventory(db, user.id),
       };
       online.set(user.id, player);
-      sendScreen(player, !resumed);
+      arrive(player, resumed ? 'none' : role === 'visitor' ? 'visit' : 'wake');
       return player;
     },
 
@@ -205,7 +253,26 @@ export function createGame(
 
     disconnect,
 
+    /** Sends everyone but the host home, each with the reason, and closes their sockets. */
+    sendVisitorsHome(hostId: number, reason: string): void {
+      sendHome(
+        [...online.values()].filter((p) => p.user.id !== hostId),
+        reason,
+      );
+    },
+
     playerCount: (): number => online.size,
+
+    isOnline: (userId: number): boolean => online.has(userId),
+
+    /** Everyone connected, with where they stand. */
+    roster: (): Roster =>
+      [...online.values()].map((p) => ({
+        id: p.user.id,
+        name: p.user.displayName,
+        coord: p.room.place.screen.coord,
+        pose: p.pose,
+      })),
 
     changeProfile(user: User): void {
       const player = online.get(user.id);
