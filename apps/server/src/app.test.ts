@@ -56,8 +56,8 @@ function sessionCookie(res: Response): string {
   return `session=${match[1]}`;
 }
 
-async function signup(username = 'Alice') {
-  const res = await send('POST', '/api/signup', { username, password: PASSWORD });
+async function signup(username = 'Alice', displayName = 'Ally') {
+  const res = await send('POST', '/api/signup', { username, displayName, password: PASSWORD });
   expect(res.status).toBe(201);
   return { res, cookie: sessionCookie(res) };
 }
@@ -66,7 +66,14 @@ describe('signup', () => {
   it('creates the user wearing the default avatar, not yet chosen, with a session cookie', async () => {
     const { res, cookie } = await signup('Alice');
     expect(await res.json()).toEqual({
-      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false, home: 1 },
+      user: {
+        id: 1,
+        username: 'Alice',
+        displayName: 'Ally',
+        avatar: DEFAULT_AVATAR,
+        avatarChosen: false,
+        home: 1,
+      },
     });
     const header = res.headers.get('set-cookie') ?? '';
     expect(header).toMatch(/HttpOnly/);
@@ -77,7 +84,14 @@ describe('signup', () => {
     const me = await send('GET', '/api/me', undefined, cookie);
     expect(me.status).toBe(200);
     expect(await me.json()).toEqual({
-      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false, home: 1 },
+      user: {
+        id: 1,
+        username: 'Alice',
+        displayName: 'Ally',
+        avatar: DEFAULT_AVATAR,
+        avatarChosen: false,
+        home: 1,
+      },
     });
   });
 
@@ -89,7 +103,11 @@ describe('signup', () => {
 
   it('rejects a username that differs only in case', async () => {
     await signup('Alice');
-    const res = await send('POST', '/api/signup', { username: 'aLICE', password: PASSWORD });
+    const res = await send('POST', '/api/signup', {
+      username: 'aLICE',
+      displayName: 'Other',
+      password: PASSWORD,
+    });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({
       error: { code: 'username_taken', message: 'That username is taken', field: 'username' },
@@ -102,11 +120,16 @@ describe('signup', () => {
     ['username too short', { username: 'ab' }, 'username'],
     ['username too long', { username: 'a'.repeat(21) }, 'username'],
     ['username with a space', { username: 'al ice' }, 'username'],
+    ['no display name', { displayName: undefined }, 'displayName'],
+    ['a display name of only spaces', { displayName: '   ' }, 'displayName'],
+    ['a display name too long', { displayName: 'x'.repeat(21) }, 'displayName'],
+    ['a display name with a newline', { displayName: 'Al\nly' }, 'displayName'],
     ['password too short', { password: 'short' }, 'password'],
     ['password too long', { password: 'x'.repeat(201) }, 'password'],
   ])('rejects %s with a 400 naming the field', async (_, override, field) => {
     const res = await send('POST', '/api/signup', {
       username: 'Alice',
+      displayName: 'Ally',
       password: PASSWORD,
       ...override,
     });
@@ -114,6 +137,24 @@ describe('signup', () => {
     const body = (await res.json()) as { error: { code: string; field: string } };
     expect(body.error).toMatchObject({ code: 'validation', field });
     expect(db.prepare('SELECT count(*) AS n FROM users').get()).toEqual({ n: 0 });
+  });
+
+  it('trims the display name and lets two accounts share one', async () => {
+    const first = await send('POST', '/api/signup', {
+      username: 'andrew1',
+      displayName: '  Andrew  ',
+      password: PASSWORD,
+    });
+    const second = await send('POST', '/api/signup', {
+      username: 'andrew2',
+      displayName: 'Andrew',
+      password: PASSWORD,
+    });
+    expect([first.status, second.status]).toEqual([201, 201]);
+    expect(db.prepare('SELECT username, display_name FROM users ORDER BY id').all()).toEqual([
+      { username: 'andrew1', display_name: 'Andrew' },
+      { username: 'andrew2', display_name: 'Andrew' },
+    ]);
   });
 
   it('rejects a body that is not JSON', async () => {
@@ -133,7 +174,14 @@ describe('login', () => {
     const res = await send('POST', '/api/login', { username: 'alice', password: PASSWORD });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      user: { id: 1, username: 'Alice', avatar: DEFAULT_AVATAR, avatarChosen: false, home: 1 },
+      user: {
+        id: 1,
+        username: 'Alice',
+        displayName: 'Ally',
+        avatar: DEFAULT_AVATAR,
+        avatarChosen: false,
+        home: 1,
+      },
     });
     const me = await send('GET', '/api/me', undefined, sessionCookie(res));
     expect(me.status).toBe(200);
@@ -261,7 +309,7 @@ describe('rate limits', () => {
       send(
         'POST',
         '/api/signup',
-        { username, password: PASSWORD, avatar: DEFAULT_AVATAR },
+        { username, displayName: username, password: PASSWORD },
         undefined,
         address,
       );
@@ -319,11 +367,13 @@ describe('me', () => {
     expect(await res.json()).toMatchObject({ error: { code: 'unauthenticated' } });
   });
 
-  it('saving an avatar marks it chosen for every later session', async () => {
+  it('saving a profile keeps the name and marks the avatar chosen for every later session', async () => {
     const { cookie } = await signup();
     const avatar: Avatar = { ...DEFAULT_AVATAR, hairStyle: 'spiky', shirt: 'purple' };
-    const saved = { user: { id: 1, username: 'Alice', avatar, avatarChosen: true, home: 1 } };
-    const res = await send('PUT', '/api/me/avatar', { avatar }, cookie);
+    const saved = {
+      user: { id: 1, username: 'Alice', displayName: 'Al', avatar, avatarChosen: true, home: 1 },
+    };
+    const res = await send('PUT', '/api/me/profile', { displayName: ' Al ', avatar }, cookie);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(saved);
 
@@ -333,16 +383,28 @@ describe('me', () => {
     expect(await login.json()).toEqual(saved);
   });
 
-  it('rejects an invalid avatar and an unauthenticated update', async () => {
+  it('rejects an invalid avatar, an empty name, and an unauthenticated update', async () => {
     const { cookie } = await signup();
     const invalid = await send(
       'PUT',
-      '/api/me/avatar',
-      { avatar: { ...DEFAULT_AVATAR, hairStyle: 'mohawk' } },
+      '/api/me/profile',
+      { displayName: 'Ally', avatar: { ...DEFAULT_AVATAR, hairStyle: 'mohawk' } },
       cookie,
     );
     expect(invalid.status).toBe(400);
-    const anonymous = await send('PUT', '/api/me/avatar', { avatar: DEFAULT_AVATAR });
+    const blank = await send(
+      'PUT',
+      '/api/me/profile',
+      { displayName: ' ', avatar: DEFAULT_AVATAR },
+      cookie,
+    );
+    expect(blank.status).toBe(400);
+    expect(await blank.json()).toMatchObject({ error: { field: 'displayName' } });
+    expect(sessionUser(db, cookie)).toMatchObject({ displayName: 'Ally', avatarChosen: false });
+    const anonymous = await send('PUT', '/api/me/profile', {
+      displayName: 'Ally',
+      avatar: DEFAULT_AVATAR,
+    });
     expect(anonymous.status).toBe(401);
   });
 });

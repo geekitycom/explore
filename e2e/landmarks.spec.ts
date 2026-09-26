@@ -10,7 +10,7 @@ import {
   type ScreenCoord,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { account, playing, signUp, teleport, unique, worldDb } from './helpers.ts';
+import { account, displayNameOf, playing, signUp, teleport, unique, worldDb } from './helpers.ts';
 
 type Hud = { hint: string | undefined };
 type Site = { tx: number; ty: number; area: Area };
@@ -78,7 +78,7 @@ test('the first to reach a landmark names it for everyone and the map', async ({
   const bubble = page.getByRole('note');
   await expect(bubble).toContainText('Hare Stones');
   await expect(bubble).toContainText('Where the hares run at dusk');
-  await expect(bubble).toContainText(`named by ${user}`);
+  await expect(bubble).toContainText(`named by ${displayNameOf(user)}`);
   await expect(bubble.getByRole('button', { name: 'Edit' })).toBeVisible();
   await page.waitForTimeout(700);
   await page.screenshot({ path: 'e2e/.results/landmark-bubble.png' });

@@ -27,17 +27,28 @@ export function account(username: string): { id: number; home: number } {
   return row;
 }
 
+/**
+ * The display name the helpers sign `username` up with. It is the username reversed, so any spec
+ * that finds the username where players see names fails.
+ */
+export const displayNameOf = (username: string) => [...username].reverse().join('');
+
 let signupAddress = 0;
 
 /**
  * Fills and submits the create-account form, leaving the new player on the avatar step. Each
  * account comes from its own address, so the suite never trips the per-address signup limit.
  */
-export async function createAccount(page: Page, name: string, retyped = 'correct horse') {
+export async function createAccount(
+  page: Page,
+  name: string,
+  { retyped = 'correct horse', displayName = displayNameOf(name) } = {},
+) {
   await page.setExtraHTTPHeaders({ 'x-forwarded-for': `198.51.100.${++signupAddress % 256}` });
   await page.goto('/');
   await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByLabel('Username').fill(name);
+  await page.getByLabel('Display name').fill(displayName);
   await page.getByLabel('Password', { exact: true }).fill('correct horse');
   await page.getByLabel('Password again').fill(retyped);
   await page.getByRole('button', { name: 'Create account' }).click();

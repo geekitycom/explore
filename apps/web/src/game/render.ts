@@ -143,7 +143,13 @@ export function canvasRenderer(
       ctx.imageSmoothingEnabled = false;
 
       const actors: Actor[] = [
-        { avatar: you.avatar, name: you.username, x: state.you.x, y: state.you.y, pose: state.you },
+        {
+          avatar: you.avatar,
+          name: you.displayName,
+          x: state.you.x,
+          y: state.you.y,
+          pose: state.you,
+        },
         ...[...state.others.values()].map((p) => ({
           avatar: p.avatar,
           name: p.name,

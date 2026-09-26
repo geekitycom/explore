@@ -72,11 +72,11 @@ describe('applyMessage', () => {
     expect(state.others.get(3)).toMatchObject({ x: 90, y: 91, dir: 'e', moving: true, drawX: 50 });
   });
 
-  test('an avatar change restyles that player where they stand', () => {
+  test('a profile change renames and restyles that player where they stand', () => {
     const avatar = { ...DEFAULT_AVATAR, shirt: 'purple' as const };
-    const state = applyMessage(playing(), { t: 'avatar', id: 2, avatar });
+    const state = applyMessage(playing(), { t: 'profile', id: 2, name: 'Bobby', avatar });
     if (state.phase === 'connecting') throw new Error('unreachable');
-    expect(state.others.get(2)).toEqual({ ...bob, avatar, drawX: 50, drawY: 60 });
+    expect(state.others.get(2)).toEqual({ ...bob, name: 'Bobby', avatar, drawX: 50, drawY: 60 });
   });
 
   test('moves for unknown players are ignored', () => {

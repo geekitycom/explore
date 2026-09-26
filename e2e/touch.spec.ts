@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
 import { GARDEN_SPAWN, SCREEN_PX_W, TILE, type Tile } from '../packages/core/src/index.ts';
-import { account, unique, worldDb } from './helpers.ts';
+import { account, displayNameOf, unique, worldDb } from './helpers.ts';
 
 type Seen = {
   phase: string;
@@ -98,6 +98,7 @@ async function signUpByTouch(page: Page, name: string, stones: string[]) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create an account' }).tap();
   await page.getByLabel('Username').fill(name);
+  await page.getByLabel('Display name').fill(displayNameOf(name));
   await page.getByLabel('Password', { exact: true }).fill('correct horse');
   await page.getByLabel('Password again').fill('correct horse');
   await page.getByRole('button', { name: 'Create account' }).tap();

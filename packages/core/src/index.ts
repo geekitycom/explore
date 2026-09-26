@@ -3,6 +3,7 @@ export * from './walk.ts';
 export * from './place.ts';
 export * from './codec.ts';
 export * from './avatar.ts';
+export * from './display-name.ts';
 export * from './rng.ts';
 export * from './noise.ts';
 export * from './biome.ts';

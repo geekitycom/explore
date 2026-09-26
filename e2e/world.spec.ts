@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { playing, signUp, unique } from './helpers.ts';
+import { displayNameOf, playing, signUp, unique } from './helpers.ts';
 
 type Snapshot = {
   phase: string;
@@ -39,8 +39,10 @@ test.fixme('two players in the garden see each other walk', async ({ browser }) 
   await enter(pa, na);
   await enter(pb, nb);
 
-  await expect.poll(async () => (await snapshot(pa)).others.map((o) => o.name)).toEqual([nb]);
-  expect((await snapshot(pb)).others.map((o) => o.name)).toEqual([na]);
+  await expect
+    .poll(async () => (await snapshot(pa)).others.map((o) => o.name))
+    .toEqual([displayNameOf(nb)]);
+  expect((await snapshot(pb)).others.map((o) => o.name)).toEqual([displayNameOf(na)]);
 
   const before = (await snapshot(pb)).others[0]!;
   await pa.bringToFront();

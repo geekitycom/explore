@@ -110,16 +110,16 @@ test('drops what a stale socket sends for a world that has since closed', () => 
   expect(host.openIds()).toEqual([]);
 });
 
-test('tells whichever world the player is in about a new avatar', () => {
+test('tells whichever world the player is in about a new name and avatar', () => {
   const { host, join } = setup();
   const alice = join(ONE, 1, 'alice');
   const bob = join(ONE, 2, 'bob');
   const carol = join(TWO, 3, 'carol');
   bob.sent.length = 0;
   carol.sent.length = 0;
-  const restyled = { ...userNamed(1, 'alice'), avatarChosen: true };
-  host.changeAvatar(restyled);
-  expect(bob.sent).toEqual([{ t: 'avatar', id: 1, avatar: restyled.avatar }]);
+  const restyled = { ...userNamed(1, 'Ali'), avatarChosen: true };
+  host.changeProfile(restyled);
+  expect(bob.sent).toEqual([{ t: 'profile', id: 1, name: 'Ali', avatar: restyled.avatar }]);
   expect(carol.sent).toEqual([]);
-  expect(alice.sent.filter((m) => m.t === 'avatar')).toEqual([]);
+  expect(alice.sent.filter((m) => m.t === 'profile')).toEqual([]);
 });

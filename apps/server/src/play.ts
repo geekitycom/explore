@@ -207,11 +207,16 @@ export function createGame(
 
     playerCount: (): number => online.size,
 
-    changeAvatar(user: User): void {
+    changeProfile(user: User): void {
       const player = online.get(user.id);
       if (!player) return;
       player.user = user;
-      presence.broadcast(player, { t: 'avatar', id: user.id, avatar: user.avatar });
+      presence.broadcast(player, {
+        t: 'profile',
+        id: user.id,
+        name: user.displayName,
+        avatar: user.avatar,
+      });
     },
 
     /** Saves everyone connected, which also keeps them awake across a crash. */

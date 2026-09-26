@@ -1,4 +1,4 @@
-import { REFUSED_CLOSE_CODE, avatarSchema } from '@explore/core';
+import { REFUSED_CLOSE_CODE, avatarSchema, displayNameSchema } from '@explore/core';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { Hono, type Context } from 'hono';
@@ -25,7 +25,7 @@ import {
   sessionToken,
   sessionUser,
 } from './sessions.ts';
-import { findUserCredentials, insertUser, updateAvatar, type User } from './users.ts';
+import { findUserCredentials, insertUser, updateProfile, type User } from './users.ts';
 import { ensureHomeWorld, mayEnter, worldIdSchema, type WorldId } from './worlds.ts';
 
 type Env = { Variables: { user: User; worldId: WorldId } };
@@ -53,9 +53,9 @@ const password = z
 
 const REFUSED_MESSAGE = 'That world is not open to you';
 
-const signupBody = z.object({ username, password });
+const signupBody = z.object({ username, displayName: displayNameSchema, password });
 const loginBody = z.object({ username: z.string().max(200), password: z.string().max(200) });
-const avatarBody = z.object({ avatar: avatarSchema });
+const profileBody = z.object({ displayName: displayNameSchema, avatar: avatarSchema });
 
 async function parseBody<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer<T>> {
   const json: unknown = await c.req.json().catch(() => {
@@ -161,6 +161,7 @@ export function createApp({
     const body = await parseBody(c, signupBody);
     const user = insertUser(db, {
       username: body.username,
+      displayName: body.displayName,
       passwordHash: await hashPassword(body.password, scryptCost),
     });
     if (!user) throw new ApiError(409, 'username_taken', 'That username is taken', 'username');
@@ -214,10 +215,9 @@ export function createApp({
 
   app.get('/api/me', (c) => c.json(account(c.get('user'))));
 
-  app.put('/api/me/avatar', async (c) => {
-    const { avatar } = await parseBody(c, avatarBody);
-    const user = updateAvatar(db, c.get('user').id, avatar);
-    host.changeAvatar(user);
+  app.put('/api/me/profile', async (c) => {
+    const user = updateProfile(db, c.get('user').id, await parseBody(c, profileBody));
+    host.changeProfile(user);
     return c.json(account(user));
   });
 

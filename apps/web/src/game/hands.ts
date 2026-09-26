@@ -49,7 +49,7 @@ export type Hud = {
 export function hereOf(state: Playing, user: User, now: number): Here {
   return {
     place: state.place,
-    me: { id: user.id, name: user.username, pose: state.you },
+    me: { id: user.id, name: user.displayName, pose: state.you },
     others: [...state.others.values()],
     inventory: state.inventory,
     now,

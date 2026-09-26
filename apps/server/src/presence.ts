@@ -28,7 +28,7 @@ export type Player = {
 };
 
 function viewOf({ user, pose }: Player): PlayerView {
-  return { id: user.id, name: user.username, avatar: user.avatar, ...pose };
+  return { id: user.id, name: user.displayName, avatar: user.avatar, ...pose };
 }
 
 /** Rooms of connected players, one per occupied screen. Events reach only the same room. */

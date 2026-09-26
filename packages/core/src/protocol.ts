@@ -50,6 +50,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
+/** `name` is the player's display name, never their username. */
 export type PlayerView = Pose & { id: number; name: string; avatar: Avatar };
 
 export type TraceRecord = z.input<typeof traceSchema>;
@@ -75,5 +76,5 @@ export type ServerMessage =
   | { t: 'join'; player: PlayerView }
   | { t: 'leave'; id: number }
   | ({ t: 'moved'; id: number } & Pose)
-  | { t: 'avatar'; id: number; avatar: Avatar }
+  | { t: 'profile'; id: number; name: string; avatar: Avatar }
   | { t: 'correct'; x: number; y: number };

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { playing, signUp, unique } from './helpers.ts';
+import { displayNameOf, playing, signUp, unique } from './helpers.ts';
 
 type Avatar = { hairStyle: string; shirt: string };
 type Snapshot = {
@@ -17,6 +17,13 @@ const ownAvatar = (page: Page) =>
     () => (window as unknown as { exploreUser: () => { avatar: Avatar } }).exploreUser().avatar,
   );
 
+const ownDisplayName = (page: Page) =>
+  page.evaluate(
+    () =>
+      (window as unknown as { exploreUser: () => { displayName: string } }).exploreUser()
+        .displayName,
+  );
+
 const othersAvatars = (page: Page) =>
   page.evaluate(() =>
     [
@@ -26,7 +33,7 @@ const othersAvatars = (page: Page) =>
   );
 
 // Two accounts cannot share a world until TASK-64.3 opens worlds to visitors: restored by TASK-64.3.
-test.fixme('a player restyles in game and others on the screen see it live', async ({
+test.fixme('a player renames and restyles in game and others on the screen see it live', async ({
   browser,
 }) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()]);
@@ -38,15 +45,16 @@ test.fixme('a player restyles in game and others on the screen see it live', asy
   await enter(pb, nb);
   await expect
     .poll(() => othersAvatars(pb))
-    .toEqual([{ name: na, hairStyle: 'spiky', shirt: 'green' }]);
+    .toEqual([{ name: displayNameOf(na), hairStyle: 'spiky', shirt: 'green' }]);
 
-  await pa.getByRole('button', { name: 'Avatar' }).click();
-  const dialog = pa.getByRole('dialog', { name: 'Your avatar' });
+  await pa.getByRole('button', { name: 'Name & avatar' }).click();
+  const dialog = pa.getByRole('dialog', { name: 'Your name and avatar' });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Shirt: green' })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
+  await dialog.getByLabel('Display name').fill('Annie');
   await dialog.getByRole('button', { name: 'Hair: bun' }).click();
   await dialog.getByRole('button', { name: 'Shirt: purple' }).click();
   await pa.screenshot({ path: 'e2e/.results/avatar-editor.png' });
@@ -56,7 +64,7 @@ test.fixme('a player restyles in game and others on the screen see it live', asy
   expect(await ownAvatar(pa)).toMatchObject({ hairStyle: 'bun', shirt: 'purple' });
   await expect
     .poll(() => othersAvatars(pb))
-    .toEqual([{ name: na, hairStyle: 'bun', shirt: 'purple' }]);
+    .toEqual([{ name: 'Annie', hairStyle: 'bun', shirt: 'purple' }]);
   expect(benSockets).toBe(1);
   await pb.screenshot({ path: 'e2e/.results/avatar-seen-by-other.png' });
 
@@ -64,7 +72,8 @@ test.fixme('a player restyles in game and others on the screen see it live', asy
   await pa.getByLabel('Username').fill(na);
   await pa.getByLabel('Password').fill('correct horse');
   await pa.getByRole('button', { name: 'Log in' }).click();
-  await pa.getByRole('button', { name: 'Avatar' }).click();
+  await pa.getByRole('button', { name: 'Name & avatar' }).click();
+  await expect(dialog.getByLabel('Display name')).toHaveValue('Annie');
   await expect(dialog.getByRole('button', { name: 'Shirt: purple' })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -77,4 +86,30 @@ test.fixme('a player restyles in game and others on the screen see it live', asy
 
   await a.close();
   await b.close();
+});
+
+test('a player renames themselves from the game bar and keeps the name', async ({ page }) => {
+  const name = unique('rename');
+  await enter(page, name);
+  const who = page.locator('.game-bar .who');
+  await expect(who).toHaveText(displayNameOf(name));
+
+  await page.getByRole('button', { name: 'Name & avatar' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Your name and avatar' });
+  const field = dialog.getByLabel('Display name');
+  await expect(field).toHaveValue(displayNameOf(name));
+  await field.fill('   ');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog.locator('#profile-name-error')).toHaveText('Enter a display name');
+  await expect(dialog).toBeVisible();
+
+  await field.fill('  Andy  ');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(who).toHaveText('Andy');
+  expect(await ownDisplayName(page)).toBe('Andy');
+
+  await page.reload();
+  await playing(page);
+  await expect(who).toHaveText('Andy');
 });

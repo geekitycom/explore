@@ -1,10 +1,4 @@
-import {
-  MOVE_INTERVAL_MS,
-  type Avatar,
-  type BiomeCell,
-  type Place,
-  type Pose,
-} from '@explore/core';
+import { MOVE_INTERVAL_MS, type BiomeCell, type Place, type Pose } from '@explore/core';
 import type { User } from '../api.ts';
 import { createHands, type Aim, type Hud, type Point } from './hands.ts';
 import { keyboard } from './input.ts';
@@ -103,8 +97,8 @@ export function startGame(
       state = { ...state, phase: 'playing' };
       onScreen(state.place, state.patch);
     },
-    setAvatar: (avatar: Avatar) => {
-      user = { ...user, avatar };
+    setUser: (saved: User) => {
+      user = saved;
     },
     pauseKeys: keys.pause,
     stop: () => {

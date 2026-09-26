@@ -1,3 +1,4 @@
+import { DISPLAY_NAME_MAX } from '@explore/core';
 import { ApiError, login, signup, type User } from '../api.ts';
 import { h } from './dom.ts';
 
@@ -19,7 +20,8 @@ const COPY = {
   },
   signup: {
     title: 'Create your account',
-    tagline: 'Pick a name and a password. You choose how you look next.',
+    tagline:
+      'Pick a username to log in with and a name other explorers see. You choose how you look next.',
     submit: 'Create account',
     switchPrompt: 'Already exploring? ',
     switchTo: 'Log in',
@@ -45,6 +47,18 @@ export function authView({ mode, onSwitch, onAuthenticated }: Props) {
     'Username',
     h('input', { autocomplete: 'username', required: true, maxlength: '20', autofocus: true }),
   );
+  const displayName =
+    mode === 'signup'
+      ? field(
+          'displayName',
+          'Display name',
+          h('input', {
+            required: true,
+            maxlength: String(DISPLAY_NAME_MAX),
+            autocomplete: 'nickname',
+          }),
+        )
+      : undefined;
   const newPassword = mode === 'signup' ? 'new-password' : 'current-password';
   const password = field(
     'password',
@@ -64,6 +78,7 @@ export function authView({ mode, onSwitch, onAuthenticated }: Props) {
   const errors: Record<string, HTMLElement> = {
     username: username.error,
     password: password.error,
+    ...(displayName ? { displayName: displayName.error } : {}),
   };
 
   const form = h(
@@ -77,6 +92,7 @@ export function authView({ mode, onSwitch, onAuthenticated }: Props) {
       },
     },
     username.el,
+    ...(displayName ? [displayName.el] : []),
     password.el,
     ...(retype ? [retype.el] : []),
     formError,
@@ -97,7 +113,11 @@ export function authView({ mode, onSwitch, onAuthenticated }: Props) {
     }
     submit.disabled = true;
     try {
-      onAuthenticated(await (retype ? signup(name, pass) : login(name, pass)));
+      onAuthenticated(
+        await (displayName
+          ? signup({ username: name, displayName: displayName.input.value, password: pass })
+          : login(name, pass)),
+      );
     } catch (error) {
       const target = error instanceof ApiError && error.field ? errors[error.field] : undefined;
       (target ?? formError).textContent =

@@ -144,7 +144,7 @@ export function perform(store: TraceStore, player: Player, act: Act, now: number
   const { room } = player;
   const here: Here = {
     place: room.place,
-    me: { id: player.user.id, name: player.user.username, pose: player.pose },
+    me: { id: player.user.id, name: player.user.displayName, pose: player.pose },
     others: [...room.players].flatMap((other) => (other === player ? [] : [other.pose])),
     inventory: player.inventory,
     now,

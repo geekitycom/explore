@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 import {
   GARDEN_COORD,
   OVERWORLD,
@@ -52,14 +52,14 @@ test('each file migrates on its first open and reopens as it is, in WAL mode', (
   const main = openMainDatabase(mainPath);
   const world = openWorldDatabase(worldPath);
   const seed = loadWorld(world).seed;
-  expect([version(main), version(world)]).toEqual([1, 1]);
+  expect([version(main), version(world)]).toEqual([2, 1]);
   expect(getScreen(world, GARDEN_COORD)).toEqual(secretGarden());
   main.close();
   world.close();
 
   const mainAgain = openMainDatabase(mainPath);
   const worldAgain = openWorldDatabase(worldPath);
-  expect([version(mainAgain), version(worldAgain)]).toEqual([1, 1]);
+  expect([version(mainAgain), version(worldAgain)]).toEqual([2, 1]);
   expect(loadWorld(worldAgain).seed).toBe(seed);
   for (const db of [mainAgain, worldAgain]) {
     expect(pragma(db, 'journal_mode')).toBe('wal');
@@ -67,6 +67,28 @@ test('each file migrates on its first open and reopens as it is, in WAL mode', (
   }
   mainAgain.close();
   worldAgain.close();
+});
+
+test('an account from before display names shows its username until it picks a name', () => {
+  const path = join(tempDir(), 'main.db');
+  const before = new DatabaseSync(path);
+  before.exec(`CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    avatar TEXT NOT NULL,
+    avatar_chosen INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  INSERT INTO users (username, password_hash, avatar, created_at) VALUES ('andrewshell', 'x', '{}', 0);
+  PRAGMA user_version = 1;`);
+  before.close();
+
+  const main = openMainDatabase(path);
+  expect(main.prepare('SELECT username, display_name FROM users').all()).toEqual([
+    { username: 'andrewshell', display_name: 'andrewshell' },
+  ]);
+  main.close();
 });
 
 test('every world file rolls its own seed', () => {
@@ -82,9 +104,9 @@ test('every world file rolls its own seed', () => {
 
 test('a deleted account never gives its id to a later one', () => {
   const main = openMainDatabase(':memory:');
-  const alice = insertUser(main, { username: 'alice', passwordHash: 'x' })!;
+  const alice = insertUser(main, { username: 'alice', displayName: 'alice', passwordHash: 'x' })!;
   main.prepare('DELETE FROM users WHERE id = ?').run(alice.id);
-  const bob = insertUser(main, { username: 'bob', passwordHash: 'x' })!;
+  const bob = insertUser(main, { username: 'bob', displayName: 'bob', passwordHash: 'x' })!;
   expect(bob.id).toBeGreaterThan(alice.id);
   main.close();
 });

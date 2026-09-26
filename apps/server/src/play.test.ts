@@ -104,11 +104,13 @@ async function start(dir?: string, admit: Admit = () => true): Promise<Running> 
   return { db: host.open(ALICE_WORLD).db, main, host, base: `127.0.0.1:${port}`, stop };
 }
 
+/** Signs up `username` with a capitalized display name, which is all other players see. */
 async function signup(base: string, username: string): Promise<string> {
+  const displayName = username[0]!.toUpperCase() + username.slice(1);
   const res = await fetch(`http://${base}/api/signup`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username, password: 'correct horse battery' }),
+    body: JSON.stringify({ username, displayName, password: 'correct horse battery' }),
   });
   expect(res.status).toBe(201);
   return /^session=[^;]*/.exec(res.headers.get('set-cookie') ?? '')![0];
@@ -281,10 +283,10 @@ describe('world socket', () => {
 
     const bob = await connect(base, bobCookie);
     const bobScreen = await nextOf(bob, 'screen');
-    expect(bobScreen.others).toEqual([{ id: 1, name: 'alice', avatar: DEFAULT_AVATAR, ...SPAWN }]);
+    expect(bobScreen.others).toEqual([{ id: 1, name: 'Alice', avatar: DEFAULT_AVATAR, ...SPAWN }]);
     expect(await alice.next()).toEqual({
       t: 'join',
-      player: { id: 2, name: 'bob', avatar: DEFAULT_AVATAR, ...SPAWN },
+      player: { id: 2, name: 'Bob', avatar: DEFAULT_AVATAR, ...SPAWN },
     });
 
     alice.send({ t: 'move', x: 160, y: 196, dir: 'n', moving: true });
@@ -298,7 +300,7 @@ describe('world socket', () => {
     const carol = await connect(base, carolCookie);
     const carolScreen = await nextOf(carol, 'screen');
     expect(carolScreen.others).toEqual([
-      { id: 1, name: 'alice', avatar: DEFAULT_AVATAR, x: 160, y: 190, dir: 'n', moving: false },
+      { id: 1, name: 'Alice', avatar: DEFAULT_AVATAR, x: 160, y: 190, dir: 'n', moving: false },
     ]);
     expect(await alice.next()).toMatchObject({ t: 'join', player: { id: 3 } });
     await carol.close();
@@ -308,7 +310,7 @@ describe('world socket', () => {
     await expectNothingPending(alice);
   });
 
-  it('shows a saved avatar change to the same screen and to later arrivals', async () => {
+  it('shows a saved name and avatar to the same screen and to later arrivals', async () => {
     const { base } = await start();
     const [aliceCookie, bobCookie, carolCookie, daveCookie] = [
       await signup(base, 'alice'),
@@ -326,17 +328,17 @@ describe('world socket', () => {
     await nextOf(alice, 'join');
 
     const avatar: Avatar = { ...DEFAULT_AVATAR, hairStyle: 'bun', shirt: 'purple' };
-    const res = await fetch(`http://${base}/api/me/avatar`, {
+    const res = await fetch(`http://${base}/api/me/profile`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json', cookie: aliceCookie },
-      body: JSON.stringify({ avatar }),
+      body: JSON.stringify({ displayName: 'Ali', avatar }),
     });
     expect(res.status).toBe(200);
-    expect(await bob.next()).toEqual({ t: 'avatar', id: 1, avatar });
+    expect(await bob.next()).toEqual({ t: 'profile', id: 1, name: 'Ali', avatar });
 
     const dave = await connect(base, daveCookie);
     expect((await nextOf(dave, 'screen')).others).toContainEqual(
-      expect.objectContaining({ id: 1, avatar }),
+      expect.objectContaining({ id: 1, name: 'Ali', avatar }),
     );
 
     expect(await alice.next()).toMatchObject({ t: 'join', player: { id: 4 } });
@@ -748,7 +750,7 @@ describe('landmarks', () => {
             named: {
               name: 'Old Stones',
               line: 'Where the hares run',
-              by: { id: 1, name: 'alice' },
+              by: { id: 1, name: 'Alice' },
               at: expect.any(Number) as unknown,
             },
           },
@@ -757,7 +759,7 @@ describe('landmarks', () => {
     };
     expect(await alice.next()).toEqual(named);
     expect(await bob.next()).toEqual(named);
-    expect(await bob.next()).toEqual({ t: 'refused', reason: 'alice named this place first.' });
+    expect(await bob.next()).toEqual({ t: 'refused', reason: 'Alice named this place first.' });
     await expectNothingPending(alice);
   });
 
@@ -801,7 +803,7 @@ describe('landmarks', () => {
     await nextOf(bob, 'traces');
     bob.send(nameIt('Bob Town'));
     await nextOf(bob, 'traces');
-    expect(landmarkNames(db)).toMatchObject([{ coord, name: 'Bob Town', by: 'bob' }]);
+    expect(landmarkNames(db)).toMatchObject([{ coord, name: 'Bob Town', by: 'Bob' }]);
     expect(clearName(db, coord)).toBe('Bob Town');
     expect(landmarkNames(db)).toEqual([]);
     expect((await fetchMap(base, cookie)).names).toEqual([]);

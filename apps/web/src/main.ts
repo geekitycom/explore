@@ -10,11 +10,11 @@ import { typing } from './game/input.ts';
 import { canvasRenderer } from './game/render.ts';
 import { mapView } from './map/map-view.ts';
 import { authView, type AuthMode } from './ui/auth.ts';
-import { avatarEditor } from './ui/avatar-editor.ts';
 import { avatarStep } from './ui/avatar-step.ts';
 import type { DrawAvatar } from './ui/avatar-picker.ts';
 import { h } from './ui/dom.ts';
 import { BAR_PX_H, inventoryBar } from './ui/inventory-bar.ts';
+import { profileEditor } from './ui/profile-editor.ts';
 import { soundSettings } from './ui/sound-settings.ts';
 import { wakeUp } from './ui/wake.ts';
 import '@fontsource/pixelify-sans/latin-400.css';
@@ -63,9 +63,10 @@ Object.assign(window, {
 
 let stopGame: (() => void) | undefined;
 
-function gameView(user: User) {
-  let avatar = user.avatar;
+function gameView(initialUser: User) {
+  let user = initialUser;
   const canvas = h('canvas', { class: 'game-canvas', 'aria-label': 'Game world' });
+  const who = h('span', { class: 'who' }, user.displayName);
   const status = h('p', { class: 'status', role: 'status' });
   const hint = h('button', {
     type: 'button',
@@ -81,14 +82,15 @@ function gameView(user: User) {
     h(
       'header',
       { class: 'game-bar' },
-      h('span', { class: 'who' }, user.username),
+      who,
       status,
-      avatarEditor(
-        () => avatar,
+      profileEditor(
+        () => user,
         drawAvatar,
         (saved) => {
-          avatar = saved.avatar;
-          game.setAvatar(avatar);
+          user = saved;
+          who.textContent = user.displayName;
+          game.setUser(user);
         },
       ),
       soundSettings(audio),

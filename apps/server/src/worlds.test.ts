@@ -6,8 +6,8 @@ import { ensureHomeWorld, homeWorld, mayEnter, worldIdSchema, worldOwnedBy } fro
 
 test('ensuring a home world creates it once, however often it is asked for', () => {
   const db = openMainDatabase(':memory:');
-  const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
-  const bob = insertUser(db, { username: 'bob', passwordHash: 'x' })!;
+  const alice = insertUser(db, { username: 'alice', displayName: 'alice', passwordHash: 'x' })!;
+  const bob = insertUser(db, { username: 'bob', displayName: 'bob', passwordHash: 'x' })!;
   expect(homeWorld(db, alice.id)).toBeUndefined();
 
   const home = ensureHomeWorld(db, alice.id, 5);
@@ -25,8 +25,8 @@ test('ensuring a home world creates it once, however often it is asked for', () 
 
 test('a world id is never reused once its row is gone', () => {
   const db = openMainDatabase(':memory:');
-  const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
-  const bob = insertUser(db, { username: 'bob', passwordHash: 'x' })!;
+  const alice = insertUser(db, { username: 'alice', displayName: 'alice', passwordHash: 'x' })!;
+  const bob = insertUser(db, { username: 'bob', displayName: 'bob', passwordHash: 'x' })!;
   const first = ensureHomeWorld(db, alice.id);
   db.prepare('DELETE FROM worlds WHERE id = ?').run(first);
   expect(ensureHomeWorld(db, bob.id)).toBeGreaterThan(first);
@@ -35,8 +35,8 @@ test('a world id is never reused once its row is gone', () => {
 
 test('only the owner may enter a world', () => {
   const db = openMainDatabase(':memory:');
-  const alice = insertUser(db, { username: 'alice', passwordHash: 'x' })!;
-  const bob = insertUser(db, { username: 'bob', passwordHash: 'x' })!;
+  const alice = insertUser(db, { username: 'alice', displayName: 'alice', passwordHash: 'x' })!;
+  const bob = insertUser(db, { username: 'bob', displayName: 'bob', passwordHash: 'x' })!;
   const home = ensureHomeWorld(db, alice.id);
   expect(mayEnter(db, alice, home)).toBe(true);
   expect(mayEnter(db, bob, home)).toBe(false);

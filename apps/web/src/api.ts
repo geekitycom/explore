@@ -1,9 +1,12 @@
 import type { Avatar } from '@explore/core';
 
-/** `home` is the world this account owns, the one it joins by default. */
+/**
+ * `home` is the world this account owns, the one it joins by default. The username is left out
+ * so nothing in the game can show it: players see each other's display names only.
+ */
 export type User = {
   id: number;
-  username: string;
+  displayName: string;
   avatar: Avatar;
   avatarChosen: boolean;
   home: number;
@@ -47,8 +50,12 @@ export async function fetchMe(): Promise<User | undefined> {
   }
 }
 
-export async function signup(username: string, password: string): Promise<User> {
-  return (await request<{ user: User }>('POST', '/api/signup', { username, password })).user;
+export async function signup(input: {
+  username: string;
+  displayName: string;
+  password: string;
+}): Promise<User> {
+  return (await request<{ user: User }>('POST', '/api/signup', input)).user;
 }
 
 export async function login(username: string, password: string): Promise<User> {
@@ -59,8 +66,8 @@ export async function logout(): Promise<void> {
   await request<undefined>('POST', '/api/logout');
 }
 
-export async function updateAvatar(avatar: Avatar): Promise<User> {
-  return (await request<{ user: User }>('PUT', '/api/me/avatar', { avatar })).user;
+export async function saveProfile(profile: { displayName: string; avatar: Avatar }): Promise<User> {
+  return (await request<{ user: User }>('PUT', '/api/me/profile', profile)).user;
 }
 
 export type WorldMap = {

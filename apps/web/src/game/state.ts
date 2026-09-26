@@ -66,12 +66,13 @@ export function applyMessage(state: GameState, message: ServerMessage): GameStat
         others: new Map(state.others).set(message.id, { ...current, x, y, dir, moving }),
       };
     }
-    case 'avatar': {
+    case 'profile': {
       const current = state.others.get(message.id);
       if (!current) return state;
+      const { name, avatar } = message;
       return {
         ...state,
-        others: new Map(state.others).set(message.id, { ...current, avatar: message.avatar }),
+        others: new Map(state.others).set(message.id, { ...current, name, avatar }),
       };
     }
     case 'correct':

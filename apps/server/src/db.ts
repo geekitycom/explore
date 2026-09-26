@@ -31,6 +31,8 @@ const mainMigrations: readonly string[] = [
     host TEXT,
     created_at INTEGER NOT NULL
   );`,
+  `ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT '';
+  UPDATE users SET display_name = username;`,
 ];
 
 /**

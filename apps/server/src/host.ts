@@ -70,8 +70,8 @@ export function createWorldHost({
       if (world.game.playerCount() === 0) world.emptySince = now();
     },
 
-    changeAvatar(user: User): void {
-      for (const world of worlds.values()) world.game.changeAvatar(user);
+    changeProfile(user: User): void {
+      for (const world of worlds.values()) world.game.changeProfile(user);
     },
 
     /** Saves everyone in every open world. */

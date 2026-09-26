@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, playing, unique } from './helpers.ts';
+import { createAccount, displayNameOf, playing, unique } from './helpers.ts';
 
 type Me = { user: { avatar: { shirt: string; hairColor: string }; avatarChosen: boolean } };
 
@@ -28,7 +28,7 @@ test('the create-account screen catches a mistyped password before submitting', 
   await expect(page.locator('main.auth')).not.toHaveCSS('background-image', 'none');
   await page.screenshot({ path: 'e2e/.results/create-account.png', fullPage: true });
 
-  await createAccount(page, unique('typo'), 'correct horsf');
+  await createAccount(page, unique('typo'), { retyped: 'correct horsf' });
   await expect(page.locator('#password-again-error')).toHaveText("The passwords don't match");
   await expect(page.getByLabel('Password again')).toBeFocused();
   expect(signups).toBe(0);
@@ -45,13 +45,17 @@ test('a new player creates an account, chooses an avatar, then enters the game',
   });
   await createAccount(page, name);
   await expect(page.getByRole('heading', { name: 'Choose your avatar' })).toBeVisible();
-  expect(bodies).toEqual([{ username: name, password: 'correct horse' }]);
+  expect(bodies).toEqual([
+    { username: name, displayName: displayNameOf(name), password: 'correct horse' },
+  ]);
+  await expect(page.locator('.tagline')).toContainText(`see you, ${displayNameOf(name)}.`);
 
   await page.getByRole('button', { name: 'Shirt: purple' }).click();
   await page.getByRole('button', { name: 'Hair color: teal' }).click();
   await page.screenshot({ path: 'e2e/.results/avatar-step.png', fullPage: true });
   await page.getByRole('button', { name: 'Start exploring' }).click();
   await playing(page);
+  await expect(page.locator('.game-bar .who')).toHaveText(displayNameOf(name));
 
   const me = (await (await page.request.get('/api/me')).json()) as Me;
   expect(me.user).toMatchObject({
@@ -97,12 +101,21 @@ test('a player who leaves during the avatar step gets it again until they save',
 
 test('server validation errors appear next to the field', async ({ page }) => {
   const name = unique('taken');
-  await page.request.post('/api/signup', { data: { username: name, password: 'correct horse' } });
+  await page.request.post('/api/signup', {
+    data: { username: name, displayName: 'Taken', password: 'correct horse' },
+  });
   await page.context().clearCookies();
   await page.goto('/');
   await page.getByRole('button', { name: 'Create an account' }).click();
 
   await page.getByLabel('Username').fill(name);
+  await page.getByLabel('Display name').fill('   ');
+  await page.getByLabel('Password', { exact: true }).fill('long enough pw');
+  await page.getByLabel('Password again').fill('long enough pw');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.locator('#displayName-error')).toHaveText('Enter a display name');
+
+  await page.getByLabel('Display name').fill('Taken too');
   await page.getByLabel('Password', { exact: true }).fill('short');
   await page.getByLabel('Password again').fill('short');
   await page.getByRole('button', { name: 'Create account' }).click();
