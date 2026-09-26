@@ -709,17 +709,20 @@ const poseOn = ({ tx, ty }: Tile): Pose => ({
 });
 
 /**
- * Alice and Bob beside a landmark's signpost spot. Alice first stands anywhere on the screen,
- * which opens it and settles the landmark there, then both come back beside the spot.
+ * Alice and Bob beside a landmark's signpost spot. A scout first stands anywhere on the screen,
+ * which opens it and settles the landmark there, then Alice and Bob arrive beside the spot. The
+ * scout is a third player because the server saves a leaving player's pose once it handles the
+ * close, which can land after a pose saved here and would move that player back.
  */
 async function atLandmark() {
   const running = await start();
   const { base, db } = running;
   const aliceCookie = await signup(base, 'alice');
   const bobCookie = await signup(base, 'bob');
+  const scoutCookie = await signup(base, 'scout');
   const coord = landmarkScreen(db);
-  savePlayerState(db, 1, { coord, pose: SPAWN });
-  const scout = await connect(base, aliceCookie);
+  savePlayerState(db, 3, { coord, pose: SPAWN });
+  const scout = await connect(base, scoutCookie);
   const seen = await nextOf(scout, 'screen');
   await scout.close();
   const place = placeOf(decodeScreen(seen.screen), parseTraces(seen.traces));
