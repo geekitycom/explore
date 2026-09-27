@@ -13,7 +13,7 @@ import {
   type TraceNamed,
 } from '@explore/core';
 import { LANDS, cleanLine, linesOf } from './game-text.ts';
-import { SUGGEST_LIMITS, createRateLimiter, type Limit } from './rate-limit.ts';
+import { SUGGEST_LIMITS, createRateLimiter, type RateLimiter } from './rate-limit.ts';
 import type { TextRequest, TextResult } from './text-gen.ts';
 import type { Scribe, WriteText } from './writer.ts';
 
@@ -121,8 +121,10 @@ export type Suggester = ReturnType<typeof createSuggester>;
  * times in a while, one at a time. Each player's last suggestion is remembered, so asking again
  * moves on from it.
  */
-export function createSuggester(writeText: WriteText, limit: Limit = SUGGEST_LIMITS.perUser) {
-  const limiter = createRateLimiter(limit);
+export function createSuggester(
+  writeText: WriteText,
+  limiter: RateLimiter = createRateLimiter(SUGGEST_LIMITS.perUser),
+) {
   const thinking = new Set<number>();
   const last = new Map<number, string>();
 
