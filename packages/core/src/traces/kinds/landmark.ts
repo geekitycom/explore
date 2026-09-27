@@ -52,10 +52,7 @@ const fields = {
     rx: z.number().positive(),
     ry: z.number().positive(),
   }),
-  /**
-   * What the land calls the place. Optional only so rows from before generated names parse;
-   * `settle` gives one to every site it can post.
-   */
+  /** What the land calls the place. Optional because stored traces have no version, and rows from before it must still parse. */
   sign: z.object({ ...words, source: z.enum(SIGN_SOURCES) }).optional(),
   /** A player's name for the place, shown over the sign. */
   named: z.object({ ...words, line: words.line.optional(), by: userRef, at: epochMs }).optional(),
@@ -63,7 +60,6 @@ const fields = {
 
 const naming = z.discriminatedUnion('op', [
   z.object({ op: z.literal('name'), name: text(1, NAME_MAX), line: text(0, LINE_MAX) }),
-  /** Takes a player's name off, so the land's shows again. */
   z.object({ op: z.literal('clear') }),
 ]);
 
@@ -169,7 +165,6 @@ export function seedSign(
   return { name: pick(forms, h), line: pick(LINES, h >>> 20), source: 'pending' };
 }
 
-/** In the landmark, or within reach of its post. */
 const nearSite = (site: Site, pose: Pose) =>
   inArea(site.area, centreTile(pose)) || inReach(pose, site);
 
@@ -207,11 +202,6 @@ export const landmark: TraceKind<
     if (wordsOf(site)) return nearSite(site, here.me.pose) ? 'Rename this place' : undefined;
     return inArea(site.area, centreTile(here.me.pose)) ? 'Name this place' : undefined;
   },
-  /**
-   * A signed site is left alone. A site a player named before generated names keeps its post and
-   * gains a sign under the name. Otherwise the post goes where it fits the place as it stands,
-   * rocks and all, and an old invisible site elsewhere is dropped.
-   */
   settle: (place, world) => {
     const site = siteOf({ place });
     if (site?.sign) return [];
@@ -234,7 +224,7 @@ export const landmark: TraceKind<
       const site = siteOf(here);
       if (!site) return refuse('There is no landmark here to name.');
       const shown = wordsOf(site);
-      return shown ? rename(here, site, shown, input) : nameFirst(here, site, input);
+      return shown ? rename(here, site, shown, input) : nameUnposted(here, site, input);
     },
   },
 });
@@ -248,7 +238,6 @@ const namedBy = (here: Here, input: Extract<Naming, { op: 'name' }>) => ({
   at: here.now,
 });
 
-/** The post already stands, so the world rules never run: nobody can be trapped by a rename. */
 function rename(here: Here, site: Site, shown: Words, input: Naming) {
   const at = { tx: site.tx, ty: site.ty };
   const { named, ...unnamed } = site;
@@ -269,8 +258,7 @@ function rename(here: Here, site: Site, shown: Words, input: Naming) {
   };
 }
 
-/** An old site with no post yet: naming it plants the post, under the world rules. */
-function nameFirst(here: Here, site: Site, input: Naming) {
+function nameUnposted(here: Here, site: Site, input: Naming) {
   const at = { tx: site.tx, ty: site.ty };
   if (input.op === 'clear') return refuse('This place has no name to take off.');
   if (!inArea(site.area, centreTile(here.me.pose)))

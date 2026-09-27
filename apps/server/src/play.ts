@@ -215,7 +215,6 @@ export function createGame(
     sendScreen(player);
   }
 
-  /** Answers only once the model has, so the game never waits on it. */
   async function suggest(player: Player, n: number): Promise<void> {
     const { place } = player.room;
     const site = siteOf({ place });

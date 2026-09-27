@@ -54,10 +54,6 @@ export function landmarkNames(db: WorldDb): LandmarkName[] {
   });
 }
 
-/**
- * Rewrites the landmark on a screen with `change`, which returns the new site, or undefined to
- * leave it. A server holding the screen open shows the change once everyone has left it.
- */
 function changeSite(
   db: WorldDb,
   coord: ScreenCoord,

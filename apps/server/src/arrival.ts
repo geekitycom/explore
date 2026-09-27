@@ -91,8 +91,7 @@ export function departurePortal(place: Place, pose: Pose, taken: ReadonlySet<str
 
 /**
  * The pose itself when the feet fit there, else the same player standing on the nearest tile
- * they fit on. A post settled, or a rock left, where someone last stood while they were away
- * would otherwise trap them when they come back.
+ * they fit on.
  */
 export function unstuck(place: Place, pose: Pose): Pose {
   if (canOccupy(place, pose.x, pose.y)) return pose;

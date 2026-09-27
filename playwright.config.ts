@@ -4,7 +4,6 @@ import { defineConfig, devices } from '@playwright/test';
 import { SESSION_TIMEOUT_MS } from './e2e/session.ts';
 
 const PORT = 4310;
-/** The stand-in language model, see e2e/llm-stub.ts. */
 const LLM_STUB_PORT = 4311;
 // Workers load this file again; the env keeps them on the server's data directory.
 const dataDir = (process.env['E2E_DATA_DIR'] ??= join(tmpdir(), `explore-e2e-${Date.now()}`));

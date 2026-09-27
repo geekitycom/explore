@@ -75,7 +75,6 @@ const siteIn = (traces: readonly Trace[]) => traces.find((t): t is Site => t.kin
 const signsIn = (inbox: Inbox) => writtenIn(inbox).filter((t) => t.kind === 'landmark');
 const REPLY = 'Name: Hollow Stones\nLine: The wind keeps count here.';
 
-/** The stored landmark, read the way a reopened room reads it. */
 function storedSite(path: string, coord: ScreenCoord, site: Site) {
   const db = openWorldDatabase(path);
   const stored = new TraceStore(db, new Presence()).get(coord, site, 'landmark');

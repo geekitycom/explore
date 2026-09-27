@@ -19,7 +19,6 @@ export const NAMES = [
 ];
 export const LINE = 'Nothing here is quite what it seems.';
 export const BREAK = 'Break the model';
-/** Slow enough for a spec to see the dialog wait. */
 const DELAY_MS = 300;
 
 type Chat = { messages: { role: string; content: string }[] };
@@ -46,6 +45,5 @@ const stub = createServer((request, response) => {
   });
 });
 
-// Specs import the names above; only playwright's webServer runs the server.
 if (process.argv[1] === fileURLToPath(import.meta.url))
   stub.listen(Number(process.env['LLM_STUB_PORT'] ?? 4311));

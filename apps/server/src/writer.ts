@@ -25,13 +25,9 @@ const isOf = <T extends Trace>(scribe: Scribe<T>, trace: Trace): trace is T =>
   trace.kind === scribe.kind;
 
 /**
- * Has the language model rewrite seed text, off the screen-generation path: a room opening asks
- * for what its traces are waiting on, and each kind writes one trace at a time, committing it so
- * everyone on the screen sees it. Kinds do not queue behind each other, so a signpost is written
- * while a graveyard's graves wait their turn. Each trace is tried once per world open, so two
- * players arriving together never start two; a failed try keeps the seed text and is tried again
- * the next time the world opens. The stored trace is read again after the wait, so words that
- * changed meanwhile are never overwritten.
+ * Has the language model rewrite seed text off the screen-generation path, one trace at a time
+ * per kind. Each trace is tried once per world open; a failed try keeps the seed text. Words
+ * that changed during the wait are never overwritten.
  */
 export function textWriter(
   store: TraceStore,

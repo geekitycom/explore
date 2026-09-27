@@ -31,7 +31,6 @@ export const userNamed = (id: number, displayName: string): User => ({
   avatarChosen: true,
 });
 
-/** Undoes what a test set up; run them with `afterEach(cleanUp)`. */
 const cleanups: (() => void)[] = [];
 export const cleanUp = () => {
   for (const cleanup of cleanups.splice(0).reverse()) cleanup();
@@ -44,7 +43,7 @@ export function tempDb(): string {
   return join(dir, 'explore.db');
 }
 
-/** The screen holding the centre of the graveyard nearest the garden, which is a landmark too. */
+/** The screen holding the centre of the graveyard nearest the garden. */
 export function graveyardScreen(db: WorldDb): ScreenCoord {
   const poi = networkOf(loadWorld(db), OVERWORLD)
     .poisIn({ x0: -800, y0: -600, x1: 800, y1: 600 })

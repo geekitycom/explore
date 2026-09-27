@@ -32,7 +32,6 @@ const named = (by = ANN, name = 'Old Stones', line?: string, site = SITE): Trace
   named: { name, ...(line ? { line } : {}), by, at: 5 },
 });
 
-/** Centre tile (10, 8), just south of the signpost, in the area. */
 const BESIDE: Pose = { x: 168, y: 142, dir: 'n', moving: false };
 /** Centre tile (1, 1), far outside the area. */
 const AWAY: Pose = { x: 24, y: 30, dir: 'n', moving: false };

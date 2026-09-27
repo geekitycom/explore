@@ -63,7 +63,7 @@ const REFRESH =
 
 type Filled = { readonly name: string; readonly line: string };
 
-const filledFrom = (here: Here): Filled => {
+const postWordsOf = (here: Here): Filled => {
   const site = siteOf(here);
   const shown = site && wordsOf(site);
   return { name: shown?.name ?? '', line: shown?.line ?? '' };
@@ -87,10 +87,8 @@ export function namingDialog(
   let error: HTMLElement | undefined;
   let buttons: HTMLButtonElement[] = [];
   let fields: { name: HTMLInputElement; line: HTMLInputElement } | undefined;
-  /** What the fields held when the dialog last took the post's words. */
-  let filled: Filled = { name: '', line: '' };
+  let postWords: Filled = { name: '', line: '' };
   let suggestButton: HTMLButtonElement | undefined;
-  /** The number of the last suggestion asked for; answers to any other are stale. */
   let asked = 0;
   let thinking = false;
 
@@ -141,9 +139,9 @@ export function namingDialog(
     if (!site) return;
     const shown = wordsOf(site);
     const noun = LANDMARK_NOUNS[site.poi];
-    filled = filledFrom(now);
-    const name = counted('Name', 'name', NAME_MAX, filled.name);
-    const line = counted('A line for travellers (optional)', 'line', LINE_MAX, filled.line);
+    postWords = postWordsOf(now);
+    const name = counted('Name', 'name', NAME_MAX, postWords.name);
+    const line = counted('A line for travellers (optional)', 'line', LINE_MAX, postWords.line);
     fields = { name: name.input, line: line.input };
     error = h('p', { class: 'form-error', role: 'alert' });
     const save = h('button', { type: 'submit', class: 'primary' }, 'Save');
@@ -220,10 +218,11 @@ export function namingDialog(
     sync(now: Here): void {
       if (waiting && namingShown(waiting.expected, now)) return el.close();
       if (!el.open || waiting || !fields) return;
-      const current = filledFrom(now);
-      if (current.name === filled.name && current.line === filled.line) return;
-      const untouched = fields.name.value === filled.name && fields.line.value === filled.line;
-      filled = current;
+      const current = postWordsOf(now);
+      if (current.name === postWords.name && current.line === postWords.line) return;
+      const untouched =
+        fields.name.value === postWords.name && fields.line.value === postWords.line;
+      postWords = current;
       if (!untouched) return;
       fill(current);
       if (error) error.textContent = 'The signpost just changed. These are its new words.';

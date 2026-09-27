@@ -33,7 +33,6 @@ const features =
   (screen: Screen) =>
     screen.features.filter((f) => kinds.includes(f)).length;
 
-/** Each phrase applies once its count on the screen reaches `at`. */
 const AROUND: readonly { phrase: string; at: number; count: (screen: Screen) => number }[] = [
   { phrase: 'by the water', at: 12, count: corners('water') },
   { phrase: 'on a road', at: 8, count: corners('path') },
@@ -53,14 +52,13 @@ export function describeScreen(screen: Screen): string[] {
   return AROUND.filter(({ at, count }) => count(screen) >= at).map((a) => a.phrase);
 }
 
-/** A name as the prompt quotes it, so a player's name can never break out of its quotes. */
-const quoted = (name: string) => `"${name.replace(/["“”\r\n]/g, ' ').trim()}"`;
+const safeQuoted = (name: string) => `"${name.replace(/["“”\r\n]/g, ' ').trim()}"`;
 
 export function signPrompt({ noun, biome, around, unlike }: SignBrief): TextRequest {
   const near = around.length > 0 ? `, ${around.join(', ')}` : '';
   const not =
     unlike.length > 0
-      ? ` It is not called ${unlike.map(quoted).join(' or ')}; give it a different name.`
+      ? ` It is not called ${unlike.map(safeQuoted).join(' or ')}; give it a different name.`
       : '';
   return {
     messages: [
@@ -120,9 +118,8 @@ export type Suggester = ReturnType<typeof createSuggester>;
 
 /**
  * New names for the rename dialog, for every world on the server: each player may ask a few
- * times in a while, one at a time. Calls the model directly and touches no store and no queue,
- * so neither the game nor the background writer waits on it. Each player's last suggestion is
- * remembered, so asking again moves on from it.
+ * times in a while, one at a time. Each player's last suggestion is remembered, so asking again
+ * moves on from it.
  */
 export function createSuggester(writeText: WriteText, limit: Limit = SUGGEST_LIMITS.perUser) {
   const limiter = createRateLimiter(limit);
