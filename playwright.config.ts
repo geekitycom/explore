@@ -13,7 +13,9 @@ export default defineConfig({
   outputDir: 'e2e/.results',
   fullyParallel: false,
   workers: 1,
-  reporter: 'list',
+  // A stopgap while flaky specs are fixed; the flaky reporter names every retry that saved a run.
+  retries: process.env['CI'] ? 1 : 0,
+  reporter: [['list'], ['./e2e/flaky-reporter.ts']],
   use: {
     baseURL: `http://localhost:${PORT}`,
     screenshot: 'only-on-failure',
