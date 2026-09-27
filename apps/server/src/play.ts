@@ -31,14 +31,16 @@ import {
 } from './arrival.ts';
 import { Chunks } from './chunks.ts';
 import type { WorldDb } from './db.ts';
-import { epitaphWriter, type WriteText } from './epitaphs.ts';
+import { epitaphScribe } from './epitaphs.ts';
 import { loadInventory } from './inventory.ts';
 import type { Roster } from './map.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import { TraceStore, perform, reportTrace } from './traces.ts';
 import type { User } from './users.ts';
+import { landmarkScribe } from './signs.ts';
 import { loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 import type { Admission } from './worlds.ts';
+import { textWriter, type WriteText } from './writer.ts';
 
 /** How far past the speed cap a move may be, absorbing network jitter. */
 const SPEED_SLACK = 1.5;
@@ -103,14 +105,14 @@ export function createGame(
   const chunks = new Chunks(db);
   const presence = new Presence();
   const store = new TraceStore(db, presence);
-  const epitaphs = writeText && epitaphWriter(store, writeText);
+  const writer = writeText && textWriter(store, writeText, [epitaphScribe, landmarkScribe]);
   const online = new Map<number, Player>();
 
   const roomAt = (coord: ScreenCoord, userId: number) =>
     presence.roomOrLoad(coord, () => {
       const world = loadWorld(db);
       const place = store.open(coord, chunks.screenAt(coord, userId), world);
-      epitaphs?.request(place, world);
+      writer?.request(place, world);
       return place;
     });
 
@@ -319,7 +321,7 @@ export function createGame(
      */
     stop(): void {
       chunks.stop();
-      epitaphs?.stop();
+      writer?.stop();
       for (const player of online.values()) save(player);
       online.clear();
     },
