@@ -6,10 +6,14 @@ import {
   signpostSpot,
   type Landmark,
 } from '../../landmarks.ts';
+import type { Tile } from '../../place.ts';
 import { POI_KINDS, type PoiKind } from '../../poi.ts';
-import { centreTile, isWalkable } from '../../walk.ts';
+import { centreTile, inReach, isWalkable } from '../../walk.ts';
+import type { Pose, ScreenCoord, World } from '../../world.ts';
 import { epochMs, userRef } from '../fields.ts';
+import { tileHash } from '../hash.ts';
 import { refuse, traceKind, type Here, type TraceKind } from '../kind.ts';
+import { NAMES } from './epitaph.ts';
 
 export const NAME_MAX = 30;
 export const LINE_MAX = 80;
@@ -32,6 +36,14 @@ const landmarkKinds = (Object.keys(POI_KINDS) as PoiKind[]).filter(
   (k): k is Landmark['poi'] => k !== 'hub',
 ) as [Landmark['poi'], ...Landmark['poi'][]];
 
+/**
+ * Where the land's words came from: `pending` is the seed text waiting for the language model,
+ * `seed` is the seed text for good, after an admin put it back, and `model` is the model's.
+ */
+export const SIGN_SOURCES = ['pending', 'seed', 'model'] as const;
+
+const words = { name: z.string().min(1).max(NAME_MAX), line: z.string().min(1).max(LINE_MAX) };
+
 const fields = {
   poi: z.enum(landmarkKinds),
   area: z.object({
@@ -40,22 +52,33 @@ const fields = {
     rx: z.number().positive(),
     ry: z.number().positive(),
   }),
-  named: z
-    .object({
-      name: z.string().min(1).max(NAME_MAX),
-      line: z.string().min(1).max(LINE_MAX).optional(),
-      by: userRef,
-      at: epochMs,
-    })
-    .optional(),
+  /**
+   * What the land calls the place. Optional only so rows from before generated names parse;
+   * `settle` gives one to every site it can post.
+   */
+  sign: z.object({ ...words, source: z.enum(SIGN_SOURCES) }).optional(),
+  /** A player's name for the place, shown over the sign. */
+  named: z.object({ ...words, line: words.line.optional(), by: userRef, at: epochMs }).optional(),
 };
 
 const naming = z.discriminatedUnion('op', [
   z.object({ op: z.literal('name'), name: text(1, NAME_MAX), line: text(0, LINE_MAX) }),
+  /** Takes a player's name off, so the land's shows again. */
   z.object({ op: z.literal('clear') }),
 ]);
 
-type Site = z.output<z.ZodObject<typeof fields>> & { readonly tx: number; readonly ty: number };
+export type Site = z.output<z.ZodObject<typeof fields>> & {
+  readonly tx: number;
+  readonly ty: number;
+};
+export type Sign = NonNullable<Site['sign']>;
+
+/** What the signpost reads. Only a player's name has a `by`. */
+export type Words = {
+  readonly name: string;
+  readonly line?: string | undefined;
+  readonly by?: { readonly id: number; readonly name: string };
+};
 
 /** The screen's landmark trace, which `settle` put at its signpost spot. */
 export function siteOf(here: Pick<Here, 'place'>): Site | undefined {
@@ -63,9 +86,97 @@ export function siteOf(here: Pick<Here, 'place'>): Site | undefined {
   return undefined;
 }
 
+/** A player's name over the land's; undefined for an old site no post could stand on yet. */
+export function wordsOf({ named, sign }: Site): Words | undefined {
+  if (named) return named;
+  return sign && { name: sign.name, line: sign.line };
+}
+
+const WORDS: Readonly<Record<Landmark['poi'], readonly string[]>> = {
+  clearing: ['Clearing', 'Glade', 'Lea', 'Meadow'],
+  grove: ['Grove', 'Copse', 'Holt', 'Wood'],
+  ruin: ['Ruin', 'Walls', 'Keep', 'Hall'],
+  graveyard: ['Graveyard', 'Churchyard', 'Rest', 'Acre'],
+  burialground: ['Barrows', 'Mounds', 'Howe', 'Barrow'],
+  lakeside: ['Shore', 'Mere', 'Water', 'Strand'],
+  stones: ['Stones', 'Ring', 'Circle', 'Standing Stones'],
+  town: ['Green', 'Common', 'Cross', 'Market'],
+  cave: ['Cave', 'Grotto', 'Deep', 'Mouth'],
+};
+
+const LOOKS = [
+  'Hollow',
+  'Whispering',
+  'Quiet',
+  'Old',
+  'Mossy',
+  'Lantern',
+  'Crooked',
+  'Sleepy',
+  'Windy',
+  'Bramble',
+  'Hare',
+  'Owl',
+  'Heron',
+  'Thistle',
+  'Foxglove',
+  'Amber',
+  'Silver',
+  'Wandering',
+  'Drowsy',
+  'Lost',
+  'Honey',
+  'Rook',
+  'Nettle',
+  'Misty',
+];
+
+const LINES = [
+  'The wind keeps count here.',
+  'Rest your feet a while.',
+  'Mind the hares at dusk.',
+  'Someone left the kettle on, long ago.',
+  'Quiet now. Listen.',
+  'Nobody remembers who named it first.',
+  'Travellers welcome, mud and all.',
+  'The crows know the way home.',
+  'Stay for the sunset if you can.',
+  'Every path here leads somewhere.',
+  'Leave it as you found it.',
+  'Once there was a song about this place.',
+  'The ground hums on still nights.',
+  'Walk softly; things are sleeping.',
+  'Good for picnics, better for naps.',
+  'Take the long way. It is worth it.',
+];
+
+const pick = <T>(list: readonly T[], h: number): T => list[h % list.length]!;
+
 /**
- * A landmark players can name. The generator fixes where its signpost will stand; until someone
- * names it the trace there is invisible and walkable, and only carries the landmark's area.
+ * The name and line a landmark carries until the language model writes them, or for good
+ * without one. The same for every player of a world.
+ */
+export function seedSign(
+  world: World,
+  coord: ScreenCoord,
+  { tx, ty }: Tile,
+  poi: Landmark['poi'],
+): Sign {
+  const h = tileHash(coord, tx, ty, world.seed);
+  const word = pick(WORDS[poi], h >>> 4);
+  const look = pick(LOOKS, h >>> 8);
+  const forms = [`${look} ${word}`, `The ${look} ${word}`, `${pick(NAMES, h >>> 14)}'s ${word}`];
+  return { name: pick(forms, h), line: pick(LINES, h >>> 20), source: 'pending' };
+}
+
+/** In the landmark, or within reach of its post. */
+const nearSite = (site: Site, pose: Pose) =>
+  inArea(site.area, centreTile(pose)) || inReach(pose, site);
+
+/**
+ * A named place. The generator fixes where its signpost stands, and it carries the land's words
+ * from the first visit. Anyone may lay their own name over them or take a player's name off
+ * again. An old site no post could stand on stays invisible and is named as it always was.
  */
 export const landmark: TraceKind<
   'landmark',
@@ -75,62 +186,101 @@ export const landmark: TraceKind<
 > = traceKind({
   kind: 'landmark',
   fields,
-  solid: (trace) => trace.named !== undefined,
+  solid: (trace) => wordsOf(trace) !== undefined,
   look: (trace) => ({
     hidesFeature: false,
-    recipe: trace.named && { family: 'signpost', params: { wood: 'bark' } },
+    recipe: wordsOf(trace) && { family: 'signpost', params: { wood: 'bark' } },
   }),
-  bubble: ({ named }) =>
-    named && {
-      text: named.name,
-      ...(named.line ? { line: named.line } : {}),
-      by: named.by,
-      credit: 'named by',
-    },
+  bubble: (trace) => {
+    const shown = wordsOf(trace);
+    return (
+      shown && {
+        text: shown.name,
+        ...(shown.line ? { line: shown.line } : {}),
+        ...(shown.by ? { by: shown.by, credit: 'named by' } : {}),
+      }
+    );
+  },
   offer: (here) => {
     const site = siteOf(here);
-    return site && !site.named && inArea(site.area, centreTile(here.me.pose))
-      ? 'Name this place'
-      : undefined;
+    if (!site) return undefined;
+    if (wordsOf(site)) return nearSite(site, here.me.pose) ? 'Rename this place' : undefined;
+    return inArea(site.area, centreTile(here.me.pose)) ? 'Name this place' : undefined;
   },
+  /**
+   * A signed site is left alone. A site a player named before generated names keeps its post and
+   * gains a sign under the name. Otherwise the post goes where it fits the place as it stands,
+   * rocks and all, and an old invisible site elsewhere is dropped.
+   */
   settle: (place, world) => {
-    if (siteOf({ place })) return [];
-    const found = landmarkOn(world, place.screen.coord);
-    const spot = found && signpostSpot(place.screen, found.area);
-    return found && spot ? [{ put: { kind: 'landmark', ...spot, ...found } }] : [];
+    const site = siteOf({ place });
+    if (site?.sign) return [];
+    const { coord } = place.screen;
+    if (site?.named)
+      return [{ put: { ...site, kind: 'landmark', sign: seedSign(world, coord, site, site.poi) } }];
+    const found = site ?? landmarkOn(world, coord);
+    const spot = found && signpostSpot(place, found.area);
+    if (!found || !spot) return [];
+    const { poi, area } = found;
+    const put = {
+      put: { kind: 'landmark', ...spot, poi, area, sign: seedSign(world, coord, spot, poi) },
+    } as const;
+    const moved = site && (site.tx !== spot.tx || site.ty !== spot.ty);
+    return moved ? [{ drop: { tx: site.tx, ty: site.ty, kind: 'landmark' } } as const, put] : [put];
   },
   action: {
     input: naming,
     apply: (here, input) => {
       const site = siteOf(here);
       if (!site) return refuse('There is no landmark here to name.');
-      const at = { tx: site.tx, ty: site.ty };
-      const { named, ...unnamed } = site;
-      const mine = named?.by.id === here.me.id;
-      if (named && !mine) return refuse(`${named.by.name} named this place first.`);
-      if (input.op === 'clear') {
-        return mine
-          ? { ok: true, label: 'Clear the name', next: unnamed, at }
-          : refuse('This place has no name to clear.');
-      }
-      if (!named && !inArea(site.area, centreTile(here.me.pose)))
-        return refuse(`Stand in the ${LANDMARK_NOUNS[site.poi]} to name it.`);
-      if (!named && !isWalkable(here.place, at.tx, at.ty))
-        return refuse('Something stands where the signpost goes.');
-      return {
-        ok: true,
-        label: named ? 'Rename this place' : 'Name this place',
-        next: {
-          ...unnamed,
-          named: {
-            name: input.name,
-            ...(input.line ? { line: input.line } : {}),
-            by: { id: here.me.id, name: here.me.name },
-            at: here.now,
-          },
-        },
-        at,
-      };
+      const shown = wordsOf(site);
+      return shown ? rename(here, site, shown, input) : nameFirst(here, site, input);
     },
   },
 });
+
+type Naming = z.output<typeof naming>;
+
+const namedBy = (here: Here, input: Extract<Naming, { op: 'name' }>) => ({
+  name: input.name,
+  ...(input.line ? { line: input.line } : {}),
+  by: { id: here.me.id, name: here.me.name },
+  at: here.now,
+});
+
+/** The post already stands, so the world rules never run: nobody can be trapped by a rename. */
+function rename(here: Here, site: Site, shown: Words, input: Naming) {
+  const at = { tx: site.tx, ty: site.ty };
+  const { named, ...unnamed } = site;
+  if (!nearSite(site, here.me.pose))
+    return refuse(`Stand by the ${LANDMARK_NOUNS[site.poi]}'s signpost to rename it.`);
+  if (input.op === 'clear') {
+    return named
+      ? { ok: true as const, label: "Use the land's name", next: unnamed, at }
+      : refuse("This place already carries the land's name.");
+  }
+  if (input.name === shown.name && (input.line || undefined) === shown.line)
+    return refuse('That is already its name.');
+  return {
+    ok: true as const,
+    label: 'Rename this place',
+    next: { ...unnamed, named: namedBy(here, input) },
+    at,
+  };
+}
+
+/** An old site with no post yet: naming it plants the post, under the world rules. */
+function nameFirst(here: Here, site: Site, input: Naming) {
+  const at = { tx: site.tx, ty: site.ty };
+  if (input.op === 'clear') return refuse('This place has no name to take off.');
+  if (!inArea(site.area, centreTile(here.me.pose)))
+    return refuse(`Stand in the ${LANDMARK_NOUNS[site.poi]} to name it.`);
+  if (!isWalkable(here.place, at.tx, at.ty))
+    return refuse('Something stands where the signpost goes.');
+  return {
+    ok: true as const,
+    label: 'Name this place',
+    next: { ...site, named: namedBy(here, input) },
+    at,
+  };
+}

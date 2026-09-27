@@ -864,30 +864,29 @@ const nameIt = (name: string, line = '') => ({
 });
 
 describe('landmarks', () => {
-  it('lets the first to save name a landmark, and tells the second who did', async () => {
+  it("lets anyone rename a landmark, each save laid over the land's words for everyone", async () => {
     const { alice, bob, site } = await atLandmark();
+    expect(site.sign).toMatchObject({ source: 'pending' });
     alice.send(nameIt('Old Stones', 'Where the hares run'));
     bob.send(nameIt('Bob Town'));
 
-    const named = {
+    const namedBy = (name: string, by: { id: number; name: string }, line?: string) => ({
       t: 'traces',
       changes: [
         {
           put: {
             ...site,
-            named: {
-              name: 'Old Stones',
-              line: 'Where the hares run',
-              by: { id: 1, name: 'Alice' },
-              at: expect.any(Number) as unknown,
-            },
+            named: { name, ...(line ? { line } : {}), by, at: expect.any(Number) as unknown },
           },
         },
       ],
-    };
-    expect(await alice.next()).toEqual(named);
-    expect(await bob.next()).toEqual(named);
-    expect(await bob.next()).toEqual({ t: 'refused', reason: 'Alice named this place first.' });
+    });
+    const byAlice = namedBy('Old Stones', { id: 1, name: 'Alice' }, 'Where the hares run');
+    const byBob = namedBy('Bob Town', { id: 2, name: 'Bob' });
+    expect(await alice.next()).toEqual(byAlice);
+    expect(await bob.next()).toEqual(byAlice);
+    expect(await alice.next()).toEqual(byBob);
+    expect(await bob.next()).toEqual(byBob);
     await expectNothingPending(alice);
   });
 

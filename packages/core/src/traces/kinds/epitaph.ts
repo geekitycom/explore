@@ -6,7 +6,8 @@ import { traceAt, traceKind, type TraceKind } from '../kind.ts';
 
 export const EPITAPH_MAX = 60;
 
-const NAMES = [
+/** Folk of the land: who lies in a grave, and whose name a place may carry. */
+export const NAMES = [
   'Ada',
   'Alder',
   'Barnaby',
