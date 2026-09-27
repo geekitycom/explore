@@ -40,4 +40,4 @@ export {
   type Words,
 } from './traces/kinds/landmark.ts';
 export type { Plan } from './traces/kind.ts';
-export { EPITAPH_MAX, graveName, seedEpitaph } from './traces/kinds/epitaph.ts';
+export { EPITAPH_MAX, seedEpitaph } from './traces/kinds/epitaph.ts';
