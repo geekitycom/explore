@@ -99,7 +99,17 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
           return { tx, ty };
     throw new Error('no grave open above, below and to its left');
   })();
-  const words = seedEpitaph({ seed }, coord, grave);
+  const { name } = JSON.parse(
+    (
+      db
+        .prepare(
+          `SELECT data FROM traces
+           WHERE kind = 'epitaph' AND layer = ? AND sx = ? AND sy = ? AND tx = ? AND ty = ?`,
+        )
+        .get(coord.layer, coord.sx, coord.sy, grave.tx, grave.ty) as { data: string }
+    ).data,
+  ) as { name: string };
+  const words = seedEpitaph({ seed }, coord, { ...grave, name });
   const bubble = page.getByRole('note');
 
   await teleport(page, user, coord, { tx: grave.tx - 1, ty: grave.ty });
