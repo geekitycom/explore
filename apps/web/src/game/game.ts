@@ -90,6 +90,7 @@ export function startGame({
       if (state.phase !== 'connecting' && state.portals.some((p) => p.start === at))
         hooks.onPortal();
       if (message.t === 'refused') hands.refused(message.reason, at);
+      if (message.t === 'suggestion') hands.suggested(message);
       if (message.t === 'depart') departReason = message.reason;
       if (message.t === 'screen' || message.t === 'correct') {
         lastSent = undefined;

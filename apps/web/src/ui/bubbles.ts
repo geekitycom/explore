@@ -60,8 +60,8 @@ const offset = (pose: Pose, { tx, ty }: Tile) => {
  * One bubble at a time, so bubbles never cover each other: the faced trace's, else the nearest.
  * It sits above its trace with the tail pointing down at it, or below with the tail pointing up
  * when above would cover a name or leave the view. With no side clear of every name it keeps
- * the reader's own name clear. Anyone may report someone else's words; their author may edit
- * them where a kind allows it.
+ * the reader's own name clear. Anyone may report someone else's words, and anyone may rewrite
+ * the words of a kind that allows it, such as a landmark's name.
  */
 export function bubbleViews(said: readonly Said[], reader: Reader): BubbleView[] {
   const faced = facedTile(reader.pose);
@@ -73,14 +73,10 @@ export function bubbleViews(said: readonly Said[], reader: Reader): BubbleView[]
   if (!s) return [];
   const { tx, ty } = s.tile;
   const { by } = s.bubble;
-  const actions: BubbleAction[] =
-    by === undefined
-      ? []
-      : by.id === reader.id
-        ? reader.editable(s.kind)
-          ? ['edit']
-          : []
-        : ['report'];
+  const actions: BubbleAction[] = [
+    ...(reader.editable(s.kind) ? (['edit'] as const) : []),
+    ...(by && by.id !== reader.id ? (['report'] as const) : []),
+  ];
   const x = (tx + 0.5) * TILE;
   const tip: Record<BubbleSide, number> = { above: ty * TILE, below: (ty + 1) * TILE };
   const span = (side: BubbleSide) =>
@@ -122,7 +118,7 @@ type Handlers = {
   readonly edit: (said: Said) => void;
 };
 
-const LABELS: Record<BubbleAction, string> = { report: 'Report', edit: 'Edit' };
+const LABELS: Record<BubbleAction, string> = { report: 'Report', edit: 'Rename' };
 
 /**
  * Speech bubbles over the world for the traces in reach: the words, a second line, who left
@@ -158,12 +154,12 @@ export function bubbleLayer(handlers: Handlers) {
       { class: `bubble bubble-${view.anchor} bubble-${view.side}`, role: 'note' },
       h('p', { class: 'bubble-text' }, text),
       ...(line ? [h('p', { class: 'bubble-line' }, line)] : []),
-      ...(by
+      ...(by || buttons.length > 0
         ? [
             h(
               'p',
               { class: 'bubble-by' },
-              h('span', {}, `${view.said.bubble.credit ?? 'by'} ${by.name}`),
+              h('span', {}, by ? `${view.said.bubble.credit ?? 'by'} ${by.name}` : ''),
               ...buttons,
             ),
           ]

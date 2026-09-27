@@ -31,14 +31,15 @@ const reader = (pose: Pose, id = 2, names: NamePoint[] = [namePoint(pose.x, pose
 });
 
 describe('bubbleViews', () => {
-  test("offers a report on someone else's words and an edit on your own", () => {
+  test("offers anyone an edit where the kind allows it, and a report on someone else's words", () => {
     const me = on(10, 6);
-    expect(bubbleViews([said(10, 5, ANN)], reader(me))[0]!.actions).toEqual(['report']);
-    expect(bubbleViews([said(10, 5, ANN)], reader(me, 1))[0]!.actions).toEqual(['edit']);
-    expect(
-      bubbleViews([said(10, 5, ANN)], { ...reader(me, 1), editable: () => false })[0]!.actions,
-    ).toEqual([]);
-    expect(bubbleViews([said(10, 5)], reader(me))[0]!.actions).toEqual([]);
+    const actions = (s: Said, r: ReturnType<typeof reader>) => bubbleViews([s], r)[0]!.actions;
+    expect(actions(said(10, 5, ANN), reader(me))).toEqual(['edit', 'report']);
+    expect(actions(said(10, 5, ANN), reader(me, 1))).toEqual(['edit']);
+    expect(actions(said(10, 5), reader(me))).toEqual(['edit']);
+    const fixed = { ...reader(me), editable: () => false };
+    expect(actions(said(10, 5, ANN), fixed)).toEqual(['report']);
+    expect(actions(said(10, 5), fixed)).toEqual([]);
   });
 
   test('shows one bubble at a time: the faced trace, else the nearest', () => {
