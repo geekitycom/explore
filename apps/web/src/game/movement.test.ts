@@ -1,10 +1,29 @@
-import { WALK_SPEED, bare, secretGarden, type Dir, type Pose } from '@explore/core';
+import {
+  WALK_SPEED,
+  bare,
+  canOccupy,
+  canWalk,
+  createRng,
+  secretGarden,
+  type Dir,
+  type Pose,
+} from '@explore/core';
 import { uniformScreen, withFeatures } from '@explore/core/testing';
 import { describe, expect, test } from 'vitest';
 import { steer, step } from './movement.ts';
 
 const at = (x: number, y: number, dir: Dir = 's'): Pose => ({ x, y, dir, moving: false });
 const held = (...dirs: Dir[]) => new Set(dirs);
+const KEY_SETS: readonly Dir[][] = [
+  ['n'],
+  ['s'],
+  ['e'],
+  ['w'],
+  ['n', 'e'],
+  ['n', 'w'],
+  ['s', 'e'],
+  ['s', 'w'],
+];
 
 describe('step', () => {
   const open = bare(uniformScreen());
@@ -27,11 +46,36 @@ describe('step', () => {
     expect(pose.y).toBeGreaterThan(6 * 16 + 8);
   });
 
-  test('reports the edge crossed', () => {
-    expect(step(open, at(2, 100), held('w'), 0.1).exit).toBe('w');
-    expect(step(open, at(318, 100), held('e'), 0.1).exit).toBe('e');
-    expect(step(open, at(100, 2), held('n'), 0.1).exit).toBe('n');
-    expect(step(open, at(100, 238), held('s'), 0.1).exit).toBe('s');
+  test('reports the edge crossed, with the feet still touching the screen', () => {
+    for (const [from, dir] of [
+      [at(2, 100), 'w'],
+      [at(318, 100), 'e'],
+      [at(100, 2), 'n'],
+      [at(100, 238), 's'],
+    ] as const) {
+      const { pose, exit } = step(open, from, held(dir), 0.1);
+      expect(exit).toBe(dir);
+      expect(canOccupy(open, pose.x, pose.y)).toBe(true);
+    }
+  });
+
+  test('every frame is a walk the server accepts, whatever the frame rate and keys', () => {
+    const rocks: [number, number, 'rock'][] = [];
+    for (let ty = 1; ty < 15; ty += 3)
+      for (let tx = 1; tx < 20; tx += 3) rocks.push([tx, ty, 'rock']);
+    const place = bare(withFeatures(uniformScreen(), rocks));
+    const start = at(136, 104);
+    expect(canOccupy(place, start.x, start.y)).toBe(true);
+    const random = createRng(1);
+    const pick = <T>(items: readonly T[]) => items[Math.floor(random() * items.length)]!;
+    let pose = start;
+    let keys = held('e');
+    for (let frame = 0; frame < 50_000; frame++) {
+      if (random() < 0.05) keys = held(...pick(KEY_SETS));
+      const { pose: next, exit } = step(place, pose, keys, 0.001 + random() * 0.099);
+      expect(canWalk(place, pose, next)).toBe(true);
+      pose = exit ? start : next;
+    }
   });
 
   test('no keys means standing still', () => {

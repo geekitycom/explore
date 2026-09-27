@@ -8,7 +8,7 @@ import {
   WALK_SPEED,
   allTraces,
   arrivalPose,
-  canOccupy,
+  canWalk,
   clientMessageSchema,
   encodeScreen,
   neighborCoord,
@@ -163,7 +163,7 @@ export function createGame(
     const elapsed = Math.min((now() - player.acceptedAt) / 1000, MAX_ELAPSED_S);
     const budget = WALK_SPEED * elapsed * SPEED_SLACK + DISTANCE_SLACK_PX;
     const distance = Math.hypot(pose.x - player.pose.x, pose.y - player.pose.y);
-    if (distance > budget || !canOccupy(player.room.place, pose.x, pose.y)) {
+    if (distance > budget || !canWalk(player.room.place, player.pose, pose)) {
       correct(player);
       return;
     }
@@ -181,6 +181,12 @@ export function createGame(
     const room = roomAt(coord, player.user.id);
     const openings = seamOpenings(player.room.place, room.place, dir);
     if (openings.length === 0) {
+      const { x, y } = player.pose;
+      player.pose = {
+        ...player.pose,
+        x: Math.min(Math.max(x, 0), SCREEN_PX_W - 1),
+        y: Math.min(Math.max(y, 0), SCREEN_PX_H - 1),
+      };
       correct(player);
       return;
     }
