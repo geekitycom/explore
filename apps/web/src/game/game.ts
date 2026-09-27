@@ -1,5 +1,6 @@
 import {
   MOVE_INTERVAL_MS,
+  canWalk,
   type Arrival,
   type BiomeCell,
   type Place,
@@ -60,9 +61,17 @@ export function startGame({
   let state: GameState = { phase: 'connecting' };
   let lastSent: Pose | undefined;
   let lastSentAt = 0;
+  let reported: Pose | undefined;
   let travelSince = 0;
   /** Why the server sent you home, kept until your portal has taken you. */
   let departReason: string | undefined;
+
+  const report = (pose: Pose, at: number) => {
+    conn.send({ t: 'move', ...pose });
+    lastSent = pose;
+    lastSentAt = at;
+    reported = pose;
+  };
 
   const hands = createHands({
     hud,
@@ -82,7 +91,10 @@ export function startGame({
         hooks.onPortal();
       if (message.t === 'refused') hands.refused(message.reason, at);
       if (message.t === 'depart') departReason = message.reason;
-      if (message.t === 'screen' || message.t === 'correct') lastSent = undefined;
+      if (message.t === 'screen' || message.t === 'correct') {
+        lastSent = undefined;
+        if (state.phase !== 'connecting') reported = state.you;
+      }
       if (message.t === 'screen' && state.phase !== 'connecting') {
         if (was === 'connecting' || message.arrival.kind !== 'none')
           hooks.onArrive(message.arrival.kind);
@@ -113,10 +125,12 @@ export function startGame({
       const { held, facing } = target
         ? steer(state.you, target)
         : { held: keys.held, facing: keys.lastPressed() };
-      const { pose, exit } = step(state.place, state.you, held, dt, facing);
+      const before = state.you;
+      const { pose, exit } = step(state.place, before, held, dt, facing);
       state = { ...state, you: pose, others: interpolate(state.others, dt) };
+      if (reported && !canWalk(state.place, reported, pose)) report(before, now);
       if (exit) {
-        conn.send({ t: 'move', ...pose });
+        report(pose, now);
         conn.send({ t: 'travel', dir: exit });
         state = { ...state, phase: 'travelling', you: { ...pose, moving: false } };
         travelSince = now;
@@ -124,9 +138,7 @@ export function startGame({
         (!lastSent || !samePose(lastSent, pose)) &&
         (now - lastSentAt >= MOVE_INTERVAL_MS || !pose.moving)
       ) {
-        conn.send({ t: 'move', ...pose });
-        lastSent = pose;
-        lastSentAt = now;
+        report(pose, now);
       }
     } else if (state.phase === 'travelling') {
       const phase = now - travelSince < TRAVEL_TIMEOUT_MS ? 'travelling' : 'playing';

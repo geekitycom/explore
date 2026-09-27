@@ -27,8 +27,11 @@ import {
   secretGarden,
   siteOf,
   type Avatar,
+  type Dir,
+  type Feature,
   type LayerId,
   type Pose,
+  type Screen,
   type ScreenCoord,
   type ScreenRecord,
   type ServerMessage,
@@ -214,6 +217,7 @@ async function fetchMap(
 }
 
 const SPAWN: Pose = { ...GARDEN_SPAWN, moving: false };
+const stand = (x: number, y: number): Pose => ({ x, y, dir: 'e', moving: false });
 const STEP_PX = 7;
 
 /** Sends move reports no farther apart than a walking player would, ending at each waypoint. */
@@ -1006,6 +1010,77 @@ describe('game', () => {
     });
     db.close();
     expect(() => game.disconnect(player)).not.toThrow();
+  });
+});
+
+describe('movement', () => {
+  const EAST = { layer: OVERWORLD, sx: 1, sy: 0 };
+
+  function standOn(screen: Screen, pose: Pose) {
+    const db = openWorldDatabase(':memory:');
+    db.prepare(
+      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version) VALUES (?, ?, ?, ?, NULL, 0, 0)',
+    ).run(EAST.layer, EAST.sx, EAST.sy, JSON.stringify(encodeScreen({ ...screen, coord: EAST })));
+    const clock = { t: 1000 };
+    const game = createGame(db, { now: () => clock.t });
+    cleanups.push(() => {
+      game.stop();
+      db.close();
+    });
+    savePlayerState(db, 1, { coord: EAST, pose }, clock.t);
+    const sent: ServerMessage[] = [];
+    const player = game.connect(
+      userNamed(1, 'alice'),
+      { send: (m) => sent.push(m), close: () => {} },
+      { role: 'owner', sessionSince: clock.t },
+    );
+    sent.length = 0;
+    const move = (x: number, y: number, dir: Dir = 'e') =>
+      game.receive(player, JSON.stringify({ t: 'move', x, y, dir, moving: true }));
+    const at = () => game.roster()[0]!.pose;
+    return { game, player, sent, clock, move, at };
+  }
+
+  const treeColumn = (tx: number, from = 0, to = 14): Screen =>
+    withFeatures(
+      uniformScreen(),
+      Array.from({ length: to - from + 1 }, (_, i): [number, number, Feature] => [
+        tx,
+        from + i,
+        'tree',
+      ]),
+    );
+
+  it('corrects a jump over a one-tile wall, however long the player stood still', () => {
+    const { sent, clock, move, at } = standOn(treeColumn(10), stand(150, 120));
+    clock.t += 1000;
+    move(185, 120);
+    expect(sent).toEqual([{ t: 'correct', x: 150, y: 120 }]);
+    expect(at()).toMatchObject({ x: 150, y: 120 });
+  });
+
+  it('corrects a walk along the outside of an edge, past what blocks the inside', () => {
+    const { sent, clock, move, at } = standOn(treeColumn(0, 5, 9), stand(8, 40));
+    for (const [x, y] of [
+      [-20, 40],
+      [-20, 100],
+      [-20, 180],
+      [8, 180],
+    ] as const) {
+      clock.t += 1000;
+      move(x, y, 's');
+    }
+    expect(sent.every((m) => m.t === 'correct')).toBe(true);
+    expect(at()).toMatchObject({ x: 8, y: 40 });
+  });
+
+  it('corrects a refused travel to a pose on the screen', () => {
+    const { sent, clock, move, game, player } = standOn(treeColumn(0, 5, 9), stand(8, 40));
+    clock.t += 100;
+    move(-3, 40, 'w');
+    expect(sent).toEqual([]);
+    game.receive(player, JSON.stringify({ t: 'travel', dir: 'w' }));
+    expect(sent).toEqual([{ t: 'correct', x: 0, y: 40 }]);
   });
 });
 
