@@ -1,4 +1,9 @@
-import { REFUSED_CLOSE_CODE, avatarSchema, displayNameSchema } from '@explore/core';
+import {
+  REFUSED_CLOSE_CODE,
+  SIGNED_OUT_CLOSE_CODE,
+  avatarSchema,
+  displayNameSchema,
+} from '@explore/core';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { Hono, type Context } from 'hono';
@@ -62,6 +67,7 @@ const password = z
 
 const REFUSED_MESSAGE = 'That world is not open to you';
 const INTERNAL_ERROR_CLOSE_CODE = 1011;
+const SIGNED_OUT_REASON = 'signed out';
 
 function failed(ws: WSContext, error: unknown): void {
   console.error(error);
@@ -207,13 +213,20 @@ export function createApp({
     return c.json(account(found.user));
   });
 
+  const socketsBySession = new Map<string, Set<WSContext>>();
+
   /** Logging out also closes the player's world to visitors, wherever else they are signed in. */
   app.post('/api/logout', (c) => {
     const token = sessionToken(c.req.header('cookie'));
     const user = sessionUser(db, c.req.header('cookie'));
     const home = user && homeWorld(db, user.id);
     if (home !== undefined) host.closeToVisitors(home);
-    if (token) deleteSession(db, token);
+    if (token) {
+      deleteSession(db, token);
+      for (const ws of socketsBySession.get(token) ?? []) {
+        ws.close(SIGNED_OUT_CLOSE_CODE, SIGNED_OUT_REASON);
+      }
+    }
     deleteCookie(c, SESSION_COOKIE, { path: '/', secure: secureCookies });
     return c.body(null, 204);
   });
@@ -225,13 +238,18 @@ export function createApp({
     await next();
   });
 
+  const entryFor = (user: User, id: string | undefined) => {
+    const parsed = worldIdSchema.safeParse(id);
+    const role = parsed.success ? admit(user, parsed.data) : undefined;
+    return parsed.success && role ? { worldId: parsed.data, role } : undefined;
+  };
+
   /** Reads `:id` from the path; a world the player may not enter, or no world at all, is 403. */
   const requireWorld = createMiddleware<Env>(async (c, next) => {
-    const parsed = worldIdSchema.safeParse(c.req.param('id'));
-    const role = parsed.success ? admit(c.get('user'), parsed.data) : undefined;
-    if (!parsed.success || !role) throw new ApiError(403, 'forbidden', REFUSED_MESSAGE);
-    c.set('worldId', parsed.data);
-    c.set('admission', role);
+    const entry = entryFor(c.get('user'), c.req.param('id'));
+    if (!entry) throw new ApiError(403, 'forbidden', REFUSED_MESSAGE);
+    c.set('worldId', entry.worldId);
+    c.set('admission', entry.role);
     await next();
   });
 
@@ -295,46 +313,63 @@ export function createApp({
     throw new ApiError(404, 'not_found', 'No such endpoint');
   });
 
+  /**
+   * The session and entry to the world are checked once the socket is open, not at the upgrade: a
+   * browser sees a refused upgrade only as close code 1006, which it cannot tell from a dropped
+   * connection.
+   */
   app.get(
     '/ws/worlds/:id',
-    requireUser,
-    nodeWs.upgradeWebSocket((c: Context<Env>) => {
-      const user = c.get('user');
-      const parsed = worldIdSchema.safeParse(c.req.param('id'));
-      const role = parsed.success ? admit(user, parsed.data) : undefined;
-      const worldId = parsed.success && role ? parsed.data : undefined;
-      let player: Player | undefined;
+    nodeWs.upgradeWebSocket((c) => {
+      const cookie = c.req.header('cookie');
+      const id = c.req.param('id');
+      let joined: { token: string; worldId: WorldId; player: Player } | undefined;
       return {
         onOpen(_event, ws) {
-          if (worldId === undefined || !role) {
+          const token = sessionToken(cookie);
+          const user = sessionUser(db, cookie);
+          if (!token || !user) {
+            ws.close(SIGNED_OUT_CLOSE_CODE, SIGNED_OUT_REASON);
+            return;
+          }
+          const entry = entryFor(user, id);
+          if (!entry) {
             ws.close(REFUSED_CLOSE_CODE, REFUSED_MESSAGE);
             return;
           }
           try {
-            player = host.connect(
-              worldId,
+            const player = host.connect(
+              entry.worldId,
               user,
               {
                 send: (message) => ws.send(JSON.stringify(message)),
                 close: (code, reason) => ws.close(code, reason),
               },
-              role,
+              entry.role,
             );
+            joined = { token, worldId: entry.worldId, player };
           } catch (error) {
             failed(ws, error);
+            return;
           }
+          const sockets = socketsBySession.get(token) ?? new Set();
+          socketsBySession.set(token, sockets.add(ws));
         },
         onMessage(event: { data: unknown }, ws) {
-          if (player && worldId !== undefined && typeof event.data === 'string') {
+          if (joined && typeof event.data === 'string') {
             try {
-              host.receive(worldId, player, event.data);
+              host.receive(joined.worldId, joined.player, event.data);
             } catch (error) {
               failed(ws, error);
             }
           }
         },
-        onClose() {
-          if (player && worldId !== undefined) host.disconnect(worldId, player);
+        onClose(_event, ws) {
+          if (!joined) return;
+          host.disconnect(joined.worldId, joined.player);
+          const sockets = socketsBySession.get(joined.token);
+          sockets?.delete(ws);
+          if (sockets?.size === 0) socketsBySession.delete(joined.token);
         },
       };
     }),
