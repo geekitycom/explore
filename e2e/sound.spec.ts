@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import type { Page } from '@playwright/test';
 import { expect, test } from './test.ts';
-import { playing, probeOutput, signUp } from './helpers.ts';
+import { playing, probeOutput, signUp, unique } from './helpers.ts';
 
 type AudioSnapshot = {
   state: string;
@@ -34,18 +34,19 @@ test('music and ambience wait for input, follow the world, and settings persist'
     if (m.type() === 'error' || m.type() === 'warning') errors.push(m.text());
   });
 
-  await signUp(page, `snd${Date.now().toString(36)}`);
+  await signUp(page, unique('snd'));
   await expect(page.getByLabel('Game world')).toBeVisible();
 
   await page.reload();
   await expect(page.getByLabel('Game world')).toBeVisible();
+  await expect.poll(async () => (await audio(page)).state).toBe('locked');
   await page.waitForTimeout(300);
-  expect((await audio(page)).state).toBe('locked');
+  expect((await audio(page)).state, 'no sound starts without a gesture').toBe('locked');
 
   await page.keyboard.press('Shift');
   await expect.poll(async () => (await audio(page)).state).toBe('running');
   await expect.poll(async () => (await audio(page)).tune).toBe('garden:1');
-  expect((await audio(page)).ambience.wind).toBeGreaterThan(0);
+  await expect.poll(async () => (await audio(page)).ambience.wind).toBeGreaterThan(0);
   await expect.poll(async () => (await audio(page)).ambienceLoaded).toContain('wind');
 
   await page.keyboard.down('ArrowDown');
@@ -67,7 +68,9 @@ test('music and ambience wait for input, follow the world, and settings persist'
   await page.screenshot({ path: 'e2e/.results/sound-panel.png' });
   await page.reload();
   await expect(page.getByLabel('Game world')).toBeVisible();
-  expect((await audio(page)).settings).toEqual({ muted: true, music: 0.2, effects: 0.7 });
+  await expect
+    .poll(async () => (await audio(page)).settings)
+    .toEqual({ muted: true, music: 0.2, effects: 0.7 });
   await page.getByRole('button', { name: 'Sound' }).click();
   await expect(page.getByLabel('Mute')).toBeChecked();
 
@@ -82,7 +85,7 @@ test('ambience plays on the effects bus and obeys mute and the effects volume', 
   });
   const level = await probeOutput(page);
 
-  await signUp(page, `amb${Date.now().toString(36)}`);
+  await signUp(page, unique('amb'));
   await playing(page);
   await expect.poll(level, { timeout: 10_000 }).toBeGreaterThan(0.002);
 

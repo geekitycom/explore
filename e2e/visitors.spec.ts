@@ -6,6 +6,7 @@ import {
   openForVisitors,
   playing,
   signUp,
+  standingStill,
   unique,
   visit,
 } from './helpers.ts';
@@ -72,6 +73,14 @@ async function watchPortals(page: Page) {
   });
 }
 
+/** Portals still playing on the page's screen. */
+const openPortals = (page: Page) =>
+  page.evaluate(
+    () =>
+      (window as unknown as { exploreState: () => { portals?: unknown[] } }).exploreState().portals
+        ?.length ?? 0,
+  );
+
 const seenPortals = (page: Page) =>
   page.evaluate(() => (window as unknown as { seenPortals: Seen[] }).seenPortals);
 
@@ -104,17 +113,18 @@ test('a friend joins with the code, both see each other on the map, and going ho
   browser,
 }) => {
   const { ann, ben, code, annName, benName } = await annAndBen(browser);
+  const spawn = (await snapshot(ben)).you!;
   await ben.keyboard.down('ArrowRight');
-  await ben.waitForTimeout(400);
+  await expect.poll(async () => (await snapshot(ben)).you!.x).toBeGreaterThan(spawn.x + 20);
   await ben.keyboard.up('ArrowRight');
-  await ben.waitForTimeout(300);
+  await standingStill(ben);
   const stoodAtHome = (await snapshot(ben)).you;
 
   await visit(ben, code);
-  expect(await where(ben)).toMatchObject({ visiting: true, hostName: annName });
+  await expect.poll(() => where(ben)).toMatchObject({ visiting: true, hostName: annName });
   await expect(hint(ben)).toHaveText(`You arrive in ${annName}'s world.`);
   await expect.poll(async () => (await snapshot(ann)).others).toEqual([benName]);
-  expect((await snapshot(ben)).others).toEqual([annName]);
+  await expect.poll(async () => (await snapshot(ben)).others).toEqual([annName]);
   await ben.screenshot({ path: 'e2e/.results/visit-arrived.png' });
 
   await ben.getByRole('link', { name: 'Map' }).click();
@@ -133,7 +143,7 @@ test('a friend joins with the code, both see each other on the map, and going ho
   await ben.getByRole('button', { name: 'Go home' }).click();
   await expect(ben).toHaveURL(/\/$/);
   await expect.poll(async () => (await snapshot(ben)).phase).toBe('playing');
-  expect(await where(ben)).toMatchObject({ visiting: false });
+  await expect.poll(() => where(ben)).toMatchObject({ visiting: false });
   expect((await snapshot(ben)).you).toEqual(stoodAtHome);
   await expect(ben.locator('.wake')).toHaveCount(0);
   await expect.poll(async () => (await snapshot(ann)).others).toEqual([]);
@@ -148,7 +158,7 @@ test('a visitor comes and goes through a portal both players see, and waits to a
   await visit(ben, code);
   await ben.keyboard.down('ArrowRight');
   await expect.poll(async () => kinds(await seenPortals(ann))).toEqual([`arrive ${benName}`]);
-  await ben.waitForTimeout(2200);
+  await expect.poll(() => openPortals(ben)).toBe(0);
   await ben.keyboard.up('ArrowRight');
   const arriving = (await seenPortals(ben)).filter((s) => s.kind === 'arrive');
   expect(kinds(arriving)).toEqual(['arrive you']);
@@ -169,14 +179,14 @@ test('a visitor comes and goes through a portal both players see, and waits to a
   const leaving = (await seenPortals(ben)).filter((s) => s.kind === 'depart');
   expect(Math.max(...leaving.map((s) => s.elapsed))).toBeGreaterThan(1500);
   await expect.poll(async () => (await snapshot(ben)).phase).toBe('playing');
-  expect(await where(ben)).toMatchObject({ visiting: false });
+  await expect.poll(() => where(ben)).toMatchObject({ visiting: false });
 });
 
 test('a reload while visiting shows no portal to anyone', async ({ browser }) => {
   const { ann, ben, code, benName } = await annAndBen(browser);
   await visit(ben, code);
   await expect.poll(async () => (await snapshot(ann)).others).toEqual([benName]);
-  await ann.waitForTimeout(2200);
+  await expect.poll(() => openPortals(ann)).toBe(0);
   await watchPortals(ann);
 
   await ben.reload();
@@ -184,8 +194,8 @@ test('a reload while visiting shows no portal to anyone', async ({ browser }) =>
   await expect.poll(async () => (await snapshot(ann)).others).toEqual([benName]);
   await watchPortals(ben);
   await ben.waitForTimeout(500);
-  expect(await seenPortals(ann)).toEqual([]);
-  expect(await seenPortals(ben)).toEqual([]);
+  expect(await seenPortals(ann), 'no portal opens for a reload').toEqual([]);
+  expect(await seenPortals(ben), 'no portal opens for a reload').toEqual([]);
 });
 
 test('a code from an earlier opening stops working once the world is reopened', async ({
@@ -208,7 +218,7 @@ test('a code from an earlier opening stops working once the world is reopened', 
   await dialog.getByRole('button', { name: 'Go' }).click();
   await expect(dialog).toBeHidden();
   await playing(ben);
-  expect(await where(ben)).toMatchObject({ visiting: true });
+  await expect.poll(() => where(ben)).toMatchObject({ visiting: true });
 });
 
 test('closing the world sends every visitor home with a message', async ({ browser }) => {

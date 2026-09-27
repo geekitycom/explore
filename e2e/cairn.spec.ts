@@ -1,6 +1,13 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './test.ts';
-import { fillPockets, playing, signUp, unique, type RockVariant } from './helpers.ts';
+import {
+  fillPockets,
+  playing,
+  signUp,
+  standingStill,
+  unique,
+  type RockVariant,
+} from './helpers.ts';
 
 type Pose = { x: number; y: number; dir: string };
 type Stone = { stone: string; by?: number };
@@ -93,7 +100,9 @@ test('stones are picked up, carried, put down and stacked into a cairn', async (
 
   await page.keyboard.press('KeyE');
   await expect.poll(() => stackAt(page)).toBeUndefined();
-  expect((await seen(page)).inventory.map((s) => s.variant)).toEqual(['sand', 'stone', 'granite']);
+  await expect
+    .poll(async () => (await seen(page)).inventory.map((s) => s.variant))
+    .toEqual(['sand', 'stone', 'granite']);
 
   for (let n = 1; n <= 3; n++) {
     await page.keyboard.press('Digit1');
@@ -113,7 +122,7 @@ test('stones are picked up, carried, put down and stacked into a cairn', async (
     'sand',
     'stone',
   ]);
-  expect((await seen(page)).inventory).toEqual([]);
+  await expect.poll(async () => (await seen(page)).inventory).toEqual([]);
 
   await page.keyboard.press('KeyE');
   await expect.poll(() => hint(page)).toContain('Stones in a cairn stay put.');
@@ -123,7 +132,7 @@ test('stones are picked up, carried, put down and stacked into a cairn', async (
     .poll(async () => (await seen(page)).you.x >= (SPOT.tx + 1) * TILE + 10, { intervals: [10] })
     .toBe(true);
   await page.keyboard.up('ArrowRight');
-  await page.waitForTimeout(700);
+  await standingStill(page);
   await page.screenshot({ path: 'e2e/.results/cairn-mixed.png' });
   await page
     .getByLabel('Game world')

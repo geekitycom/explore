@@ -87,6 +87,23 @@ const phase = (page: Page) =>
     () => (window as unknown as { exploreState?: () => { phase: string } }).exploreState?.().phase,
   );
 
+/**
+ * Waits until the player stands still with the game playing, for a screenshot or a check that
+ * needs them settled rather than mid-step or mid-travel.
+ */
+export async function standingStill(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const s = (
+          window as unknown as { exploreState?: () => { phase: string; you?: { moving: boolean } } }
+        ).exploreState?.();
+        return s?.phase === 'playing' && s.you?.moving === false;
+      }),
+    )
+    .toBe(true);
+}
+
 /** Waits until the player can move, first waking them up when the session is a new one. */
 export async function playing(page: Page) {
   await expect.poll(() => phase(page), { intervals: [50] }).toMatch(/^(waking|playing)$/);

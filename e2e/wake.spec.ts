@@ -2,7 +2,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './test.ts';
 import { GARDEN_SPAWN } from '../packages/core/src/index.ts';
-import { playing, signUp, testHook, unique, wakeUp } from './helpers.ts';
+import { playing, signUp, standingStill, testHook, unique, wakeUp } from './helpers.ts';
 import { SESSION_TIMEOUT_MS } from './session.ts';
 
 const MESSAGE =
@@ -48,10 +48,9 @@ const resume = (page: Page) =>
 
 async function walkRight(page: Page) {
   await page.keyboard.down('ArrowRight');
-  await page.waitForTimeout(400);
-  await page.keyboard.up('ArrowRight');
   await expect.poll(async () => (await snapshot(page)).you!.x).toBeGreaterThan(SPAWN.x + 20);
-  await page.waitForTimeout(300);
+  await page.keyboard.up('ArrowRight');
+  await standingStill(page);
 }
 
 test('a new session opens its eyes on the garden and holds still until Space', async ({ page }) => {
@@ -73,8 +72,12 @@ test('a new session opens its eyes on the garden and holds still until Space', a
   await page.keyboard.down('ArrowUp');
   await page.waitForTimeout(500);
   await page.keyboard.up('ArrowUp');
-  expect(await snapshot(page)).toEqual({ phase: 'waking', coord: GARDEN, you: SPAWN });
-  expect(await tune(page)).toBeUndefined();
+  expect(await snapshot(page), 'the player holds still until Space').toEqual({
+    phase: 'waking',
+    coord: GARDEN,
+    you: SPAWN,
+  });
+  expect(await tune(page), 'no music plays until Space').toBeUndefined();
 
   await wakeUp(page);
   await expect(page.locator('.wake')).toHaveCount(0);

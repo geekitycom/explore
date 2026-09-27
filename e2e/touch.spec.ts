@@ -162,7 +162,7 @@ test('a player on an iPad plays by touch alone', async ({ page }) => {
   await touch.move(await client(page, -20, 100));
   await touch.up(await client(page, -20, 100));
   await page.waitForTimeout(300);
-  expect(await rockAt(page, SPOT)).toBeUndefined();
+  expect(await rockAt(page, SPOT), 'a drag off the world puts nothing down').toBeUndefined();
 
   const spot = await tileCentre(page, SPOT);
   await page.touchscreen.tap(spot.x, spot.y);
@@ -195,14 +195,14 @@ test('a player on an iPad plays by touch alone', async ({ page }) => {
   await expect.poll(async () => (await seen(page)).you!.moving).toBe(false);
   const stopped = (await seen(page)).you!.x;
   await page.waitForTimeout(300);
-  expect((await seen(page)).you!.x).toBe(stopped);
+  expect((await seen(page)).you!.x, 'the player stays put once the finger lifts').toBe(stopped);
 
   await page.getByRole('link', { name: 'Map' }).tap();
   await expect(page).toHaveURL(/\/map$/);
   await page.getByRole('link', { name: 'Back to the game' }).tap();
   await expect(page).not.toHaveURL(/\/map$/);
   await expect(page.locator('.map-overlay')).toHaveCount(0);
-  expect(await phase(page)).toBe('playing');
+  await expect.poll(() => phase(page)).toBe('playing');
   expect(errors).toEqual([]);
 });
 

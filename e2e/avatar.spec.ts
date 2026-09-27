@@ -64,7 +64,7 @@ test('a player renames and restyles in game and others on the screen see it live
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog).toBeHidden();
 
-  expect(await ownAvatar(pa)).toMatchObject({ hairStyle: 'bun', shirt: 'purple' });
+  await expect.poll(() => ownAvatar(pa)).toMatchObject({ hairStyle: 'bun', shirt: 'purple' });
   await expect
     .poll(() => othersAvatars(pb))
     .toEqual([{ name: 'Annie', hairStyle: 'bun', shirt: 'purple' }]);
@@ -85,7 +85,7 @@ test('a player renames and restyles in game and others on the screen see it live
     'aria-pressed',
     'true',
   );
-  expect(await ownAvatar(pa)).toMatchObject({ hairStyle: 'bun', shirt: 'purple' });
+  await expect.poll(() => ownAvatar(pa)).toMatchObject({ hairStyle: 'bun', shirt: 'purple' });
 
   await a.close();
   await b.close();
@@ -110,7 +110,7 @@ test('a player renames themselves from the game bar and keeps the name', async (
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog).toBeHidden();
   await expect(who).toHaveText('Andy');
-  expect(await ownDisplayName(page)).toBe('Andy');
+  await expect.poll(() => ownDisplayName(page)).toBe('Andy');
 
   await page.reload();
   await playing(page);
