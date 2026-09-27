@@ -185,10 +185,9 @@ export function createApp({
   app.post('/api/login', async (c) => {
     countAttempt(c, loginsByAddress);
     const body = await parseBody(c, loginBody);
-    // Keyed on the address too, so guesses from elsewhere cannot lock the owner out.
-    const failureKey = `${clientAddress(c)} ${body.username.toLowerCase()}`;
-    throttle(c, failedLogins, failureKey);
-    failedLogins.hit(failureKey);
+    const addressAndUsername = `${clientAddress(c)} ${body.username.toLowerCase()}`;
+    throttle(c, failedLogins, addressAndUsername);
+    failedLogins.hit(addressAndUsername);
     const found = findUserCredentials(db, body.username);
     const ok = found
       ? await verifyPassword(body.password, found.passwordHash)
@@ -196,7 +195,7 @@ export function createApp({
     if (!found || !ok) {
       throw new ApiError(401, 'invalid_credentials', 'Wrong username or password');
     }
-    failedLogins.reset(failureKey);
+    failedLogins.reset(addressAndUsername);
     startSession(c, found.user);
     return c.json(account(found.user));
   });
