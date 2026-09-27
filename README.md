@@ -63,7 +63,11 @@ The `LLM_` settings are under [Text generation](#text-generation).
 
 ## Text generation
 
-The server can write short game text, such as epitaphs, with a language model through any OpenAI-compatible chat completions API. It is optional. With no provider set, the game uses its built-in text. Each grave shows a built-in epitaph from the world seed until the model has written its own, once, when a player first opens its screen; a failed try is retried after a restart. The server prints which model it uses at startup and never logs or sends the API key to clients.
+The server can write short game text, such as epitaphs and landmark names, with a language model through any OpenAI-compatible chat completions API. It is optional. With no provider set, the game uses its built-in text. The server prints which model it uses at startup and never logs or sends the API key to clients.
+
+- Each grave shows a built-in epitaph from the world seed until the model has written its own, once, when a player first opens its screen. A failed try is retried the next time the world opens.
+- Each landmark's signpost shows a built-in name and line from the world seed the first time anyone sees its screen. The model then writes the landmark's own name and line once, from the kind of place, its land, and what stands out on its screen, and everyone on the screen sees them without reloading. A reply that is empty, too long, crude, or not a name is dropped and the built-in words stay. The land's words carry no byline.
+- Anyone in a world may rename one of its landmarks, or take a player's name off so the land's name shows again. A name a player saves reads "named by" that player. With a provider set, the rename dialog has **Suggest a name**, which fills the fields with a new name from the model, different from the one shown. Only **Save** changes the signpost. Each player may ask for six suggestions every five minutes, across all worlds on the server, one at a time.
 
 | Variable         | What it sets                                                                                                   |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -87,27 +91,27 @@ LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=google/gemini-3.8-flash LLM_
 
 ## Scripts
 
-| Script                                     | What it does                                                                                                                                                                                                    |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                                 | Server with watch mode, plus the Vite dev server                                                                                                                                                                |
-| `pnpm build`                               | Build every package that has a build step                                                                                                                                                                       |
-| `pnpm start`                               | Start the server                                                                                                                                                                                                |
-| `pnpm lint`                                | ESLint with type-aware rules                                                                                                                                                                                    |
-| `pnpm lint:art`                            | Check the shipped art against the style guide (doc-5). `--fix` remaps off-palette colours                                                                                                                       |
-| `pnpm format` / `pnpm format:check`        | Prettier write or check                                                                                                                                                                                         |
-| `pnpm typecheck`                           | `tsc` in every package                                                                                                                                                                                          |
-| `pnpm test`                                | Vitest across all packages                                                                                                                                                                                      |
-| `pnpm test:watch`                          | Vitest in watch mode                                                                                                                                                                                            |
-| `pnpm e2e`                                 | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                                                                     |
-| `pnpm screenshots`                         | Retake the README screenshots in `docs/screenshots` from the built app, with its own server and data directory                                                                                                  |
-| `pnpm docker:build-push [TAG]`             | Run the quality gates, then build the Docker image for amd64 and arm64 and push it to ghcr.io. See [Deploying with Docker](#deploying-with-docker)                                                              |
-| `pnpm docker:dry-run [TAG]`                | Print the image, version, and tags `docker:build-push` would push, and do nothing else                                                                                                                          |
-| `pnpm docker:smoke [IMAGE]`                | Build the image for amd64 (or take `IMAGE`), boot it, sign up, play, restart it, and log in again                                                                                                               |
-| `pnpm world:wipe --yes --owner <username>` | Delete one world's generated screens, traces, saved positions, and inventories (accounts stay), roll it a new seed, and restore its garden. Stop the server first. `--world <id>` names the world file directly |
-| `pnpm epitaphs`                            | List every grave's epitaph in one world, named with `--owner <username>` or `--world <id>`. `--set sx,sy tx,ty "words"` replaces one, `--clear sx,sy tx,ty` puts back its built-in epitaph for good             |
-| `pnpm names`                               | List every named landmark in one world (`--owner` or `--world`) with its reports. `--clear sx,sy` takes the name off a landmark                                                                                 |
-| `pnpm palettes`                            | Rebuild the biome palettes in `packages/core/src/biome-photo-palettes.ts` from the reference photos                                                                                                             |
-| `pnpm --filter @explore/core preview`      | Render a large area of the world to a PNG for tuning generation                                                                                                                                                 |
+| Script                                     | What it does                                                                                                                                                                                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                 | Server with watch mode, plus the Vite dev server                                                                                                                                                                                      |
+| `pnpm build`                               | Build every package that has a build step                                                                                                                                                                                             |
+| `pnpm start`                               | Start the server                                                                                                                                                                                                                      |
+| `pnpm lint`                                | ESLint with type-aware rules                                                                                                                                                                                                          |
+| `pnpm lint:art`                            | Check the shipped art against the style guide (doc-5). `--fix` remaps off-palette colours                                                                                                                                             |
+| `pnpm format` / `pnpm format:check`        | Prettier write or check                                                                                                                                                                                                               |
+| `pnpm typecheck`                           | `tsc` in every package                                                                                                                                                                                                                |
+| `pnpm test`                                | Vitest across all packages                                                                                                                                                                                                            |
+| `pnpm test:watch`                          | Vitest in watch mode                                                                                                                                                                                                                  |
+| `pnpm e2e`                                 | Playwright end-to-end tests against a fresh server, in the installed Chrome                                                                                                                                                           |
+| `pnpm screenshots`                         | Retake the README screenshots in `docs/screenshots` from the built app, with its own server and data directory                                                                                                                        |
+| `pnpm docker:build-push [TAG]`             | Run the quality gates, then build the Docker image for amd64 and arm64 and push it to ghcr.io. See [Deploying with Docker](#deploying-with-docker)                                                                                    |
+| `pnpm docker:dry-run [TAG]`                | Print the image, version, and tags `docker:build-push` would push, and do nothing else                                                                                                                                                |
+| `pnpm docker:smoke [IMAGE]`                | Build the image for amd64 (or take `IMAGE`), boot it, sign up, play, restart it, and log in again                                                                                                                                     |
+| `pnpm world:wipe --yes --owner <username>` | Delete one world's generated screens, traces, saved positions, and inventories (accounts stay), roll it a new seed, and restore its garden. Stop the server first. `--world <id>` names the world file directly                       |
+| `pnpm epitaphs`                            | List every grave's epitaph in one world, named with `--owner <username>` or `--world <id>`. `--set sx,sy tx,ty "words"` replaces one, `--clear sx,sy tx,ty` puts back its built-in epitaph for good                                   |
+| `pnpm names`                               | List every landmark in one world (`--owner` or `--world`): the land's name and where it came from, any player's name, and reports. `--restore sx,sy` takes a player's name off, `--reseed sx,sy` puts back the built-in name for good |
+| `pnpm palettes`                            | Rebuild the biome palettes in `packages/core/src/biome-photo-palettes.ts` from the reference photos                                                                                                                                   |
+| `pnpm --filter @explore/core preview`      | Render a large area of the world to a PNG for tuning generation                                                                                                                                                                       |
 
 ## Testing
 
@@ -122,6 +126,8 @@ Every unit test has a budget of 1000 ms. A test that takes longer fails with a m
 - Poll with `vi.waitFor(check, { interval: 1 })`. The default interval is 50 ms.
 
 Only a test that measures time belongs in `*.perf.test.ts`.
+
+`pnpm e2e` starts `e2e/llm-stub.ts` beside the server as its language model. The stub names signposts from a fixed list and fails every other prompt, so graves keep their built-in epitaphs.
 
 ### Screenshots
 
@@ -221,7 +227,7 @@ These steps assume a Linux server with Docker, dockge's stack directory `/opt/st
    # A player with no connection for this long wakes up in the garden next time.
    # SESSION_TIMEOUT_MS=600000
 
-   # Optional epitaph text generation. See "Text generation" above.
+   # Optional text generation for epitaphs and landmark names. See "Text generation" above.
    # LLM_BASE_URL=https://openrouter.ai/api/v1
    # LLM_MODEL=google/gemini-3.8-flash
    # LLM_API_KEY=sk-or-...
