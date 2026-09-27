@@ -34,6 +34,7 @@ import {
   type ServerMessage,
   type Tile,
 } from '@explore/core';
+import { uniformScreen, withFeatures } from '@explore/core/testing';
 import { serve } from '@hono/node-server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
@@ -256,6 +257,9 @@ async function expectOnlyMovesPending(client: Client) {
   expect((await nextAfterMoves(client)).t).toBe('correct');
 }
 
+const closedWithin = (client: Client) =>
+  Promise.race([client.closed, new Promise((resolve) => setTimeout(resolve, 500, 'open'))]);
+
 async function travelEast(client: Client) {
   walk(client, SPAWN, ...TO_EAST_EDGE);
   client.send({ t: 'travel', dir: 'e' });
@@ -418,6 +422,75 @@ describe('world socket', () => {
     await nextOf(alice, 'screen');
     alice.send({ t: 'travel', dir: 'e' });
     expect(await alice.next()).toEqual({ t: 'correct', x: SPAWN.x, y: SPAWN.y });
+  });
+
+  it('refuses a seam with no opening and loads the screen beyond fresh for the next arrival', async () => {
+    const { base, db } = await start();
+    const east = { layer: OVERWORLD, sx: 1, sy: 0 };
+    const walled = withFeatures(
+      { ...uniformScreen(), coord: east },
+      Array.from({ length: 15 }, (_, ty): [number, number, 'tree'] => [0, ty, 'tree']),
+    );
+    db.prepare(
+      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version) VALUES (?, 1, 0, ?, NULL, 0, 0)',
+    ).run(OVERWORLD, JSON.stringify(encodeScreen(walled)));
+    const alice = await connect(base, await signup(base, 'alice'));
+    await nextOf(alice, 'screen');
+    const edge = walk(alice, SPAWN, ...TO_EAST_EDGE);
+    alice.send({ t: 'travel', dir: 'e' });
+    expect(await alice.next()).toEqual({ t: 'correct', ...edge });
+
+    const probe = { kind: 'probe', tx: 5, ty: 5, by: 2 };
+    db.prepare(
+      `INSERT INTO traces (layer, sx, sy, tx, ty, kind, data, updated_by, updated_at)
+       VALUES (?, 1, 0, 5, 5, 'probe', ?, NULL, 0)`,
+    ).run(OVERWORLD, JSON.stringify(probe));
+    const bobCookie = await signup(base, 'bob');
+    savePlayerState(db, 2, { coord: east, pose: { x: 120, y: 120, dir: 's', moving: false } });
+    const bob = await connect(base, bobCookie);
+    const arrival = await nextOf(bob, 'screen');
+    expect(arrival.screen).toMatchObject({ sx: 1, sy: 0 });
+    expect(arrival.traces).toContainEqual(probe);
+  });
+
+  it('closes the socket of a traveller whose arrival fails, leaving them on the screen they left', async () => {
+    const { base, db, host } = await start();
+    const aliceCookie = await signup(base, 'alice');
+    const alice = await connect(base, aliceCookie);
+    const bob = await connect(base, await signup(base, 'bob'));
+    await nextOf(alice, 'screen');
+    await nextOf(bob, 'screen');
+    await nextOf(alice, 'join');
+    await travelEast(bob);
+    await nextAfterMoves(alice);
+
+    const edge = walk(alice, SPAWN, ...TO_EAST_EDGE);
+    db.exec('PRAGMA query_only = ON');
+    alice.send({ t: 'travel', dir: 'e' });
+    expect(await closedWithin(alice)).toMatchObject({ code: 1011 });
+    db.exec('PRAGMA query_only = OFF');
+    await expectOnlyMovesPending(bob);
+    expect(
+      host
+        .open(ALICE_WORLD)
+        .game.roster()
+        .map((p) => p.id),
+    ).toEqual([2]);
+
+    const again = await connect(base, aliceCookie);
+    const resumed = await nextOf(again, 'screen');
+    expect(resumed.screen).toMatchObject({ sx: 0, sy: 0 });
+    expect(resumed.you).toMatchObject(edge);
+  });
+
+  it('closes the socket of a player who fails to enter the world', async () => {
+    const { base, db, host } = await start();
+    const cookie = await signup(base, 'alice');
+    db.exec('PRAGMA query_only = ON');
+    const alice = await connect(base, cookie);
+    expect(await closedWithin(alice)).toMatchObject({ code: 1011 });
+    db.exec('PRAGMA query_only = OFF');
+    expect(host.open(ALICE_WORLD).game.playerCount()).toBe(0);
   });
 
   it('corrects moves into blocked tiles and moves faster than the speed cap', async () => {

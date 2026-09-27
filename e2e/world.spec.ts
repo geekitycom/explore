@@ -79,3 +79,21 @@ test('walking off an edge opens a new screen that matches on return', async ({ p
   await page.keyboard.up('ArrowUp');
   expect((await snapshot(page)).you!.y).toBeGreaterThan(200);
 });
+
+test('a travel the server never answers returns you to play where you stood', async ({ page }) => {
+  await page.routeWebSocket(/\/ws\/worlds\//, (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => {
+      if (!String(message).includes('"t":"travel"')) server.send(message);
+    });
+  });
+  await enter(page, unique('dan'));
+
+  await page.keyboard.down('ArrowDown');
+  await expect
+    .poll(async () => (await snapshot(page)).phase, { intervals: [20] })
+    .toBe('travelling');
+  await page.keyboard.up('ArrowDown');
+  await expect.poll(async () => (await snapshot(page)).phase, { timeout: 10_000 }).toBe('playing');
+  expect((await snapshot(page)).coord).toEqual({ layer: 'overworld', sx: 0, sy: 0 });
+});
