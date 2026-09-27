@@ -176,14 +176,14 @@ const PHRASES: readonly ((name: string) => string)[] = [
 const hashOf = (world: World, coord: ScreenCoord, { tx, ty }: Tile) =>
   tileHash(coord, tx, ty, world.seed);
 
-/** Who lies in a grave, the same for every player of a world. */
-export const graveName = (world: World, coord: ScreenCoord, tile: Tile): string =>
-  NAMES[hashOf(world, coord, tile) % NAMES.length]!;
-
 /** The epitaph a grave shows until the language model writes one, or when it cannot. */
-export function seedEpitaph(world: World, coord: ScreenCoord, tile: Tile): string {
-  const phrase = PHRASES[(hashOf(world, coord, tile) >>> 8) % PHRASES.length]!;
-  return phrase(graveName(world, coord, tile));
+export function seedEpitaph(
+  world: World,
+  coord: ScreenCoord,
+  grave: Tile & { readonly name: string },
+): string {
+  const phrase = PHRASES[(hashOf(world, coord, grave) >>> 8) % PHRASES.length]!;
+  return phrase(grave.name);
 }
 
 /**
@@ -193,11 +193,15 @@ export function seedEpitaph(world: World, coord: ScreenCoord, tile: Tile): strin
 export const EPITAPH_SOURCES = ['pending', 'seed', 'model', 'admin'] as const;
 
 const fields = {
+  name: z.string().min(1),
   text: z.string().min(1).max(EPITAPH_MAX),
   source: z.enum(EPITAPH_SOURCES),
 };
 
-/** The words on a grave. Every grave gets one when its screen opens; the server may rewrite it. */
+/**
+ * Who lies in a grave and the words on it. Every grave gets one when its screen opens, naming
+ * its person from `NAMES` for good; the server may rewrite the words, never the name.
+ */
 export const epitaph: TraceKind<'epitaph', typeof fields, never, never> = traceKind({
   kind: 'epitaph',
   fields,
@@ -212,8 +216,11 @@ export const epitaph: TraceKind<'epitaph', typeof fields, never, never> = traceK
       for (let tx = 0; tx < SCREEN_W; tx++) {
         if (featureAt(place.screen, tx, ty) !== 'grave') continue;
         if (traceAt(place, { tx, ty }, 'epitaph')) continue;
-        const text = seedEpitaph(world, coord, { tx, ty });
-        puts.push({ put: { kind: 'epitaph' as const, tx, ty, text, source: 'pending' as const } });
+        const grave = { tx, ty, name: NAMES[hashOf(world, coord, { tx, ty }) % NAMES.length]! };
+        const text = seedEpitaph(world, coord, grave);
+        puts.push({
+          put: { kind: 'epitaph' as const, ...grave, text, source: 'pending' as const },
+        });
       }
     }
     return puts;

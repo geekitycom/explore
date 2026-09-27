@@ -8,7 +8,7 @@ import { bubblesAt } from '../act.ts';
 import { DAY_MS } from '../fields.ts';
 import { EMPTY_INVENTORY } from '../inventory.ts';
 import type { Trace } from '../registry.ts';
-import { EPITAPH_MAX, epitaph, seedEpitaph } from './epitaph.ts';
+import { EPITAPH_MAX, NAMES, epitaph, seedEpitaph } from './epitaph.ts';
 
 const GRAVES: [number, number][] = [
   [11, 7],
@@ -30,11 +30,15 @@ describe('settling epitaphs', () => {
       expect.arrayContaining(GRAVES) as unknown,
     );
     expect(epitaphs(place)).toHaveLength(GRAVES.length);
-    for (const trace of epitaphs(place)) {
-      expect(trace).toMatchObject({
-        source: 'pending',
-        text: seedEpitaph(world, screen.coord, trace),
-      });
+  });
+
+  test('names each new grave from the name list and carves that stored name into its seed epitaph', () => {
+    for (const trace of epitaphs(settled(placeOf(screen, [])))) {
+      if (trace.kind !== 'epitaph') throw new Error('not an epitaph');
+      expect(NAMES).toContain(trace.name);
+      expect(trace.source).toBe('pending');
+      expect(trace.text).toContain(trace.name);
+      expect(trace.text).toBe(seedEpitaph(world, screen.coord, trace));
     }
   });
 
@@ -43,6 +47,7 @@ describe('settling epitaphs', () => {
       kind: 'epitaph',
       tx: 11,
       ty: 7,
+      name: 'Quentin',
       text: 'Gone fishing',
       source: 'model',
     };
@@ -65,7 +70,11 @@ describe('settling epitaphs', () => {
     for (let sx = 0; sx < 40; sx++) {
       for (const [tx, ty] of GRAVES) {
         const coord = { layer: OVERWORLD, sx, sy: 0 };
-        expect(seedEpitaph(world, coord, { tx, ty }).length).toBeLessThanOrEqual(EPITAPH_MAX);
+        for (const name of NAMES) {
+          expect(seedEpitaph(world, coord, { tx, ty, name }).length).toBeLessThanOrEqual(
+            EPITAPH_MAX,
+          );
+        }
       }
     }
   });
@@ -85,7 +94,14 @@ describe('a grave bubble', () => {
     }).filter((s) => s.tile.tx === 11 && s.tile.ty === 7);
 
   test('reads the epitaph, and who left flowers on its second line while they last', () => {
-    const words: Trace = { kind: 'epitaph', tx: 11, ty: 7, text: 'Gone fishing', source: 'model' };
+    const words: Trace = {
+      kind: 'epitaph',
+      tx: 11,
+      ty: 7,
+      name: 'Quentin',
+      text: 'Gone fishing',
+      source: 'model',
+    };
     const flowers: Trace = {
       kind: 'flowers',
       tx: 11,
@@ -112,7 +128,14 @@ describe('a grave bubble', () => {
     for (let ty = 5; ty <= 9; ty++)
       for (let tx = 9; tx <= 13; tx++)
         if (tx !== 11 || ty !== 7)
-          graves.push({ kind: 'epitaph', tx, ty, text: `${tx},${ty}`, source: 'model' });
+          graves.push({
+            kind: 'epitaph',
+            tx,
+            ty,
+            name: 'Ada',
+            text: `${tx},${ty}`,
+            source: 'model',
+          });
     graves.push({
       kind: 'flowers',
       tx: 10,

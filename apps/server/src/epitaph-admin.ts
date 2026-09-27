@@ -3,7 +3,7 @@ import { WORLD_USAGE, openNamedWorld } from './admin.ts';
 import { listEpitaphs, setEpitaph } from './epitaphs.ts';
 
 const USAGE = `usage: pnpm epitaphs (--world <id> | --owner <username>) [--set <sx>,<sy> <tx>,<ty> <text> | --clear <sx>,<sy> <tx>,<ty>] [--layer <layer>]
-  Lists every grave's epitaph in one world with who wrote it.
+  Lists every grave in one world: who lies there, its epitaph, and who wrote it.
 ${WORLD_USAGE}
   --set     replaces the epitaph on grave tx,ty of screen sx,sy (at most ${EPITAPH_MAX} characters)
   --clear   puts that grave's seed epitaph back for good`;
@@ -42,8 +42,10 @@ if (screen && tile) {
   );
 } else {
   const epitaphs = listEpitaphs(db);
-  for (const { coord, tile: at, text: words, source } of epitaphs) {
-    console.log(`${coord.layer} ${coord.sx},${coord.sy} ${at.tx},${at.ty}  [${source}] ${words}`);
+  for (const { coord, tile: at, name, text: words, source } of epitaphs) {
+    console.log(
+      `${coord.layer} ${coord.sx},${coord.sy} ${at.tx},${at.ty}  ${name}  [${source}] ${words}`,
+    );
   }
   if (epitaphs.length === 0) console.log('No grave has an epitaph yet.');
 }

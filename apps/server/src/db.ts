@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { nameUnnamedGraves } from './epitaphs.ts';
 import { ensureGarden, upgradeScreenRecords } from './world.ts';
 
 declare const kind: unique symbol;
@@ -111,15 +112,18 @@ export function openMainDatabase(path: string): MainDb {
 }
 
 /**
- * Opens a world file, applies pending migrations, puts the current garden in, and lifts stored
- * screens to the current record version. A wipe skips the lift, so a record that cannot be
- * lifted never blocks the reset.
+ * Opens a world file, applies pending migrations, puts the current garden in, lifts stored
+ * screens to the current record version, and names graves stored before names were. A wipe
+ * skips the lifts, so a record that cannot be lifted never blocks the reset.
  */
 export function openWorldDatabase(path: string, { upgradeRecords = true } = {}): WorldDb {
   const db = open(path) as WorldDb;
   migrate(db, worldMigrations);
   ensureGarden(db);
-  if (upgradeRecords) upgradeScreenRecords(db);
+  if (upgradeRecords) {
+    upgradeScreenRecords(db);
+    nameUnnamedGraves(db);
+  }
   return db;
 }
 

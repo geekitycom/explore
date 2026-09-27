@@ -2,10 +2,10 @@ import type { WorldDb } from './db.ts';
 import {
   EPITAPH_MAX,
   LANDMARK_NOUNS,
-  graveName,
   landmarkAround,
   layerIdSchema,
   seedEpitaph,
+  tileHash,
   traceSchema,
   type Biome,
   type ScreenCoord,
@@ -52,7 +52,7 @@ export const epitaphScribe: Scribe<TraceNamed<'epitaph'>> = {
   waiting: (grave) => grave.source === 'pending',
   request: (grave, world, { coord, biome }) => {
     const ground = landmarkAround(world, coord, grave);
-    return epitaphPrompt(graveName(world, coord, grave), biome, ground && LANDMARK_NOUNS[ground]);
+    return epitaphPrompt(grave.name, biome, ground && LANDMARK_NOUNS[ground]);
   },
   written: (grave, reply) => {
     const text = cleanEpitaph(reply);
@@ -62,7 +62,13 @@ export const epitaphScribe: Scribe<TraceNamed<'epitaph'>> = {
 
 type Row = { layer: string; sx: number; sy: number; tx: number; ty: number; data: string };
 
-export type StoredEpitaph = { coord: ScreenCoord; tile: Tile; text: string; source: string };
+export type StoredEpitaph = {
+  coord: ScreenCoord;
+  tile: Tile;
+  name: string;
+  text: string;
+  source: string;
+};
 
 const epitaphOf = (row: Row) => {
   const parsed = traceSchema.safeParse(JSON.parse(row.data));
@@ -84,6 +90,7 @@ export function listEpitaphs(db: WorldDb): StoredEpitaph[] {
       {
         coord: { layer: layerIdSchema.parse(layer), sx, sy },
         tile: { tx, ty },
+        name: trace.name,
         text: trace.text,
         source: trace.source,
       },
@@ -114,11 +121,80 @@ export function setEpitaph(
   if (!trace) return undefined;
   const next: Epitaph =
     text === undefined
-      ? { ...trace, text: seedEpitaph(loadWorld(db), coord, tile), source: 'seed' }
+      ? { ...trace, text: seedEpitaph(loadWorld(db), coord, trace), source: 'seed' }
       : { ...trace, text, source: 'admin' };
   db.prepare(
     `UPDATE traces SET data = ?, updated_by = NULL, updated_at = ?
      WHERE layer = ? AND sx = ? AND sy = ? AND tx = ? AND ty = ? AND kind = 'epitaph'`,
   ).run(JSON.stringify(next), Date.now(), layer, sx, sy, tx, ty);
   return trace.text;
+}
+
+// Graves stored before names were stored were named from this list, which their text still carries.
+const LEGACY_NAMES = [
+  'Ada',
+  'Alder',
+  'Barnaby',
+  'Bram',
+  'Clem',
+  'Dingus',
+  'Edna',
+  'Ezra',
+  'Fern',
+  'Greta',
+  'Gus',
+  'Hattie',
+  'Hollis',
+  'Ivy',
+  'Jasper',
+  'Juniper',
+  'Lark',
+  'Mabel',
+  'Maud',
+  'Moss',
+  'Ned',
+  'Oona',
+  'Otto',
+  'Percy',
+  'Pip',
+  'Rosalind',
+  'Rufus',
+  'Silas',
+  'Tilly',
+  'Tobias',
+  'Winnie',
+  'Wren',
+] as const;
+
+/**
+ * Gives every stored grave without a name the name it was always shown under, leaving its words
+ * as they are. Runs before any trace is read, since an unnamed grave no longer parses and its
+ * screen would settle a fresh epitaph over it. Returns how many graves it named.
+ */
+export function nameUnnamedGraves(db: WorldDb): number {
+  const rows = db
+    .prepare(
+      `SELECT layer, sx, sy, tx, ty FROM traces
+       WHERE kind = 'epitaph' AND json_extract(data, '$.name') IS NULL`,
+    )
+    .all() as Omit<Row, 'data'>[];
+  if (rows.length === 0) return 0;
+  const { seed } = loadWorld(db);
+  const update = db.prepare(
+    `UPDATE traces SET data = json_set(data, '$.name', ?)
+     WHERE layer = ? AND sx = ? AND sy = ? AND tx = ? AND ty = ? AND kind = 'epitaph'`,
+  );
+  db.exec('BEGIN');
+  try {
+    for (const { layer, sx, sy, tx, ty } of rows) {
+      const coord = { layer: layerIdSchema.parse(layer), sx, sy };
+      const name = LEGACY_NAMES[tileHash(coord, tx, ty, seed) % LEGACY_NAMES.length]!;
+      update.run(name, layer, sx, sy, tx, ty);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+  return rows.length;
 }
