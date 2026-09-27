@@ -126,7 +126,6 @@ function post(base: string, path: string, cookie: string) {
   return fetch(`http://${base}${path}`, { method: 'POST', headers: { cookie } });
 }
 
-/** A second session for `username`, as another device would start. */
 async function login(base: string, username: string): Promise<string> {
   const res = await fetch(`http://${base}/api/login`, {
     method: 'POST',
