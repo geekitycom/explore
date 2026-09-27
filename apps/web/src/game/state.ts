@@ -34,6 +34,8 @@ export type GameState =
       you: Pose;
       others: ReadonlyMap<number, Remote>;
       portals: readonly Portal[];
+      /** Whether the server can suggest landmark names, as its last `screen` said. */
+      suggestions: boolean;
     };
 
 const remote = (player: PlayerView): Remote => ({ ...player, drawX: player.x, drawY: player.y });
@@ -53,6 +55,7 @@ export function applyMessage(state: GameState, message: ServerMessage, now: numb
         arrival.kind === 'visit'
           ? [{ kind: 'arrive', tile: arrival.portal, start: now, traveller: 'you' }]
           : [],
+      suggestions: message.suggestions,
     };
   }
   if (state.phase === 'connecting') return state;
@@ -122,6 +125,7 @@ export function applyMessage(state: GameState, message: ServerMessage, now: numb
     case 'inventory':
       return { ...state, inventory: parseInventory(message.stacks) };
     case 'refused':
+    case 'suggestion':
       return state;
   }
 }

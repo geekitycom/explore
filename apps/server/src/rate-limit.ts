@@ -1,4 +1,4 @@
-type Limit = { max: number; windowMs: number };
+export type Limit = { max: number; windowMs: number };
 
 const MINUTE = 60_000;
 
@@ -12,6 +12,10 @@ export const AUTH_LIMITS = {
 export const VISIT_LIMITS = {
   codesPerUser: { max: 10, windowMs: 15 * MINUTE },
   codesPerAddress: { max: 30, windowMs: 15 * MINUTE },
+} satisfies Record<string, Limit>;
+
+export const SUGGEST_LIMITS = {
+  perUser: { max: 6, windowMs: 5 * MINUTE },
 } satisfies Record<string, Limit>;
 
 export type RateLimiter = ReturnType<typeof createRateLimiter>;

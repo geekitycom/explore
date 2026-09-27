@@ -38,6 +38,7 @@ const screenMessage = (traces: TraceRecord[] = [], arrival: Arrival = NONE): Ser
   others: [bob],
   inventory: [],
   arrival,
+  suggestions: false,
 });
 
 /** A message that opens no portal, so when it arrives does not matter. */

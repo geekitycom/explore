@@ -6,6 +6,7 @@ import {
   TILE,
   boxTiles,
   canOccupy,
+  inScreen,
   isWalkable,
   type Dir,
   type Place,
@@ -86,4 +87,27 @@ export function departurePortal(place: Place, pose: Pose, taken: ReadonlySet<str
     if (free(place, taken, tile)) return tile;
   }
   return here;
+}
+
+/**
+ * The pose itself when the feet fit there, else the same player standing on the nearest tile
+ * they fit on.
+ */
+export function unstuck(place: Place, pose: Pose): Pose {
+  if (canOccupy(place, pose.x, pose.y)) return pose;
+  const start = { tx: Math.floor(pose.x / TILE), ty: Math.floor(pose.y / TILE) };
+  const seen = new Set([key(start)]);
+  const queue: Tile[] = [start];
+  for (let tile = queue.shift(); tile; tile = queue.shift()) {
+    const { x, y } = standingOn(tile);
+    if (isWalkable(place, tile.tx, tile.ty) && canOccupy(place, x, y))
+      return { ...pose, x, y, moving: false };
+    for (const { dx, dy } of Object.values(DIR_DELTA)) {
+      const next = { tx: tile.tx + dx, ty: tile.ty + dy };
+      if (!inScreen(next.tx, next.ty) || seen.has(key(next))) continue;
+      seen.add(key(next));
+      queue.push(next);
+    }
+  }
+  return pose;
 }

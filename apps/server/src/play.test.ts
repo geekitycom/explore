@@ -45,7 +45,7 @@ import { createApp } from './app.ts';
 import { openMainDatabase, openWorldDatabase, type MainDb, type WorldDb } from './db.ts';
 import { createWorldHost, type WorldHost } from './host.ts';
 import { loadInventory, saveInventory } from './inventory.ts';
-import { clearName, landmarkNames } from './names.ts';
+import { landmarkNames, reseedName, restoreName } from './names.ts';
 import { createGame, type Game } from './play.ts';
 import type { Conn } from './presence.ts';
 import { userNamed } from './testing.ts';
@@ -303,6 +303,7 @@ describe('world socket', () => {
       others: [],
       inventory: [],
       arrival: { kind: 'wake' },
+      suggestions: false,
     });
   });
 
@@ -864,31 +865,42 @@ const nameIt = (name: string, line = '') => ({
 });
 
 describe('landmarks', () => {
-  it('lets the first to save name a landmark, and tells the second who did', async () => {
+  it("lets anyone rename a landmark, each save laid over the land's words for everyone", async () => {
     const { alice, bob, site } = await atLandmark();
+    expect(site.sign).toMatchObject({ source: 'pending' });
     alice.send(nameIt('Old Stones', 'Where the hares run'));
     bob.send(nameIt('Bob Town'));
 
-    const named = {
+    const namedBy = (name: string, by: { id: number; name: string }, line?: string) => ({
       t: 'traces',
       changes: [
         {
           put: {
             ...site,
-            named: {
-              name: 'Old Stones',
-              line: 'Where the hares run',
-              by: { id: 1, name: 'Alice' },
-              at: expect.any(Number) as unknown,
-            },
+            named: { name, ...(line ? { line } : {}), by, at: expect.any(Number) as unknown },
           },
         },
       ],
-    };
-    expect(await alice.next()).toEqual(named);
-    expect(await bob.next()).toEqual(named);
-    expect(await bob.next()).toEqual({ t: 'refused', reason: 'Alice named this place first.' });
+    });
+    const byAlice = namedBy('Old Stones', { id: 1, name: 'Alice' }, 'Where the hares run');
+    const byBob = namedBy('Bob Town', { id: 2, name: 'Bob' });
+    expect(await alice.next()).toEqual(byAlice);
+    expect(await bob.next()).toEqual(byAlice);
+    expect(await alice.next()).toEqual(byBob);
+    expect(await bob.next()).toEqual(byBob);
     await expectNothingPending(alice);
+  });
+
+  it('frees a player whose saved pose a signpost now stands on', async () => {
+    const { base, db, coord, site } = await atLandmark();
+    const cookie = await signup(base, 'dave');
+    savePlayerState(db, 4, { coord, pose: poseOn(site) });
+    const dave = await connect(base, cookie);
+    const seen = await nextOf(dave, 'screen');
+    const { you } = seen;
+    const place = placeOf(decodeScreen(seen.screen), parseTraces(seen.traces));
+    expect(canOccupy(place, poseOn(site).x, poseOn(site).y)).toBe(false);
+    expect(canOccupy(place, you.x, you.y)).toBe(true);
   });
 
   it('records a report of the words as they stood, once per reporter', async () => {
@@ -915,26 +927,36 @@ describe('landmarks', () => {
     expect(JSON.parse(rows[0]!.snapshot)).toMatchObject({ named: { name: 'Rude Word' } });
   });
 
-  it('shows names on the map until the namer or an admin clears them', async () => {
+  it("shows the land's name on the map, a player's over it, and lets anyone or an admin put it back", async () => {
     const { alice, bob, base, db, coord, site } = await atLandmark();
     const cookie = await signup(base, 'carol');
     const onMap = { x: coord.sx * 20 + site.tx + 0.5, y: coord.sy * 15 + site.ty + 0.5 };
+    const land = site.sign!;
+    expect((await fetchMap(base, cookie)).names).toEqual([{ ...onMap, name: land.name }]);
     alice.send(nameIt('Old Stones'));
     await nextOf(alice, 'traces');
     expect((await fetchMap(base, cookie)).names).toEqual([{ ...onMap, name: 'Old Stones' }]);
 
-    alice.send({ t: 'act', action: { kind: 'landmark', input: { op: 'clear' } } });
-    expect((await nextOf(alice, 'traces')).changes).toEqual([{ put: site }]);
-    expect((await fetchMap(base, cookie)).names).toEqual([]);
+    bob.send({ t: 'act', action: { kind: 'landmark', input: { op: 'clear' } } });
+    await nextOf(bob, 'traces');
+    expect((await nextOf(bob, 'traces')).changes).toEqual([{ put: site }]);
+    expect((await fetchMap(base, cookie)).names).toEqual([{ ...onMap, name: land.name }]);
 
-    await nextOf(bob, 'traces');
-    await nextOf(bob, 'traces');
     bob.send(nameIt('Bob Town'));
     await nextOf(bob, 'traces');
-    expect(landmarkNames(db)).toMatchObject([{ coord, name: 'Bob Town', by: 'Bob' }]);
-    expect(clearName(db, coord)).toBe('Bob Town');
-    expect(landmarkNames(db)).toEqual([]);
-    expect((await fetchMap(base, cookie)).names).toEqual([]);
+    expect(landmarkNames(db)).toEqual([
+      { coord, sign: land, named: { name: 'Bob Town', line: undefined, by: 'Bob' }, reports: 0 },
+    ]);
+    expect(restoreName(db, coord)).toBe('Bob Town');
+    expect(restoreName(db, coord)).toBeUndefined();
+    expect(landmarkNames(db)).toEqual([{ coord, sign: land, named: undefined, reports: 0 }]);
+    expect((await fetchMap(base, cookie)).names).toEqual([{ ...onMap, name: land.name }]);
+
+    db.prepare(`UPDATE traces SET data = ? WHERE kind = 'landmark'`).run(
+      JSON.stringify({ ...site, sign: { name: 'Crude Name', line: 'Rude.', source: 'model' } }),
+    );
+    expect(reseedName(db, coord)).toBe('Crude Name');
+    expect(landmarkNames(db)).toMatchObject([{ sign: { ...land, source: 'seed' } }]);
   });
 });
 

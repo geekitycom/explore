@@ -101,7 +101,7 @@ describe('landmarks', () => {
     (kind) => {
       for (const { world, coord, screen } of found.get(kind)!) {
         const { area } = landmarkOn(world, coord)!;
-        const spot = signpostSpot(screen, area);
+        const spot = signpostSpot(bare(screen), area);
         expect(spot, `${kind} on seed ${world.seed} at ${coord.sx},${coord.sy}`).toBeDefined();
         const { tx, ty } = spot!;
         expect(inArea(area, spot!)).toBe(true);
@@ -119,7 +119,7 @@ describe('landmarks', () => {
         ]);
         expect(isWalkable(signed, tx, ty)).toBe(false);
         expect(patches(signed)).toBe(patches(bare(screen)));
-        expect(signpostSpot(screen, area)).toEqual(spot);
+        expect(signpostSpot(bare(screen), area)).toEqual(spot);
       }
     },
   );
@@ -127,14 +127,27 @@ describe('landmarks', () => {
   test('a signpost never stands on a road, even where the road is all the open ground', () => {
     const area = { x: 10.5, y: 7.5, rx: 3, ry: 3 };
     const road = uniformScreen('path');
-    expect(signpostSpot(road, area)).toBeUndefined();
+    expect(signpostSpot(bare(road), area)).toBeUndefined();
     const verge = withCorners(
       road,
       [9, 10, 11, 12].flatMap((x) =>
         [6, 7, 8, 9].map((y): [number, number, 'grass'] => [x, y, 'grass']),
       ),
     );
-    expect(signpostSpot(verge, area)).toEqual({ tx: 10, ty: 7 });
+    expect(signpostSpot(bare(verge), area)).toEqual({ tx: 10, ty: 7 });
+  });
+
+  test('a signpost steps aside for a rock a player left on the generated spot', () => {
+    const area = { x: 10.5, y: 7.5, rx: 3, ry: 3 };
+    const open = bare(uniformScreen());
+    const spot = signpostSpot(open, area)!;
+    const rocky = placeOf(uniformScreen(), [
+      { kind: 'rock', ...spot, stack: [{ stone: 'stone', by: 1 }] },
+    ]);
+    const moved = signpostSpot(rocky, area);
+    expect(moved).toBeDefined();
+    expect(moved).not.toEqual(spot);
+    expect(isWalkable(rocky, moved!.tx, moved!.ty)).toBe(true);
   });
 
   test('a signpost never stands in a corridor it would cut in two', () => {
@@ -144,9 +157,9 @@ describe('landmarks', () => {
       walls,
       Array.from({ length: SCREEN_W }, (_, tx): [number, number, 'none'] => [tx, 7, 'none']),
     );
-    expect(signpostSpot(corridor, area)).toBeUndefined();
+    expect(signpostSpot(bare(corridor), area)).toBeUndefined();
     const nook = withFeatures(corridor, [[10, 6, 'none']]);
-    expect(signpostSpot(nook, area)).toEqual({ tx: 10, ty: 6 });
+    expect(signpostSpot(bare(nook), area)).toEqual({ tx: 10, ty: 6 });
   });
 });
 

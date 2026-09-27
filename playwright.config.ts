@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { SESSION_TIMEOUT_MS } from './e2e/session.ts';
 
 const PORT = 4310;
+const LLM_STUB_PORT = 4311;
 // Workers load this file again; the env keeps them on the server's data directory.
 const dataDir = (process.env['E2E_DATA_DIR'] ??= join(tmpdir(), `explore-e2e-${Date.now()}`));
 
@@ -25,16 +26,26 @@ export default defineConfig({
     },
     { name: 'ipad', use: { ...devices['iPad (gen 7)'] }, testMatch: 'touch.spec.ts' },
   ],
-  webServer: {
-    command: `pnpm --filter @explore/web build && node apps/server/src/main.ts`,
-    env: {
-      PORT: String(PORT),
-      DATA_DIR: dataDir,
-      TRUST_PROXY: 'true',
-      SESSION_TIMEOUT_MS: String(SESSION_TIMEOUT_MS),
+  webServer: [
+    {
+      command: `node e2e/llm-stub.ts`,
+      env: { LLM_STUB_PORT: String(LLM_STUB_PORT) },
+      url: `http://localhost:${LLM_STUB_PORT}/health`,
+      reuseExistingServer: false,
     },
-    url: `http://localhost:${PORT}/api/me`,
-    reuseExistingServer: false,
-    stdout: 'pipe',
-  },
+    {
+      command: `pnpm --filter @explore/web build && node apps/server/src/main.ts`,
+      env: {
+        PORT: String(PORT),
+        DATA_DIR: dataDir,
+        TRUST_PROXY: 'true',
+        SESSION_TIMEOUT_MS: String(SESSION_TIMEOUT_MS),
+        LLM_BASE_URL: `http://localhost:${LLM_STUB_PORT}/v1`,
+        LLM_MODEL: 'stub',
+      },
+      url: `http://localhost:${PORT}/api/me`,
+      reuseExistingServer: false,
+      stdout: 'pipe',
+    },
+  ],
 });

@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-26 20:26'
+updated_date: '2026-09-27 15:33'
 ---
 # Decision log
 
@@ -114,3 +114,13 @@ Consequences:
 - Admin scripts (`world:wipe`, epitaph admin, names) name the world they act on.
 
 As built (TASK-64 and TASK-67): the main database holds users, sessions, and the world registry. Which worlds are open to visitors, and their codes, live in memory in the world host, so a restart closes every world to visitors. A visitor arrives through a portal on a random free garden tile and steps out onto the free tile in front of it. Every visitor leaves through a portal, either by choosing Go home or when the world closes to visitors, and the server tells them with a `depart` message (`sentHome` before TASK-67). Besides the triggers above, a world closes to visitors when its owner has had no connection anywhere for the session timeout (their D24 session has ended), and when the world itself closes after five minutes with nobody in it.
+
+## D26. Landmarks carry the land's name, and anyone may rename them (product defaults set by the lead, TASK-75, 2026-09-27)
+Every landmark shows a name and a line for travellers from the first time its screen is seen: built-in words from the world seed at once, rewritten once by the language model when one is configured. Anyone admitted to a world, owner or visitor, may rename any of its landmarks, whoever named it last, while standing in the landmark or within reach of its signpost. Anyone may also take a player's name off, so the land's name shows again. The land's words carry no byline. Any name a player saves, typed or suggested, reads "named by" that player. There is no "this was a suggestion" flag, because the rename rule runs in `resolve`, which the client shares, and a flag the client sets could not be verified. Suggestions are limited to six per player every five minutes, across every world on the server, with one in flight at a time.
+
+These are defaults and can be reversed: "owner-only" would limit renaming and restoring to the world's owner.
+
+Consequences:
+- The old "<name> named this place first" refusal is gone.
+- A landmark trace holds the land's words (`sign`) and a player's name (`named`) side by side. The signpost shows the player's name over the land's, and restoring drops `named`. The model only ever writes `sign`, so it can never overwrite a player's name.
+- Signposts stand from the first visit, so `settle` places them on the place as it is, rocks included, and a player whose saved position a post now covers stands on the nearest free tile when they come back.

@@ -682,6 +682,44 @@ legend {
   font-size: 0.8rem;
 }
 
+.naming-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.suggest {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.suggest-icon {
+  display: inline-flex;
+}
+
+.suggest.busy {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.suggest.busy .suggest-icon {
+  animation: suggest-spin 0.8s steps(8) infinite;
+}
+
+@keyframes suggest-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suggest.busy .suggest-icon {
+    animation: none;
+  }
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;

@@ -5,13 +5,14 @@ import {
   SCREEN_W,
   TILE,
   traceSchema,
+  wordsOf,
   type LayerId,
   type Pose,
   type ScreenCoord,
 } from '@explore/core';
 import { loadPlayerState } from './world.ts';
 
-/** A named landmark on the map, at its signpost, in world tiles. */
+/** A landmark's name on the map, at its signpost, in world tiles. */
 export type MapName = { x: number; y: number; name: string };
 
 /** Someone in the world right now: the host or a visitor, wherever they stand. */
@@ -57,8 +58,10 @@ function namesOn(db: WorldDb, layer: LayerId): MapName[] {
     .all(layer) as { sx: number; sy: number; data: string }[];
   return rows.flatMap(({ sx, sy, data }) => {
     const trace = traceSchema.safeParse(JSON.parse(data));
-    if (!trace.success || trace.data.kind !== 'landmark' || !trace.data.named) return [];
-    const { tx, ty, named } = trace.data;
-    return [{ x: sx * SCREEN_W + tx + 0.5, y: sy * SCREEN_H + ty + 0.5, name: named.name }];
+    if (!trace.success || trace.data.kind !== 'landmark') return [];
+    const name = wordsOf(trace.data)?.name;
+    if (name === undefined) return [];
+    const { tx, ty } = trace.data;
+    return [{ x: sx * SCREEN_W + tx + 0.5, y: sy * SCREEN_H + ty + 0.5, name }];
   });
 }

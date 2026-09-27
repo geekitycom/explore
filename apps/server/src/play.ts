@@ -14,25 +14,36 @@ import {
   neighborCoord,
   screenBiome,
   seamOpenings,
+  siteOf,
   slotOf,
+  wordsOf,
   type Arrival,
   type ClientMessage,
   type Dir,
   type Pose,
   type ScreenCoord,
+  type Suggestion,
   type Tile,
 } from '@explore/core';
-import { departurePortal, occupied, visitorArrival, type VisitorArrival } from './arrival.ts';
+import {
+  departurePortal,
+  occupied,
+  unstuck,
+  visitorArrival,
+  type VisitorArrival,
+} from './arrival.ts';
 import { Chunks } from './chunks.ts';
 import type { WorldDb } from './db.ts';
-import { epitaphWriter, type WriteText } from './epitaphs.ts';
+import { epitaphScribe } from './epitaphs.ts';
 import { loadInventory } from './inventory.ts';
 import type { Roster } from './map.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import { TraceStore, perform, reportTrace } from './traces.ts';
 import type { User } from './users.ts';
+import { landmarkScribe, type Suggester } from './signs.ts';
 import { loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 import type { Admission } from './worlds.ts';
+import { textWriter, type WriteText } from './writer.ts';
 
 /** How far past the speed cap a move may be, absorbing network jitter. */
 const SPEED_SLACK = 1.5;
@@ -84,11 +95,14 @@ export function createGame(
   {
     now = Date.now,
     writeText,
+    suggester,
     sessionTimeoutMs = SESSION_TIMEOUT_MS,
     random = Math.random,
   }: {
     now?: () => number;
     writeText?: WriteText | undefined;
+    /** Shared by every world on the server, so its limits hold across them. */
+    suggester?: Suggester | undefined;
     sessionTimeoutMs?: number;
     /** Picks the visitor's arrival tile; uniform on [0, 1). */
     random?: () => number;
@@ -97,14 +111,14 @@ export function createGame(
   const chunks = new Chunks(db);
   const presence = new Presence();
   const store = new TraceStore(db, presence);
-  const epitaphs = writeText && epitaphWriter(store, writeText);
+  const writer = writeText && textWriter(store, writeText, [epitaphScribe, landmarkScribe]);
   const online = new Map<number, Player>();
 
   const roomAt = (coord: ScreenCoord, userId: number) =>
     presence.roomOrLoad(coord, () => {
       const world = loadWorld(db);
       const place = store.open(coord, chunks.screenAt(coord, userId), world);
-      epitaphs?.request(place, world);
+      writer?.request(place, world);
       return place;
     });
 
@@ -130,6 +144,7 @@ export function createGame(
       others,
       inventory: [...player.inventory],
       arrival,
+      suggestions: suggester !== undefined,
     });
     chunks.prefetchAround(screen.coord, player.user.id);
   };
@@ -200,6 +215,17 @@ export function createGame(
     sendScreen(player);
   }
 
+  async function suggest(player: Player, n: number): Promise<void> {
+    const { place } = player.room;
+    const site = siteOf({ place });
+    const suggestion: Suggestion = !suggester
+      ? { ok: false, reason: 'Nobody here can think of names.' }
+      : !site || !wordsOf(site)
+        ? { ok: false, reason: 'There is no signpost here.' }
+        : await suggester.suggest(player.user.id, site, place.screen);
+    if (isLive(player)) player.conn.send({ t: 'suggestion', n, suggestion });
+  }
+
   /** `portal` is set when a visitor leaves through one rather than simply dropping out. */
   function disconnect(player: Player, portal?: Tile): void {
     if (!isLive(player)) return;
@@ -223,7 +249,7 @@ export function createGame(
       const resumed = saved && saved.seenAt > sessionSince - sessionTimeoutMs ? saved : undefined;
       const room = roomAt(resumed?.coord ?? GARDEN_COORD, user.id);
       const [pose, arrival]: [Pose, Arrival] = resumed
-        ? [resumed.pose, { kind: 'none' }]
+        ? [unstuck(room.place, resumed.pose), { kind: 'none' }]
         : role === 'visitor'
           ? visitThrough(visitorArrival(room.place, occupied(poses(room.players)), random))
           : [{ ...GARDEN_SPAWN, moving: false }, { kind: 'wake' }];
@@ -263,6 +289,9 @@ export function createGame(
           break;
         case 'goHome':
           if (player.role === 'visitor') depart([player]);
+          break;
+        case 'suggest':
+          void suggest(player, message.n);
           break;
       }
     },
@@ -313,7 +342,7 @@ export function createGame(
      */
     stop(): void {
       chunks.stop();
-      epitaphs?.stop();
+      writer?.stop();
       for (const player of online.values()) save(player);
       online.clear();
     },

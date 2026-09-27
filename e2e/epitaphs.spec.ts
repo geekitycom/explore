@@ -22,12 +22,21 @@ function graveyardScreen(seed: WorldSeed): ScreenCoord {
   return { layer: OVERWORLD, sx: Math.floor(poi.x / SCREEN_W), sy: Math.floor(poi.y / SCREEN_H) };
 }
 
+type Tile = { tx: number; ty: number };
+
+/** The screen as the page holds it, and where its landmark's signpost stands, if it has one. */
 const screenOnPage = (page: Page) =>
-  page.evaluate(
-    () =>
-      (window as unknown as { exploreState: () => { place: { screen: unknown } } }).exploreState()
-        .place.screen,
-  ) as Promise<Screen>;
+  page.evaluate(() => {
+    const { place } = (
+      window as unknown as {
+        exploreState: () => {
+          place: { screen: unknown; traces: Map<string, { kind: string; tx: number; ty: number }> };
+        };
+      }
+    ).exploreState();
+    const post = [...place.traces.values()].find((t) => t.kind === 'landmark');
+    return { screen: place.screen, post: post && { tx: post.tx, ty: post.ty } };
+  }) as Promise<{ screen: Screen; post: Tile | undefined }>;
 
 const TILE = 16;
 
@@ -74,8 +83,9 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
   const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   const coord = graveyardScreen(seed);
   await teleport(page, user, coord, { tx: 10, ty: 7 });
-  const screen = await screenOnPage(page);
-  const open = (tx: number, ty: number) => isWalkable(bare(screen), tx, ty);
+  const { screen, post } = await screenOnPage(page);
+  const open = (tx: number, ty: number) =>
+    isWalkable(bare(screen), tx, ty) && !(tx === post?.tx && ty === post.ty);
   const grave = (() => {
     for (let ty = 3; ty < SCREEN_H - 3; ty++)
       for (let tx = 2; tx < SCREEN_W - 2; tx++)
@@ -93,7 +103,7 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
   const bubble = page.getByRole('note');
 
   await teleport(page, user, coord, { tx: grave.tx - 1, ty: grave.ty });
-  await expect(bubble).toHaveCount(0);
+  await expect(bubble.filter({ hasText: words })).toHaveCount(0);
   await face(page, 'ArrowRight', 'e');
   await expect(bubble).toHaveText(words);
   await expectBeside(page, grave, 'below');

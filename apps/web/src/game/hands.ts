@@ -11,6 +11,7 @@ import {
   stackAt,
   type ClientMessage,
   type Here,
+  type ServerMessage,
   type Inventory,
   type Item,
   type Slot,
@@ -156,9 +157,13 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
     showHint({ text, actionable: false });
   };
 
-  const composers: Partial<Record<TraceKindName, Composer>> = {
-    landmark: namingDialog(() => here, send),
-  };
+  let suggestions = false;
+  const naming = namingDialog(
+    () => here,
+    send,
+    () => suggestions,
+  );
+  const composers: Partial<Record<TraceKindName, Composer>> = { landmark: naming };
   const bubbles = bubbleLayer({
     report: ({ tile, kind }) => {
       send({ t: 'report', ...tile, kind });
@@ -259,6 +264,8 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
     key,
     refused,
     say,
+    suggested: ({ n, suggestion }: Extract<ServerMessage, { t: 'suggestion' }>) =>
+      naming.suggested(n, suggestion),
     /** Where a press on the world is walking the player to, if one is. */
     walking: (): Point | undefined => (live?.press.kind === 'walk' ? live.point : undefined),
     /** Call once per animation frame with the frame's clock. */
@@ -271,6 +278,7 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
         return { aim: undefined };
       }
       here = hereOf(state, user, Date.now());
+      suggestions = state.suggestions;
       for (const composer of Object.values(composers)) composer.sync(here);
       bubbles.update(
         bubbleViews(bubblesAt(here), {

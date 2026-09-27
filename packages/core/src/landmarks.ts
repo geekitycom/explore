@@ -1,5 +1,5 @@
 import { networkOf } from './generate.ts';
-import { bare, type Tile } from './place.ts';
+import type { Place, Tile } from './place.ts';
 import { type Poi, type PoiKind } from './poi.ts';
 import { isWalkable, wayIfSolid } from './walk.ts';
 import {
@@ -7,7 +7,6 @@ import {
   SCREEN_W,
   featureAt,
   tileCorners,
-  type Screen,
   type ScreenCoord,
   type World,
 } from './world.ts';
@@ -94,13 +93,14 @@ const CROWDED = 0.15;
 const ON_A_PLANT = 0.5;
 
 /**
- * Where the landmark's signpost stands, a pure function of the generated screen: a walkable tile
- * in the area, off any road and the screen's edge, whose post would keep the ground around it
+ * Where the landmark's signpost stands on the place as it is, traces and all: a walkable tile in
+ * the area, off any road and the screen's edge, whose post would keep the ground around it
  * connected, with a free tile in the area beside it to stand on. Of those, the one nearest the
- * centre on open, bare ground. So a post never blocks a road or cuts a way through.
+ * centre on open, bare ground. So a post never blocks a road or cuts a way through, even in an
+ * old world where players have left rocks about. `bare(screen)` gives the generated answer.
  */
-export function signpostSpot(screen: Screen, area: Area): Tile | undefined {
-  const place = bare(screen);
+export function signpostSpot(place: Place, area: Area): Tile | undefined {
+  const { screen } = place;
   const open = ({ tx, ty }: Tile) => isWalkable(place, tx, ty);
   const beside = ({ tx, ty }: Tile, deltas: typeof NEIGHBOURS) =>
     deltas.map(({ dx, dy }) => ({ tx: tx + dx, ty: ty + dy }));
