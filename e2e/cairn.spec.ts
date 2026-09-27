@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { playing, signUp, unique, worldDb } from './helpers.ts';
+import { fillPockets, playing, signUp, unique, type RockVariant } from './helpers.ts';
 
 type Pose = { x: number; y: number; dir: string };
 type Stone = { stone: string; by?: number };
@@ -39,22 +39,25 @@ const hint = (page: Page) =>
 const stackAt = async (page: Page) =>
   (await seen(page)).rocks.find((r) => r.tx === SPOT.tx && r.ty === SPOT.ty)?.stack;
 
-/** Nothing in play hands out stones in the garden, so the test fills the pockets directly. */
-async function give(page: Page, stones: string[]) {
-  const { id, home } = await page.evaluate(() => {
-    const me = (
-      window as unknown as { exploreUser: () => { id: number; home: number } }
-    ).exploreUser();
-    return { id: me.id, home: me.home };
-  });
-  const db = worldDb(home);
-  db.prepare(
-    `INSERT INTO inventories (user_id, items, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT (user_id) DO UPDATE SET items = excluded.items, updated_at = excluded.updated_at`,
-  ).run(id, JSON.stringify(stones.map((variant) => ({ kind: 'rock', variant, count: 1 }))), 0);
-  db.close();
-  await page.reload();
-  await playing(page);
+const STONE_NAMES: Partial<Record<RockVariant, string>> = {
+  granite: 'Granite',
+  sand: 'Sandstone',
+  stone: 'Fieldstone',
+};
+
+/**
+ * Nothing in play hands out stones in the garden, so the test fills the pockets directly. It
+ * waits for the bar to show them, as a player would: a key pressed before the next frame acts on
+ * the pockets that frame drew.
+ */
+async function give(page: Page, stones: RockVariant[]) {
+  const me = await page.evaluate(() =>
+    (window as unknown as { exploreUser: () => { id: number; home: number } }).exploreUser(),
+  );
+  await fillPockets(page, me, stones);
+  const slots = page.getByRole('navigation', { name: 'Inventory' }).getByRole('button');
+  for (const [i, stone] of stones.entries())
+    await expect(slots.nth(i)).toHaveAccessibleName(`Slot ${i + 1}, ${STONE_NAMES[stone]}`);
 }
 
 /** Walks along the garden's row 12 to the spot's column, then faces it. */

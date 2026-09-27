@@ -44,6 +44,7 @@ export default defineConfig({
         SESSION_TIMEOUT_MS: String(SESSION_TIMEOUT_MS),
         LLM_BASE_URL: `http://localhost:${LLM_STUB_PORT}/v1`,
         LLM_MODEL: 'stub',
+        EXPLORE_TEST_HOOKS: '1',
       },
       url: `http://localhost:${PORT}/api/me`,
       reuseExistingServer: false,

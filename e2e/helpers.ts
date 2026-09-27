@@ -1,15 +1,40 @@
 /// <reference lib="dom" />
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { expect, type Page } from '@playwright/test';
-import { TILE, type ScreenCoord, type Tile } from '../packages/core/src/index.ts';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import type { TestHookBody, TestHookName } from '../apps/server/src/test-hooks.ts';
+import { type Item, type ScreenCoord, type Tile } from '../packages/core/src/index.ts';
 
 export const unique = (tag: string) =>
   `${tag}${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`;
 
-// The server writes these files while tests do (it saves every open world every few seconds),
-// so a test waits for the lock instead of failing with "database is locked".
-const open = (path: string) => new DatabaseSync(path, { timeout: 5000 });
+// Read-only: a write here would race the server's own saves of live players, so state goes in
+// through testHook. The server writes while tests read, so a read waits for the lock.
+const open = (path: string) => new DatabaseSync(path, { readOnly: true, timeout: 5000 });
+
+/** Calls one of the server's test hooks, which playwright.config.ts turns on. */
+export async function testHook<K extends TestHookName>(
+  request: APIRequestContext,
+  name: K,
+  body: TestHookBody<K>,
+) {
+  const res = await request.post(`/api/test/${name}`, { data: body });
+  expect(res.status(), `test hook ${name}: ${await res.text()}`).toBe(204);
+}
+
+export type RockVariant = Extract<Item, { kind: 'rock' }>['variant'];
+
+/** Replaces the player's pockets with one of each stone, live if they are playing. */
+export const fillPockets = (
+  page: Page,
+  user: { id: number; home: number },
+  stones: RockVariant[],
+) =>
+  testHook(page.request, 'inventory', {
+    worldId: user.home,
+    userId: user.id,
+    stacks: stones.map((variant) => ({ kind: 'rock', variant, count: 1 })),
+  });
 
 /** The e2e server's accounts database, under the data directory playwright.config.ts picked. */
 export const mainDb = () => open(join(process.env['E2E_DATA_DIR']!, 'main.db'));
@@ -81,21 +106,10 @@ export async function wakeUp(page: Page) {
   await expect.poll(() => phase(page), { intervals: [50] }).toBe('playing');
 }
 
-/**
- * Moves a signed-out player by rewriting their saved position, then signs them back in there.
- * The server saves a position when the socket closes, so the page leaves first.
- */
+/** Stands the player on tile `at` of `coord`, facing north, and reloads the page there. */
 export async function teleport(page: Page, user: string, coord: ScreenCoord, at: Tile) {
-  await page.goto('about:blank');
-  await page.waitForTimeout(500);
   const { id, home } = account(user);
-  const world = worldDb(home);
-  world
-    .prepare(
-      `UPDATE player_state SET layer = ?, sx = ?, sy = ?, x = ?, y = ?, dir = 'n' WHERE user_id = ?`,
-    )
-    .run(coord.layer, coord.sx, coord.sy, (at.tx + 0.5) * TILE, (at.ty + 1) * TILE - 2, id);
-  world.close();
+  await testHook(page.request, 'place', { worldId: home, userId: id, coord, tile: at });
   await page.goto('/');
   await playing(page);
 }

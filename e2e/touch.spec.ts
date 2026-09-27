@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
 import { GARDEN_SPAWN, SCREEN_PX_W, TILE, type Tile } from '../packages/core/src/index.ts';
-import { account, displayNameOf, unique, worldDb } from './helpers.ts';
+import { account, displayNameOf, fillPockets, unique, type RockVariant } from './helpers.ts';
 
 type Seen = {
   phase: string;
@@ -91,7 +91,7 @@ async function finger(page: Page) {
 }
 
 /** Creates an account by tapping, carrying `stones`, and taps through to the game. */
-async function signUpByTouch(page: Page, name: string, stones: string[]) {
+async function signUpByTouch(page: Page, name: string, stones: RockVariant[]) {
   await page.setExtraHTTPHeaders({
     'x-forwarded-for': `203.0.113.${Math.floor(Math.random() * 250)}`,
   });
@@ -104,13 +104,7 @@ async function signUpByTouch(page: Page, name: string, stones: string[]) {
   await page.getByRole('button', { name: 'Create account' }).tap();
   await expect(page.getByRole('button', { name: 'Start exploring' })).toBeVisible();
 
-  const { id, home } = account(name);
-  const db = worldDb(home);
-  db.prepare('INSERT INTO inventories (user_id, items, updated_at) VALUES (?, ?, 0)').run(
-    id,
-    JSON.stringify(stones.map((variant) => ({ kind: 'rock', variant, count: 1 }))),
-  );
-  db.close();
+  await fillPockets(page, account(name), stones);
 
   await page.getByRole('button', { name: 'Start exploring' }).tap();
   await expect.poll(() => phase(page), { intervals: [50] }).toBe('waking');
