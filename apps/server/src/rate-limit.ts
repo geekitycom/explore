@@ -20,6 +20,7 @@ export const SUGGEST_LIMITS = {
 
 export type RateLimiter = ReturnType<typeof createRateLimiter>;
 
+// `() => Date.now()`, not `Date.now`: tests that fake Date after a limiter exists still move it.
 export function createRateLimiter({ max, windowMs }: Limit, now: () => number = () => Date.now()) {
   const windows = new Map<string, { count: number; resetAt: number }>();
   let sweepAt = 0;
