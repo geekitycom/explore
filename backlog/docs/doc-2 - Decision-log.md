@@ -3,7 +3,7 @@ id: doc-2
 title: Decision log
 type: other
 created_date: '2026-09-24 21:28'
-updated_date: '2026-09-27 15:33'
+updated_date: '2026-09-27 16:47'
 ---
 # Decision log
 
@@ -124,3 +124,10 @@ Consequences:
 - The old "<name> named this place first" refusal is gone.
 - A landmark trace holds the land's words (`sign`) and a player's name (`named`) side by side. The signpost shows the player's name over the land's, and restoring drops `named`. The model only ever writes `sign`, so it can never overwrite a player's name.
 - Signposts stand from the first visit, so `settle` places them on the place as it is, rocks included, and a player whose saved position a post now covers stands on the nearest free tile when they come back.
+
+## D27. A grave stores who lies in it (technical, TASK-77, 2026-09-27)
+An epitaph trace holds `name` beside `text` and `source`. `settle` picks the name from `NAMES` once, when the grave is first seen, and builds the seed epitaph from it. Every later reader (the model prompt, the `pnpm epitaphs` listing and `--clear`) uses the stored name, so changing `NAMES` or `PHRASES` renames no grave and rewrites no words. `--clear` still picks the phrase by the tile hash from the current `PHRASES`, with the stored name.
+
+Consequences:
+- Graves stored before this change were named from the original 32-name list. `openWorldDatabase` names them from a frozen copy of that list (`LEGACY_NAMES` in `apps/server/src/epitaphs.ts`) right after the screen record lift and before any trace is read. Without a name, `parseRow` would skip the row (D22) and `settle` would carve a new epitaph over it.
+- The pass sets only `name`, does nothing once every grave has one, and a wipe skips it like the record lift.
