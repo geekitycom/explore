@@ -133,6 +133,7 @@ export function startGame({
       const before = state.you;
       let moved: { pose: Pose; exit: Dir | undefined };
       if (walk.kind === 'none') {
+        route = undefined;
         moved = step(state.place, before, keys.held, dt, keys.lastPressed());
       } else {
         const goal = goalFor(walk.target);
