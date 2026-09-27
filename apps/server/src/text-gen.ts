@@ -4,6 +4,9 @@ export type TextGenSettings = {
   baseUrl: string;
   model: string;
   apiKey?: string | undefined;
+  /** Sent as `HTTP-Referer` and `X-Title`, which OpenRouter uses to credit requests to the app. */
+  appUrl?: string | undefined;
+  appName?: string | undefined;
   timeoutMs: number;
 };
 
@@ -28,13 +31,15 @@ const completion = z.object({
 export function createTextGenerator(settings: TextGenSettings | undefined) {
   return async function generateText(request: TextRequest): Promise<TextResult> {
     if (!settings) return { kind: 'not-configured' };
-    const { baseUrl, model, apiKey, timeoutMs } = settings;
+    const { baseUrl, model, apiKey, appUrl, appName, timeoutMs } = settings;
     try {
       const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+          ...(appUrl ? { 'http-referer': appUrl } : {}),
+          ...(appName ? { 'x-title': appName } : {}),
         },
         body: JSON.stringify({
           model,

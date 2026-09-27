@@ -25,13 +25,16 @@ const dir = dataDir();
 mkdirSync(worldsDir(dir), { recursive: true });
 const db = openMainDatabase(mainDbPath(dir));
 
-const { LLM_BASE_URL, LLM_MODEL, LLM_API_KEY, LLM_TIMEOUT_MS } = process.env;
+const { LLM_BASE_URL, LLM_MODEL, LLM_API_KEY, LLM_APP_URL, LLM_APP_NAME, LLM_TIMEOUT_MS } =
+  process.env;
 const textGen: TextGenSettings | undefined =
   LLM_BASE_URL && LLM_MODEL
     ? {
         baseUrl: LLM_BASE_URL,
         model: LLM_MODEL,
         apiKey: LLM_API_KEY || undefined,
+        appUrl: LLM_APP_URL || undefined,
+        appName: LLM_APP_NAME || undefined,
         timeoutMs: Number(LLM_TIMEOUT_MS ?? 15000),
       }
     : undefined;
