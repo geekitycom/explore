@@ -265,21 +265,29 @@ describe('rate limits', () => {
       connectionFrom(address),
     );
 
-  it('throttles failed logins for one username from any address until the window passes', async () => {
+  it('lets the owner log in after other addresses fail against their username', async () => {
     await signup('Alice');
-    await signup('Bob');
     for (let i = 0; i < failedLoginsPerUsername.max; i++) {
       expect((await login('alice', 'wrong password', `198.51.100.${i}`)).status).toBe(401);
     }
+    expect((await login('Alice', PASSWORD, '192.0.2.99')).status).toBe(200);
+  });
+
+  it('throttles failed logins for one username from one address until the window passes', async () => {
+    await signup('Alice');
+    await signup('Bob');
+    for (let i = 0; i < failedLoginsPerUsername.max; i++) {
+      expect((await login('alice', 'wrong password', '198.51.100.1')).status).toBe(401);
+    }
 
     await expectThrottled(
-      await login('ALICE', PASSWORD, '192.0.2.99'),
+      await login('ALICE', PASSWORD, '198.51.100.1'),
       failedLoginsPerUsername.windowMs,
     );
-    expect((await login('Bob', PASSWORD, '198.51.100.0')).status).toBe(200);
+    expect((await login('Bob', PASSWORD, '198.51.100.1')).status).toBe(200);
 
     vi.setSystemTime(Date.now() + failedLoginsPerUsername.windowMs);
-    expect((await login('Alice', PASSWORD)).status).toBe(200);
+    expect((await login('Alice', PASSWORD, '198.51.100.1')).status).toBe(200);
   });
 
   it('forgets earlier failures after a successful login', async () => {
