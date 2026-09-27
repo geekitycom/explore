@@ -80,6 +80,26 @@ it('sends no authorization header without a key', async () => {
   expect(seen[0]!.headers.authorization).toBeUndefined();
 });
 
+it('credits the app to OpenRouter only with the headers configured, each on its own', async () => {
+  const { baseUrl, seen } = await fakeEndpoint(
+    json(200, { choices: [{ message: { content: 'ok' } }] }),
+  );
+  const credit = (app: { appUrl?: string; appName?: string }) =>
+    createTextGenerator({ baseUrl, model: 'm', timeoutMs: 1000, ...app })(request);
+
+  await credit({ appUrl: 'https://explore.example', appName: 'Explore' });
+  await credit({});
+  await credit({ appUrl: 'https://explore.example' });
+  await credit({ appName: 'Explore' });
+
+  expect(seen.map(({ headers }) => [headers['http-referer'], headers['x-title']])).toEqual([
+    ['https://explore.example', 'Explore'],
+    [undefined, undefined],
+    ['https://explore.example', undefined],
+    [undefined, 'Explore'],
+  ]);
+});
+
 it('reports not-configured without making a request', async () => {
   expect(await createTextGenerator(undefined)(request)).toEqual({ kind: 'not-configured' });
 });

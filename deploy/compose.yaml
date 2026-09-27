@@ -69,6 +69,8 @@ services:
     #                       unset, the built-in text is used.
     #   LLM_API_KEY         Bearer token for that API. A secret: keep it in
     #                       .env, never in this file.
+    #   LLM_APP_URL         Optional. Sent as HTTP-Referer and X-Title, which
+    #   LLM_APP_NAME        OpenRouter uses to credit requests to the app.
     #   LLM_TIMEOUT_MS      Time before a request gives up. Default 15000.
     env_file:
       - .env

@@ -89,6 +89,8 @@ In production with [OpenRouter](https://openrouter.ai), use a fast, low-cost mod
 LLM_BASE_URL=https://openrouter.ai/api/v1 LLM_MODEL=google/gemini-3.8-flash LLM_API_KEY=sk-or-... pnpm start
 ```
 
+To credit the requests to the app in OpenRouter's activity logs and app rankings, also set `LLM_APP_URL` (sent as `HTTP-Referer`) and `LLM_APP_NAME` (sent as `X-Title`). Either can be set alone. Leave both unset for Ollama and other backends.
+
 ## Scripts
 
 | Script                                     | What it does                                                                                                                                                                                                                          |
@@ -231,6 +233,8 @@ These steps assume a Linux server with Docker, dockge's stack directory `/opt/st
    # LLM_BASE_URL=https://openrouter.ai/api/v1
    # LLM_MODEL=google/gemini-3.8-flash
    # LLM_API_KEY=sk-or-...
+   # LLM_APP_URL=https://explore.example.com
+   # LLM_APP_NAME=Explore
    # LLM_TIMEOUT_MS=15000
    ```
 
