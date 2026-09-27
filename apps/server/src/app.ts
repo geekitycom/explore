@@ -5,6 +5,7 @@ import { Hono, type Context } from 'hono';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { WSContext } from 'hono/ws';
 import { z } from 'zod';
 import type { MainDb } from './db.ts';
 import type { WorldHost } from './host.ts';
@@ -60,6 +61,12 @@ const password = z
   .max(200, 'Password must be at most 200 characters');
 
 const REFUSED_MESSAGE = 'That world is not open to you';
+const INTERNAL_ERROR_CLOSE_CODE = 1011;
+
+function failed(ws: WSContext, error: unknown): void {
+  console.error(error);
+  ws.close(INTERNAL_ERROR_CLOSE_CODE, 'server error');
+}
 const UNKNOWN_CODE_MESSAGE =
   "That code doesn't open any world right now. Check it with your friend.";
 
@@ -303,19 +310,27 @@ export function createApp({
             ws.close(REFUSED_CLOSE_CODE, REFUSED_MESSAGE);
             return;
           }
-          player = host.connect(
-            worldId,
-            user,
-            {
-              send: (message) => ws.send(JSON.stringify(message)),
-              close: (code, reason) => ws.close(code, reason),
-            },
-            role,
-          );
+          try {
+            player = host.connect(
+              worldId,
+              user,
+              {
+                send: (message) => ws.send(JSON.stringify(message)),
+                close: (code, reason) => ws.close(code, reason),
+              },
+              role,
+            );
+          } catch (error) {
+            failed(ws, error);
+          }
         },
-        onMessage(event: { data: unknown }) {
+        onMessage(event: { data: unknown }, ws) {
           if (player && worldId !== undefined && typeof event.data === 'string') {
-            host.receive(worldId, player, event.data);
+            try {
+              host.receive(worldId, player, event.data);
+            } catch (error) {
+              failed(ws, error);
+            }
           }
         },
         onClose() {
