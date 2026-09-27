@@ -890,6 +890,18 @@ describe('landmarks', () => {
     await expectNothingPending(alice);
   });
 
+  it('frees a player whose saved pose a signpost now stands on', async () => {
+    const { base, db, coord, site } = await atLandmark();
+    const cookie = await signup(base, 'dave');
+    savePlayerState(db, 4, { coord, pose: poseOn(site) });
+    const dave = await connect(base, cookie);
+    const seen = await nextOf(dave, 'screen');
+    const { you } = seen;
+    const place = placeOf(decodeScreen(seen.screen), parseTraces(seen.traces));
+    expect(canOccupy(place, poseOn(site).x, poseOn(site).y)).toBe(false);
+    expect(canOccupy(place, you.x, you.y)).toBe(true);
+  });
+
   it('records a report of the words as they stood, once per reporter', async () => {
     const { alice, bob, db, site } = await atLandmark();
     alice.send(nameIt('Rude Word'));

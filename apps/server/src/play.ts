@@ -22,7 +22,13 @@ import {
   type ScreenCoord,
   type Tile,
 } from '@explore/core';
-import { departurePortal, occupied, visitorArrival, type VisitorArrival } from './arrival.ts';
+import {
+  departurePortal,
+  occupied,
+  unstuck,
+  visitorArrival,
+  type VisitorArrival,
+} from './arrival.ts';
 import { Chunks } from './chunks.ts';
 import type { WorldDb } from './db.ts';
 import { epitaphWriter, type WriteText } from './epitaphs.ts';
@@ -223,7 +229,7 @@ export function createGame(
       const resumed = saved && saved.seenAt > sessionSince - sessionTimeoutMs ? saved : undefined;
       const room = roomAt(resumed?.coord ?? GARDEN_COORD, user.id);
       const [pose, arrival]: [Pose, Arrival] = resumed
-        ? [resumed.pose, { kind: 'none' }]
+        ? [unstuck(room.place, resumed.pose), { kind: 'none' }]
         : role === 'visitor'
           ? visitThrough(visitorArrival(room.place, occupied(poses(room.players)), random))
           : [{ ...GARDEN_SPAWN, moving: false }, { kind: 'wake' }];

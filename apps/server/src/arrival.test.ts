@@ -11,8 +11,9 @@ import {
   type Pose,
   type Tile,
 } from '@explore/core';
+import { uniformScreen } from '@explore/core/testing';
 import { expect, test } from 'vitest';
-import { departurePortal, occupied, visitorArrival } from './arrival.ts';
+import { departurePortal, occupied, unstuck, visitorArrival } from './arrival.ts';
 
 const garden = placeOf(secretGarden(), []);
 
@@ -117,4 +118,19 @@ test('with the whole screen taken the spawn is the fallback rather than nowhere'
     ...GARDEN_SPAWN,
     moving: false,
   });
+});
+
+test('a saved pose that something now stands on moves to the nearest place the feet fit', () => {
+  const open = placeOf(uniformScreen(), []);
+  const onTile: Pose = { x: 10.5 * TILE, y: 8 * TILE - 2, dir: 'e', moving: true };
+  expect(unstuck(open, onTile)).toBe(onTile);
+
+  const post = placeOf(uniformScreen(), [
+    { kind: 'rock', tx: 10, ty: 7, stack: [{ stone: 'stone', by: 1 }] },
+  ]);
+  expect(canOccupy(post, onTile.x, onTile.y)).toBe(false);
+  const freed = unstuck(post, onTile);
+  expect(canOccupy(post, freed.x, freed.y)).toBe(true);
+  expect(Math.abs(tileUnder(freed).tx - 10) + Math.abs(tileUnder(freed).ty - 7)).toBe(1);
+  expect(freed).toMatchObject({ dir: 'e', moving: false });
 });
