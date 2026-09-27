@@ -123,8 +123,10 @@ export function openWorldDatabase(path: string, { upgradeRecords = true } = {}):
   return db;
 }
 
+const BUSY_TIMEOUT_MS = 5000;
+
 function open(path: string): DatabaseSync {
-  const db = new DatabaseSync(path);
+  const db = new DatabaseSync(path, { timeout: BUSY_TIMEOUT_MS });
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   return db;
 }

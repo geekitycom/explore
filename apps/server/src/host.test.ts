@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,7 +11,7 @@ import {
   parseInventory,
   type ServerMessage,
 } from '@explore/core';
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { createWorldHost } from './host.ts';
 import { loadInventory, saveInventory } from './inventory.ts';
 import type { Conn } from './presence.ts';
@@ -119,6 +121,54 @@ test('flushes every open world, so each keeps its own players awake', () => {
     seenAt: 5000,
   });
   expect(loadPlayerState(host.open(ONE).db, 2)).toBeUndefined();
+});
+
+async function holdWriteLock(path: string, ms: number) {
+  const child = spawn(
+    process.execPath,
+    [
+      '-e',
+      `const { DatabaseSync } = require('node:sqlite');
+       const db = new DatabaseSync(${JSON.stringify(path)});
+       db.exec('BEGIN IMMEDIATE');
+       console.log('locked');
+       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${ms});
+       db.exec('COMMIT');`,
+    ],
+    { stdio: ['ignore', 'pipe', 'inherit'] },
+  );
+  const exited = once(child, 'exit');
+  await once(child.stdout, 'data');
+  return { exited };
+}
+
+test('a save waits for another process holding the world file, instead of failing', async () => {
+  const { dir, clock, host, join: enter } = setup();
+  const alice = enter(ONE, 1, 'alice');
+  host.receive(ONE, alice.player, JSON.stringify({ t: 'move', ...STOOD, moving: true }));
+  const { exited } = await holdWriteLock(join(dir, '1.db'), 300);
+  clock.t = 5000;
+  host.flush();
+  await exited;
+  expect(loadPlayerState(host.open(ONE).db, 1)).toMatchObject({ pose: STOOD, seenAt: 5000 });
+});
+
+test('a world that fails to save is logged and leaves the other worlds saving and closing', () => {
+  const { clock, host, join } = setup();
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  cleanups.push(() => errors.mockRestore());
+  join(ONE, 1, 'alice');
+  const bob = join(TWO, 2, 'bob');
+  host.receive(TWO, bob.player, JSON.stringify({ t: 'move', ...STOOD, moving: true }));
+  host.open(ONE).db.exec('PRAGMA query_only = ON');
+
+  clock.t = 5000;
+  expect(() => host.flush()).not.toThrow();
+  expect(loadPlayerState(host.open(TWO).db, 2)).toMatchObject({ pose: STOOD, seenAt: 5000 });
+  expect(errors).toHaveBeenCalledWith(expect.stringContaining('world 1'), expect.any(Error));
+
+  expect(() => host.stop()).not.toThrow();
+  expect(host.openIds()).toEqual([]);
 });
 
 test('drops what a stale socket sends for a world that has since closed', () => {
