@@ -122,6 +122,27 @@ async function signup(base: string, username: string): Promise<string> {
   return /^session=[^;]*/.exec(res.headers.get('set-cookie') ?? '')![0];
 }
 
+function post(base: string, path: string, cookie: string) {
+  return fetch(`http://${base}${path}`, { method: 'POST', headers: { cookie } });
+}
+
+/** A second session for `username`, as another device would start. */
+async function login(base: string, username: string): Promise<string> {
+  const res = await fetch(`http://${base}/api/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ username, password: 'correct horse battery' }),
+  });
+  expect(res.status).toBe(200);
+  return /^session=[^;]*/.exec(res.headers.get('set-cookie') ?? '')![0];
+}
+
+const withinTwoSeconds = <T>(promise: Promise<T>) =>
+  Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('not within 2s')), 2000)),
+  ]);
+
 type Client = {
   next: () => Promise<ServerMessage>;
   send: (message: unknown) => void;
@@ -527,16 +548,40 @@ describe('world socket', () => {
     await expectNothingPending(alice);
   });
 
-  it('rejects an upgrade without a valid session', async () => {
+  it('opens and then closes a socket without a valid session, so the browser can tell', async () => {
     const { base } = await start();
-    for (const headers of [{}, { cookie: 'session=forged' }]) {
+    const cookie = await signup(base, 'alice');
+    await post(base, '/api/logout', cookie);
+    for (const headers of [{}, { cookie: 'session=forged' }, { cookie }]) {
       const ws = new WebSocket(`ws://${base}/ws/worlds/1`, { headers });
-      const error = await new Promise<Error>((resolve, reject) => {
-        ws.once('error', resolve);
-        ws.once('open', () => reject(new Error('socket opened')));
-      });
-      expect(error.message).toBe('Unexpected server response: 401');
+      ws.on('error', () => {});
+      const closed = new Promise((resolve) =>
+        ws.on('close', (code, reason) => resolve({ code, reason: String(reason) })),
+      );
+      expect(await closed).toEqual({ code: 4401, reason: 'signed out' });
     }
+  });
+
+  it("logging out closes every socket opened with that session and no other session's", async () => {
+    const { base } = await start();
+    const cookie = await signup(base, 'alice');
+    const home = await connect(base, cookie, ALICE_WORLD);
+    const away = await connect(base, cookie, 2 as WorldId);
+    const otherSession = await connect(base, await login(base, 'alice'), 3 as WorldId);
+    await nextOf(home, 'screen');
+    await nextOf(away, 'screen');
+    await nextOf(otherSession, 'screen');
+
+    expect((await post(base, '/api/logout', cookie)).status).toBe(204);
+
+    const signedOut = { code: 4401, reason: 'signed out' };
+    expect(await withinTwoSeconds(home.closed)).toEqual(signedOut);
+    expect(await withinTwoSeconds(away.closed)).toEqual(signedOut);
+    otherSession.send({ t: 'move', x: 162, y: 202, dir: 'e', moving: true });
+    await expectNothingPending(otherSession);
+    expect(await Promise.race([otherSession.closed, Promise.resolve('still open')])).toBe(
+      'still open',
+    );
   });
 
   it('replaces the previous connection when the same user connects again', async () => {

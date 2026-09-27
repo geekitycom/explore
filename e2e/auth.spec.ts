@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, displayNameOf, playing, unique } from './helpers.ts';
+import { createAccount, displayNameOf, playing, signUp, unique } from './helpers.ts';
 
 type Me = { user: { avatar: { shirt: string; hairColor: string }; avatarChosen: boolean } };
 
@@ -149,4 +149,13 @@ test('a throttled login shows the wait inline', async ({ page }) => {
     'Too many attempts. Try again in 15 minutes.',
   );
   await page.screenshot({ path: 'e2e/.results/login-throttled.png', fullPage: true });
+});
+
+test('logging out in another tab sends this one to the login screen', async ({ page }) => {
+  await signUp(page, unique('twotabs'));
+  await playing(page);
+
+  expect((await page.request.post('/api/logout')).status()).toBe(204);
+
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
 });
