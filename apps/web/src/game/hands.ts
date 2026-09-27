@@ -26,6 +26,14 @@ import { namingDialog, type Composer } from '../ui/naming-dialog.ts';
 import { MESSAGE_MS, hintText, type Hint, type Message } from './hint.ts';
 import type { KeyAction } from './input.ts';
 import type { GameState } from './state.ts';
+import {
+  STANDING,
+  isDouble,
+  nextWalk,
+  type Tap,
+  type WalkEvent,
+  type WalkIntent,
+} from './walk-intent.ts';
 
 export type Playing = Exclude<GameState, { phase: 'connecting' }>;
 
@@ -132,7 +140,13 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
   let here: Here | undefined;
   let selected: Item | undefined;
   let pointer: Tile | undefined;
-  let live: { readonly id: number; readonly press: Press; point: Point } | undefined;
+  let live: { readonly id: number; readonly press: Press } | undefined;
+  let walk: WalkIntent = STANDING;
+  /** The last plain walk press, which a second one can make a double. */
+  let lastTap: Tap | undefined;
+  const walkBy = (event: WalkEvent) => {
+    walk = nextWalk(walk, event);
+  };
   let message: Message | undefined;
   let stillSince: number | undefined;
   /** The walking tip shows on idle stops until the player first walks off an edge. */
@@ -213,14 +227,24 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
     if (event.button !== 0 || live || !here) return;
     const point = pointAt(event);
     pointer = tileOf(point);
-    live = { id: event.pointerId, press: classify(here, slotSelected(), pointer), point };
+    const press = classify(here, slotSelected(), pointer);
+    live = { id: event.pointerId, press };
+    if (press.kind === 'walk') {
+      const tap = { at: event.timeStamp, point };
+      const double = isDouble(lastTap, tap);
+      lastTap = double ? undefined : tap;
+      walkBy({ kind: 'press', target: point, double });
+    } else {
+      lastTap = undefined;
+      walkBy({ kind: 'cancel' });
+    }
     canvas.setPointerCapture(event.pointerId);
   };
   const move = (event: PointerEvent) => {
     if (live && live.id !== event.pointerId) return;
     const point = pointAt(event);
     pointer = tileOf(point);
-    if (live) live.point = point;
+    if (live) walkBy({ kind: 'drag', target: point });
   };
   /** Touch has no hover, so its aim goes when the finger lifts. */
   const end = (event: PointerEvent) => {
@@ -230,8 +254,12 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
     if (event.pointerType !== 'mouse') pointer = undefined;
     return press;
   };
+  const cancel = (event: PointerEvent) => {
+    if (end(event)) walkBy({ kind: 'cancel' });
+  };
   const up = (event: PointerEvent) => {
     const press = end(event);
+    if (press) walkBy({ kind: 'release' });
     const tile = tileOf(pointAt(event));
     if (!press || !tile) return;
     if (press.kind === 'act' && tile.tx === press.tile.tx && tile.ty === press.tile.ty)
@@ -254,7 +282,7 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
   canvas.addEventListener('pointerdown', down);
   canvas.addEventListener('pointermove', move);
   canvas.addEventListener('pointerup', up);
-  canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('pointercancel', cancel);
   canvas.addEventListener('contextmenu', menu);
   canvas.addEventListener('pointerleave', leave);
   hud.hint.addEventListener('click', pressHint);
@@ -266,8 +294,10 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
     say,
     suggested: ({ n, suggestion }: Extract<ServerMessage, { t: 'suggestion' }>) =>
       naming.suggested(n, suggestion),
-    /** Where a press on the world is walking the player to, if one is. */
-    walking: (): Point | undefined => (live?.press.kind === 'walk' ? live.point : undefined),
+    /** Where the pointer is walking the player to, if anywhere. */
+    walking: (): WalkIntent => walk,
+    /** The player arrived, pressed a movement key, or changed screen: a queued walk is over. */
+    settle: () => walkBy({ kind: 'settle' }),
     /** Call once per animation frame with the frame's clock. */
     frame(state: GameState, user: User, now: number): { aim: Aim | undefined } {
       if (state.phase === 'connecting' || state.phase === 'waking') {
@@ -307,7 +337,7 @@ export function createHands({ hud, canvas, pointAt, send }: Options) {
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointermove', move);
       canvas.removeEventListener('pointerup', up);
-      canvas.removeEventListener('pointercancel', end);
+      canvas.removeEventListener('pointercancel', cancel);
       canvas.removeEventListener('contextmenu', menu);
       canvas.removeEventListener('pointerleave', leave);
       hud.hint.removeEventListener('click', pressHint);
