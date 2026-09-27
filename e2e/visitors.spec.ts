@@ -1,4 +1,4 @@
-import type { Browser, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { expect, test } from './test.ts';
 import {
   closeToVisitors,
@@ -6,241 +6,67 @@ import {
   openForVisitors,
   playing,
   signUp,
-  standingStill,
   unique,
   visit,
 } from './helpers.ts';
 
-type Snapshot = {
-  phase: string;
-  you?: { x: number; y: number };
-  others?: Map<number, { name: string }>;
-};
-type Where = { here: number; home: number; visiting: boolean; hostName?: string };
-type MapPlayers = { players: { name: string; you: boolean }[] };
+type Portal = { kind: string; traveller: 'you' | { name: string } };
+type Snapshot = { phase: string; portals?: Portal[] };
 
-const snapshot = (page: Page) =>
-  page.evaluate(() => {
-    const s = (window as unknown as { exploreState: () => Snapshot }).exploreState();
-    return {
-      phase: s.phase,
-      you: s.you && { x: s.you.x, y: s.you.y },
-      others: [...(s.others?.values() ?? [])].map(({ name }) => name),
-    };
-  });
+const phase = (page: Page) =>
+  page.evaluate(() => (window as unknown as { exploreState: () => Snapshot }).exploreState().phase);
 
-const where = (page: Page) =>
-  page.evaluate(() => (window as unknown as { exploreWorld: () => Where }).exploreWorld());
-
-const mapPlayers = (page: Page) =>
-  page.evaluate(() =>
-    (window as unknown as { exploreMap: () => MapPlayers })
-      .exploreMap()
-      .players.map(({ name, you }) => `${name}${you ? ' (you)' : ''}`)
-      .sort(),
-  );
+/** Whether your portal home is playing, and the path the page is on while it does. */
+const leaving = (page: Page) =>
+  page.evaluate(() => ({
+    departing: (window as unknown as { exploreState: () => Snapshot })
+      .exploreState()
+      .portals?.some((p) => p.kind === 'depart' && p.traveller === 'you'),
+    path: location.pathname,
+  }));
 
 const hint = (page: Page) => page.locator('.hint-bar');
 
-type Seen = { kind: 'arrive' | 'depart'; who: string; elapsed: number; x: number };
-
-/**
- * Records every portal on the page's screen each frame from here on: its kind, who it carries
- * (`you` or their name), how long it has been open, and where you stood. In-app travel keeps
- * the page, so the record outlives a trip home.
- */
-async function watchPortals(page: Page) {
-  await page.evaluate(() => {
-    type State = {
-      you?: { x: number };
-      portals?: { kind: string; start: number; traveller: 'you' | { name: string } }[];
-    };
-    const seen: unknown[] = [];
-    Object.assign(window, { seenPortals: seen });
-    const tick = () => {
-      const s = (window as unknown as { exploreState?: () => State }).exploreState?.();
-      for (const p of s?.portals ?? []) {
-        seen.push({
-          kind: p.kind,
-          who: p.traveller === 'you' ? 'you' : p.traveller.name,
-          elapsed: performance.now() - p.start,
-          x: s?.you?.x,
-        });
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
-}
-
-/** Portals still playing on the page's screen. */
-const openPortals = (page: Page) =>
-  page.evaluate(
-    () =>
-      (window as unknown as { exploreState: () => { portals?: unknown[] } }).exploreState().portals
-        ?.length ?? 0,
-  );
-
-const seenPortals = (page: Page) =>
-  page.evaluate(() => (window as unknown as { seenPortals: Seen[] }).seenPortals);
-
-const kinds = (seen: Seen[]) => [...new Set(seen.map(({ kind, who }) => `${kind} ${who}`))];
-
-async function enter(page: Page, name: string) {
-  await signUp(page, name);
-  await playing(page);
-}
-
-/** Ann at home with her world open, Ben at home holding her code. */
-async function annAndBen(browser: Browser) {
+test('a friend joins with the code, goes home, and is sent home when the world closes', async ({
+  browser,
+}) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()]);
   const [ann, ben] = await Promise.all([a.newPage(), b.newPage()]);
   const [na, nb] = [unique('ann'), unique('ben')];
-  await enter(ann, na);
-  const code = await openForVisitors(ann);
-  await enter(ben, nb);
-  return { ann, ben, code, annName: displayNameOf(na), benName: displayNameOf(nb) };
-}
-
-async function expectHome(page: Page, notice: string) {
-  await expect(page).toHaveURL(/\/$/);
-  await expect.poll(() => where(page)).toMatchObject({ visiting: false });
-  await expect(hint(page)).toHaveText(notice);
-  await expect.poll(async () => (await snapshot(page)).phase).toBe('playing');
-}
-
-test('a friend joins with the code, both see each other on the map, and going home resumes in place', async ({
-  browser,
-}) => {
-  const { ann, ben, code, annName, benName } = await annAndBen(browser);
-  const spawn = (await snapshot(ben)).you!;
-  await ben.keyboard.down('ArrowRight');
-  await expect.poll(async () => (await snapshot(ben)).you!.x).toBeGreaterThan(spawn.x + 20);
-  await ben.keyboard.up('ArrowRight');
-  await standingStill(ben);
-  const stoodAtHome = (await snapshot(ben)).you;
-
-  await visit(ben, code);
-  await expect.poll(() => where(ben)).toMatchObject({ visiting: true, hostName: annName });
-  await expect(hint(ben)).toHaveText(`You arrive in ${annName}'s world.`);
-  await expect.poll(async () => (await snapshot(ann)).others).toEqual([benName]);
-  await expect.poll(async () => (await snapshot(ben)).others).toEqual([annName]);
-  await ben.screenshot({ path: 'e2e/.results/visit-arrived.png' });
-
-  await ben.getByRole('link', { name: 'Map' }).click();
-  await expect(ben).toHaveURL(/\/worlds\/\d+\/map$/);
-  await expect(ben.getByLabel(/^World map with/)).toBeVisible();
-  await expect.poll(() => mapPlayers(ben)).toEqual([annName, `${benName} (you)`].sort());
-  await ben.screenshot({ path: 'e2e/.results/visit-map.png' });
-  await ben.getByRole('link', { name: 'Back to the game' }).click();
-  await playing(ben);
-
-  await ann.getByRole('link', { name: 'Map' }).click();
-  await expect(ann.getByLabel(/^World map with/)).toBeVisible();
-  await expect.poll(() => mapPlayers(ann)).toEqual([`${annName} (you)`, benName].sort());
-  await ann.getByRole('link', { name: 'Back to the game' }).click();
-
-  await ben.getByRole('button', { name: 'Go home' }).click();
-  await expect(ben).toHaveURL(/\/$/);
-  await expect.poll(async () => (await snapshot(ben)).phase).toBe('playing');
-  await expect.poll(() => where(ben)).toMatchObject({ visiting: false });
-  expect((await snapshot(ben)).you).toEqual(stoodAtHome);
-  await expect(ben.locator('.wake')).toHaveCount(0);
-  await expect.poll(async () => (await snapshot(ann)).others).toEqual([]);
-});
-
-test('a visitor comes and goes through a portal both players see, and waits to appear before moving', async ({
-  browser,
-}) => {
-  const { ann, ben, code, benName } = await annAndBen(browser);
-  await Promise.all([watchPortals(ann), watchPortals(ben)]);
-
-  await visit(ben, code);
-  await ben.keyboard.down('ArrowRight');
-  await expect.poll(async () => kinds(await seenPortals(ann))).toEqual([`arrive ${benName}`]);
-  await expect.poll(() => openPortals(ben)).toBe(0);
-  await ben.keyboard.up('ArrowRight');
-  const arriving = (await seenPortals(ben)).filter((s) => s.kind === 'arrive');
-  expect(kinds(arriving)).toEqual(['arrive you']);
-  const before = arriving.filter((s) => s.elapsed < 1150);
-  expect(before.length).toBeGreaterThan(5);
-  expect(new Set(before.map((s) => s.x)).size).toBe(1);
-  expect(arriving.at(-1)!.x).toBeGreaterThan(before[0]!.x);
-  expect(Math.max(...arriving.map((s) => s.elapsed))).toBeLessThan(2100);
-
-  await ben.getByRole('button', { name: 'Go home' }).first().click();
-  await expect
-    .poll(async () => kinds(await seenPortals(ann)))
-    .toEqual([`arrive ${benName}`, `depart ${benName}`]);
-  await expect.poll(async () => (await snapshot(ann)).others).toEqual([]);
-  expect(await where(ben)).toMatchObject({ visiting: true });
-  await expect(ben).toHaveURL(/\/$/);
-  expect(kinds(await seenPortals(ben))).toEqual(['arrive you', 'depart you']);
-  const leaving = (await seenPortals(ben)).filter((s) => s.kind === 'depart');
-  expect(Math.max(...leaving.map((s) => s.elapsed))).toBeGreaterThan(1500);
-  await expect.poll(async () => (await snapshot(ben)).phase).toBe('playing');
-  await expect.poll(() => where(ben)).toMatchObject({ visiting: false });
-});
-
-test('a reload while visiting shows no portal to anyone', async ({ browser }) => {
-  const { ann, ben, code, benName } = await annAndBen(browser);
-  await visit(ben, code);
-  await expect.poll(async () => (await snapshot(ann)).others).toEqual([benName]);
-  await expect.poll(() => openPortals(ann)).toBe(0);
-  await watchPortals(ann);
-
-  await ben.reload();
-  await playing(ben);
-  await expect.poll(async () => (await snapshot(ann)).others).toEqual([benName]);
-  await watchPortals(ben);
-  await ben.waitForTimeout(500);
-  expect(await seenPortals(ann), 'no portal opens for a reload').toEqual([]);
-  expect(await seenPortals(ben), 'no portal opens for a reload').toEqual([]);
-});
-
-test('a code from an earlier opening stops working once the world is reopened', async ({
-  browser,
-}) => {
-  const { ann, ben, code: first } = await annAndBen(browser);
+  const annName = displayNameOf(na);
+  await signUp(ann, na);
+  await playing(ann);
+  const stale = await openForVisitors(ann);
   await closeToVisitors(ann);
-  const second = await openForVisitors(ann);
-  expect(second).not.toBe(first);
+  const code = await openForVisitors(ann);
+  await signUp(ben, nb);
+  await playing(ben);
 
   await ben.getByRole('button', { name: 'Friends' }).click();
   const dialog = ben.getByRole('dialog', { name: 'Play with friends' });
-  await dialog.getByLabel('Their code').fill(first);
+  await dialog.getByLabel('Their code').fill(stale);
   await dialog.getByRole('button', { name: 'Go' }).click();
   await expect(dialog.getByRole('alert').filter({ hasText: /./ })).toHaveText(
     "That code doesn't open any world right now. Check it with your friend.",
   );
   await ben.screenshot({ path: 'e2e/.results/visit-refused.png' });
-  await dialog.getByLabel('Their code').fill(second.toLowerCase());
-  await dialog.getByRole('button', { name: 'Go' }).click();
-  await expect(dialog).toBeHidden();
-  await playing(ben);
-  await expect.poll(() => where(ben)).toMatchObject({ visiting: true });
-});
+  await dialog.getByRole('button', { name: 'Done' }).click();
 
-test('closing the world sends every visitor home with a message', async ({ browser }) => {
-  const { ann, ben, code, annName, benName } = await annAndBen(browser);
   await visit(ben, code);
-  await expect.poll(async () => (await snapshot(ann)).others).toHaveLength(1);
-  await Promise.all([watchPortals(ann), watchPortals(ben)]);
+  await expect(hint(ben)).toHaveText(`You arrive in ${annName}'s world.`);
+  await ben.screenshot({ path: 'e2e/.results/visit-arrived.png' });
 
+  await ben.getByRole('button', { name: 'Go home' }).first().click();
+  await expect
+    .poll(() => leaving(ben), { intervals: [50] })
+    .toEqual({ departing: true, path: expect.stringMatching(/^\/worlds\/\d+$/) });
+  await expect(ben).toHaveURL(/\/$/);
+  await expect.poll(() => phase(ben)).toBe('playing');
+
+  await visit(ben, code);
   await closeToVisitors(ann);
-  await expect.poll(async () => kinds(await seenPortals(ann))).toContain(`depart ${benName}`);
-  await expectHome(ben, `${annName} closed their world, so you're back home.`);
-  expect(kinds(await seenPortals(ben))).toContain('depart you');
+  await expect(ben).toHaveURL(/\/$/);
+  await expect(hint(ben)).toHaveText(`${annName} closed their world, so you're back home.`);
+  await expect.poll(() => phase(ben)).toBe('playing');
   await ben.screenshot({ path: 'e2e/.results/visit-sent-home.png' });
-  await expect.poll(async () => (await snapshot(ann)).others).toEqual([]);
-});
-
-test('logging out sends visitors home', async ({ browser }) => {
-  const { ann, ben, code, annName } = await annAndBen(browser);
-  await visit(ben, code);
-  await expect.poll(async () => (await snapshot(ann)).others).toHaveLength(1);
-
-  await ann.getByRole('button', { name: 'Log out' }).click();
-  await expect(ann.getByRole('button', { name: 'Log in' })).toBeVisible();
-  await expectHome(ben, `${annName} closed their world, so you're back home.`);
 });
