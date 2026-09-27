@@ -6,54 +6,65 @@ import { Canvas, clamp, ramp, type Ramp } from './draw.ts';
 
 /**
  * A hand-drawn shape as rows: `.` empty, `o` a dark line, `1` the lit colour, `2` the shaded
- * colour. Recipes recolour stamps from a ramp and vary them, so every copy follows the palette.
+ * colour, `3` the light colour. Recipes recolour stamps from a ramp and vary them, so every copy
+ * follows the palette.
  */
 type Stamp = readonly string[];
 
-/** Bush bases traced from the Ninja Adventure nature sheet (CC0), silhouette outline removed. */
+/**
+ * Bush bases: overlapping leaf clumps, each lit top-left, with a dark crevice where a clump tucks
+ * behind the one in front. The scalloped top and the clumps keep a bush from reading as a rock.
+ */
 const BUSHES: readonly Stamp[] = [
   [
-    '....1111......',
-    '....1111.1111.',
-    '..221111211111',
-    '.1112111111111',
-    '11112111111111',
-    '1111111111122.',
-    '.1221111111111',
-    '11111111111111',
-    '11111111112111',
-    '11221111111211',
-    'oo21112111112o',
-    '..2111221111..',
-    '....2222......',
+    '.1111.......',
+    '133111.1111.',
+    '131112133111',
+    '111122131112',
+    '.22ooooo1122',
+    '...11111o22.',
+    '..133111o...',
+    '.133111o111.',
+    '.11111113311',
+    '.11111111112',
+    '..222222222.',
   ],
   [
-    '....111111....',
-    '..1111111111..',
-    '.111111111111.',
-    '.121111111121.',
-    '12111111111121',
-    '12112111121121',
-    '22121111112122',
-    '12221122112221',
-    '21122222222112',
-    '21121122112112',
-    '.221112211122.',
-    '..2111221112..',
-    '....222222....',
+    '....1111.....',
+    '...13311o111.',
+    '.111311113311',
+    '133111ooooo12',
+    '1ooooo11111o.',
+    '.111o1331111.',
+    '1331133111112',
+    '1311111111122',
+    '1111111111222',
+    '.22222222222.',
   ],
   [
-    '.......1111...',
-    '...1111o1111..',
-    '..1111o11111..',
-    '.1122222211...',
-    '1121112112111.',
-    '1121112221121.',
-    '1121122222121.',
-    '1121222222221.',
-    '.12222222222..',
-    '..2222222222..',
-    '....222222....',
+    '.....1111....',
+    '....1331o111.',
+    '.111131113311',
+    '1331111111112',
+    '1oooo2ooooo2.',
+    '.1111o11111..',
+    '1331o1331111.',
+    '1311133111112',
+    '1111111111122',
+    '.222111111222',
+    '.....2222222.',
+  ],
+  [
+    '.....111......',
+    '....13311.111.',
+    '.1111111213311',
+    '13oooo22oooo12',
+    '1o1111oo1111o.',
+    '.1331ooo33111.',
+    '.131o111o1112.',
+    '.111133111122.',
+    '..2211112222..',
+    '.....222......',
   ],
 ];
 
@@ -110,13 +121,17 @@ export function bush(p: BushParams, rng: Rng): Sprite {
   const width = base[0]!.length;
   const x0 = clamp(Math.floor((TILE - width) / 2 + rng() * 1.2), 1, TILE - 1 - width);
   const y0 = FOOT - base.length + 1;
-  stamp(c, base, x0, y0, { '1': leaves.lit, '2': leaves.shaded, o: leaves.dark });
+  stamp(c, base, x0, y0, {
+    '1': leaves.lit,
+    '2': leaves.shaded,
+    '3': leaves.light,
+    o: leaves.dark,
+  });
 
-  const filled = (x: number, y: number) => c.get(x, y) !== null;
   // Sun on the top-left rim.
   for (let x = x0; x < x0 + width * 0.6; x++) {
     for (let y = y0; y <= FOOT; y++) {
-      if (!filled(x, y)) continue;
+      if (!c.get(x, y)) continue;
       if (c.get(x, y + 1) === leaves.lit && rng() < 0.55) c.set(x, y + 1, leaves.light);
       break;
     }
@@ -124,11 +139,12 @@ export function bush(p: BushParams, rng: Rng): Sprite {
   // Shaded underside.
   for (let x = x0; x < x0 + width; x++) {
     for (let y = FOOT; y >= y0; y--) {
-      if (!filled(x, y)) continue;
+      if (!c.get(x, y)) continue;
       if (x > x0 + width * 0.3 || rng() < 0.5) c.set(x, y, leaves.dark);
       break;
     }
   }
+  c.despeckle();
   if (p.berries) {
     const berry = tones(ramp(p.berries));
     const count = 2 + Math.floor(rng() * 4);
@@ -146,7 +162,6 @@ export function bush(p: BushParams, rng: Rng): Sprite {
       i++;
     }
   }
-  c.despeckle();
   c.outline();
   c.shadow(TILE / 2 + 0.5, TILE - 0.8, width / 2 + 1, 1.2);
   return c.toSprite();
