@@ -1,5 +1,6 @@
 export * from './world.ts';
 export * from './walk.ts';
+export * from './route.ts';
 export * from './place.ts';
 export * from './codec.ts';
 export * from './avatar.ts';
