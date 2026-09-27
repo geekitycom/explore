@@ -5,7 +5,7 @@ const MINUTE = 60_000;
 export const AUTH_LIMITS = {
   signupsPerAddress: { max: 20, windowMs: 60 * MINUTE },
   loginsPerAddress: { max: 30, windowMs: 15 * MINUTE },
-  failedLoginsPerUsername: { max: 10, windowMs: 15 * MINUTE },
+  failedLoginsPerAddressAndUsername: { max: 10, windowMs: 15 * MINUTE },
 } satisfies Record<string, Limit>;
 
 /** Guesses at visit codes: 23^5 codes against these budgets is not a brute force anyone finishes. */
