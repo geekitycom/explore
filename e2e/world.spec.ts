@@ -1,5 +1,14 @@
-import { expect, test, type Page } from '@playwright/test';
-import { displayNameOf, openForVisitors, playing, signUp, unique, visit } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
+import {
+  displayNameOf,
+  openForVisitors,
+  playing,
+  signUp,
+  standingStill,
+  unique,
+  visit,
+} from './helpers.ts';
 
 type Snapshot = {
   phase: string;
@@ -25,12 +34,6 @@ const snapshot = (page: Page) =>
     };
   });
 
-async function hold(page: Page, key: string, ms: number) {
-  await page.keyboard.down(key);
-  await page.waitForTimeout(ms);
-  await page.keyboard.up(key);
-}
-
 test('two players in the garden see each other walk', async ({ browser }) => {
   const [a, b] = await Promise.all([browser.newContext(), browser.newContext()]);
   const [pa, pb] = await Promise.all([a.newPage(), b.newPage()]);
@@ -43,13 +46,16 @@ test('two players in the garden see each other walk', async ({ browser }) => {
   await expect
     .poll(async () => (await snapshot(pa)).others.map((o) => o.name))
     .toEqual([displayNameOf(nb)]);
-  expect((await snapshot(pb)).others.map((o) => o.name)).toEqual([displayNameOf(na)]);
+  await expect
+    .poll(async () => (await snapshot(pb)).others.map((o) => o.name))
+    .toEqual([displayNameOf(na)]);
 
   const before = (await snapshot(pb)).others[0]!;
   await pa.bringToFront();
-  await hold(pa, 'ArrowLeft', 600);
+  await pa.keyboard.down('ArrowLeft');
   await expect.poll(async () => (await snapshot(pb)).others[0]!.x).toBeLessThan(before.x - 20);
-  await pa.waitForTimeout(300);
+  await pa.keyboard.up('ArrowLeft');
+  await standingStill(pa);
   await pa.screenshot({ path: 'e2e/.results/garden-ann.png' });
   await pb.screenshot({ path: 'e2e/.results/garden-ben.png' });
 
@@ -69,7 +75,7 @@ test('walking off an edge opens a new screen that matches on return', async ({ p
   await page.keyboard.up('ArrowDown');
   const arrived = await snapshot(page);
   expect(arrived.you!.y).toBeLessThan(24);
-  await page.waitForTimeout(200);
+  await standingStill(page);
   await page.screenshot({ path: 'e2e/.results/south-of-garden.png' });
 
   await page.keyboard.down('ArrowUp');

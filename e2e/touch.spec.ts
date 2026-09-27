@@ -1,7 +1,8 @@
 /// <reference lib="dom" />
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { GARDEN_SPAWN, SCREEN_PX_W, TILE, type Tile } from '../packages/core/src/index.ts';
-import { account, displayNameOf, unique, worldDb } from './helpers.ts';
+import { account, displayNameOf, fillPockets, unique, type RockVariant } from './helpers.ts';
 
 type Seen = {
   phase: string;
@@ -91,10 +92,7 @@ async function finger(page: Page) {
 }
 
 /** Creates an account by tapping, carrying `stones`, and taps through to the game. */
-async function signUpByTouch(page: Page, name: string, stones: string[]) {
-  await page.setExtraHTTPHeaders({
-    'x-forwarded-for': `203.0.113.${Math.floor(Math.random() * 250)}`,
-  });
+async function signUpByTouch(page: Page, name: string, stones: RockVariant[]) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create an account' }).tap();
   await page.getByLabel('Username').fill(name);
@@ -104,22 +102,19 @@ async function signUpByTouch(page: Page, name: string, stones: string[]) {
   await page.getByRole('button', { name: 'Create account' }).tap();
   await expect(page.getByRole('button', { name: 'Start exploring' })).toBeVisible();
 
-  const { id, home } = account(name);
-  const db = worldDb(home);
-  db.prepare('INSERT INTO inventories (user_id, items, updated_at) VALUES (?, ?, 0)').run(
-    id,
-    JSON.stringify(stones.map((variant) => ({ kind: 'rock', variant, count: 1 }))),
-  );
-  db.close();
+  await fillPockets(page, account(name), stones);
 
   await page.getByRole('button', { name: 'Start exploring' }).tap();
   await expect.poll(() => phase(page), { intervals: [50] }).toBe('waking');
 }
 
+/** Taps again when a tap lands before the message counts as shown, like wakeUp in helpers.ts. */
 async function wakeByTap(page: Page) {
   await expect(page.locator('.wake-text')).toHaveCSS('opacity', '1');
-  await page.locator('.wake').tap();
-  await expect.poll(() => phase(page), { intervals: [50] }).toBe('playing');
+  await expect(async () => {
+    await page.locator('.wake').tap();
+    await expect.poll(() => phase(page), { intervals: [50], timeout: 500 }).toBe('playing');
+  }).toPass();
 }
 
 /** WebKit has no mute switch, so everything bound for the speakers goes through a silent gain. */
@@ -167,7 +162,7 @@ test('a player on an iPad plays by touch alone', async ({ page }) => {
   await touch.move(await client(page, -20, 100));
   await touch.up(await client(page, -20, 100));
   await page.waitForTimeout(300);
-  expect(await rockAt(page, SPOT)).toBeUndefined();
+  expect(await rockAt(page, SPOT), 'a drag off the world puts nothing down').toBeUndefined();
 
   const spot = await tileCentre(page, SPOT);
   await page.touchscreen.tap(spot.x, spot.y);
@@ -200,14 +195,14 @@ test('a player on an iPad plays by touch alone', async ({ page }) => {
   await expect.poll(async () => (await seen(page)).you!.moving).toBe(false);
   const stopped = (await seen(page)).you!.x;
   await page.waitForTimeout(300);
-  expect((await seen(page)).you!.x).toBe(stopped);
+  expect((await seen(page)).you!.x, 'the player stays put once the finger lifts').toBe(stopped);
 
   await page.getByRole('link', { name: 'Map' }).tap();
   await expect(page).toHaveURL(/\/map$/);
   await page.getByRole('link', { name: 'Back to the game' }).tap();
   await expect(page).not.toHaveURL(/\/map$/);
   await expect(page.locator('.map-overlay')).toHaveCount(0);
-  expect(await phase(page)).toBe('playing');
+  await expect.poll(() => phase(page)).toBe('playing');
   expect(errors).toEqual([]);
 });
 

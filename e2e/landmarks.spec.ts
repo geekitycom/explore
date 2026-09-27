@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import {
   OVERWORLD,
   bare,
@@ -10,7 +11,16 @@ import {
   type ScreenCoord,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { account, displayNameOf, playing, signUp, teleport, unique, worldDb } from './helpers.ts';
+import {
+  account,
+  displayNameOf,
+  playing,
+  signUp,
+  standingStill,
+  teleport,
+  unique,
+  worldDb,
+} from './helpers.ts';
 import { BREAK, LINE, NAMES } from './llm-stub.ts';
 
 type Hud = { hint: string | undefined };
@@ -51,7 +61,6 @@ async function besideSignpost(page: Page, user: string) {
   await signUp(page, user);
   const db = worldDb(account(user).home);
   await playing(page);
-  await page.waitForTimeout(300);
   const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   db.close();
   const coord = landmarkScreen(seed);
@@ -94,7 +103,7 @@ test('a landmark carries a name from the first visit, and anyone may rename it o
   await expect(bubble).toContainText(NAMES[0]!);
   await expect(bubble).toContainText(LINE);
   await expect(bubble.getByRole('button', { name: 'Report' })).toHaveCount(0);
-  await page.waitForTimeout(700);
+  await standingStill(page);
   await page.screenshot({ path: `${SHOTS}/landmark-generated.png` });
 
   await expect.poll(async () => (await hud(page)).hint).toBe('Rename this place');
@@ -120,7 +129,7 @@ test('a landmark carries a name from the first visit, and anyone may rename it o
   await expect(dialog).toBeHidden();
   await expect(bubble).toContainText(NAMES[2]!);
   await expect(bubble).toContainText(namedBy);
-  await page.waitForTimeout(700);
+  await standingStill(page);
   await page.screenshot({ path: `${SHOTS}/landmark-renamed.png` });
 
   await bubble.getByRole('button', { name: 'Rename' }).click();

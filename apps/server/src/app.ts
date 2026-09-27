@@ -23,7 +23,13 @@ import {
   type ScryptCost,
 } from './password.ts';
 import type { Player } from './presence.ts';
-import { AUTH_LIMITS, VISIT_LIMITS, createRateLimiter, type RateLimiter } from './rate-limit.ts';
+import {
+  AUTH_LIMITS,
+  VISIT_LIMITS,
+  createRateLimits,
+  type RateLimiter,
+  type RateLimits,
+} from './rate-limit.ts';
 import {
   createSession,
   deleteSession,
@@ -104,6 +110,8 @@ export function createApp({
   secureCookies = false,
   trustProxy = false,
   scryptCost = SCRYPT_COST,
+  rateLimits = createRateLimits(),
+  testHooks,
 }: {
   db: MainDb;
   host: WorldHost;
@@ -114,6 +122,9 @@ export function createApp({
   trustProxy?: boolean;
   /** Tests lower it so hashing does not dominate their run time. */
   scryptCost?: ScryptCost;
+  rateLimits?: RateLimits;
+  /** Mounted at /api/test; main.ts passes it only when the test setting is on. */
+  testHooks?: Hono | undefined;
 }) {
   const startSession = (c: Context, user: User) => {
     const { token, expiresAt } = createSession(db, user.id);
@@ -133,11 +144,11 @@ export function createApp({
     return { user: { ...user, home } };
   };
 
-  const signupsByAddress = createRateLimiter(AUTH_LIMITS.signupsPerAddress);
-  const loginsByAddress = createRateLimiter(AUTH_LIMITS.loginsPerAddress);
-  const failedLogins = createRateLimiter(AUTH_LIMITS.failedLoginsPerAddressAndUsername);
-  const codesByAddress = createRateLimiter(VISIT_LIMITS.codesPerAddress);
-  const codesByUser = createRateLimiter(VISIT_LIMITS.codesPerUser);
+  const signupsByAddress = rateLimits.limiter(AUTH_LIMITS.signupsPerAddress);
+  const loginsByAddress = rateLimits.limiter(AUTH_LIMITS.loginsPerAddress);
+  const failedLogins = rateLimits.limiter(AUTH_LIMITS.failedLoginsPerAddressAndUsername);
+  const codesByAddress = rateLimits.limiter(VISIT_LIMITS.codesPerAddress);
+  const codesByUser = rateLimits.limiter(VISIT_LIMITS.codesPerUser);
 
   const throttle = (c: Context, limiter: RateLimiter, key: string) => {
     const ms = limiter.retryAfterMs(key);
@@ -308,6 +319,8 @@ export function createApp({
     codesByUser.reset(userKey);
     return c.json({ world });
   });
+
+  if (testHooks) app.route('/api/test', testHooks);
 
   app.all('/api/*', () => {
     throw new ApiError(404, 'not_found', 'No such endpoint');

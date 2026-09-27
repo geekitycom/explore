@@ -1,11 +1,12 @@
 /// <reference lib="dom" />
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { SCREEN_PX_W, TILE } from '../packages/core/src/index.ts';
 import { playing, signUp, unique } from './helpers.ts';
 
 type Seen = {
   phase: string | undefined;
-  you: { x: number; y: number; moving: boolean } | undefined;
+  you: { x: number; y: number; dir: string; moving: boolean } | undefined;
 };
 
 const seen = (page: Page): Promise<Seen> =>
@@ -32,8 +33,11 @@ test('a mouse wakes the player with a click and walks them while held', async ({
   await signUp(page, unique('mouse'));
   await expect.poll(async () => (await seen(page)).phase).toBe('waking');
   await expect(page.locator('.wake-text')).toHaveCSS('opacity', '1');
-  await page.locator('.wake').click();
-  await expect.poll(async () => (await seen(page)).phase).toBe('playing');
+  // A click in the frame before the message counts as shown is ignored, as in wakeUp.
+  await expect(async () => {
+    await page.locator('.wake').click();
+    await expect.poll(async () => (await seen(page)).phase, { timeout: 500 }).toBe('playing');
+  }).toPass();
 
   const start = (await seen(page)).you!;
   const west = await client(page, start.x - 4 * TILE, start.y - 1.5);
@@ -45,12 +49,12 @@ test('a mouse wakes the player with a click and walks them while held', async ({
   await expect.poll(async () => (await seen(page)).you!.moving).toBe(false);
   const stopped = (await seen(page)).you!.x;
   await page.waitForTimeout(300);
-  expect((await seen(page)).you!.x).toBe(stopped);
+  expect((await seen(page)).you!.x, 'the player stays put once the mouse is up').toBe(stopped);
 
   const right = await client(page, start.x - 4 * TILE, start.y - 1.5);
   await page.mouse.click(right.x, right.y, { button: 'right' });
   await page.waitForTimeout(300);
-  expect((await seen(page)).you!.x).toBe(stopped);
+  expect((await seen(page)).you!.x, 'a right click does not walk').toBe(stopped);
 });
 
 test('a held mouse walks around the pond, and a double-click walks on after release and off an edge', async ({
@@ -96,11 +100,13 @@ test('a held mouse walks around the pond, and a double-click walks on after rele
   await page.mouse.dblclick(beyondPond.x, beyondPond.y);
   await expect.poll(async () => (await seen(page)).you!.x).toBeLessThan(15 * TILE);
   await page.keyboard.down('ArrowUp');
-  await page.waitForTimeout(100);
+  await expect.poll(async () => (await seen(page)).you!.dir).toBe('n');
   await page.keyboard.up('ArrowUp');
   await expect.poll(async () => (await seen(page)).you!.moving).toBe(false);
   await page.waitForTimeout(300);
-  expect((await seen(page)).you!.x).toBeGreaterThan(11 * TILE);
+  expect((await seen(page)).you!.x, 'a movement key ends the double-click walk').toBeGreaterThan(
+    11 * TILE,
+  );
 
   await page.mouse.move(east.x, east.y + TILE);
   await page.mouse.down();

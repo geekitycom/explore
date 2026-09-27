@@ -20,6 +20,7 @@ import {
   type Arrival,
   type ClientMessage,
   type Dir,
+  type Inventory,
   type Pose,
   type ScreenCoord,
   type Suggestion,
@@ -35,7 +36,7 @@ import {
 import { Chunks } from './chunks.ts';
 import type { WorldDb } from './db.ts';
 import { epitaphScribe } from './epitaphs.ts';
-import { loadInventory } from './inventory.ts';
+import { loadInventory, saveInventory } from './inventory.ts';
 import type { Roster } from './map.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import { TraceStore, perform, reportTrace } from './traces.ts';
@@ -297,6 +298,27 @@ export function createGame(
     },
 
     disconnect,
+
+    /** Replaces a player's pockets, in the saved world and, when they are connected, in play. */
+    setInventory(userId: number, inventory: Inventory): void {
+      saveInventory(db, userId, inventory);
+      const player = online.get(userId);
+      if (!player) return;
+      player.inventory = inventory;
+      player.conn.send({ t: 'inventory', stacks: [...inventory] });
+    },
+
+    /** Stands a player at `pose` on `coord`; one who is connected is moved there at once. */
+    place(userId: number, coord: ScreenCoord, pose: Pose): void {
+      savePlayerState(db, userId, { coord, pose }, now());
+      const player = online.get(userId);
+      if (!player) return;
+      presence.exit(player);
+      player.room = roomAt(coord, userId);
+      player.pose = pose;
+      player.acceptedAt = now();
+      sendScreen(player);
+    },
 
     /** Sends every visitor home through a portal, each with the reason, and closes their sockets. */
     sendVisitorsHome(reason: string): void {

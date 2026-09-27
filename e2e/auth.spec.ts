@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { createAccount, displayNameOf, playing, signUp, unique } from './helpers.ts';
 
 type Me = { user: { avatar: { shirt: string; hairColor: string }; avatarChosen: boolean } };

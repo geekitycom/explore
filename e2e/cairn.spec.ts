@@ -1,5 +1,13 @@
-import { expect, test, type Page } from '@playwright/test';
-import { playing, signUp, unique, worldDb } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
+import {
+  fillPockets,
+  playing,
+  signUp,
+  standingStill,
+  unique,
+  type RockVariant,
+} from './helpers.ts';
 
 type Pose = { x: number; y: number; dir: string };
 type Stone = { stone: string; by?: number };
@@ -39,22 +47,25 @@ const hint = (page: Page) =>
 const stackAt = async (page: Page) =>
   (await seen(page)).rocks.find((r) => r.tx === SPOT.tx && r.ty === SPOT.ty)?.stack;
 
-/** Nothing in play hands out stones in the garden, so the test fills the pockets directly. */
-async function give(page: Page, stones: string[]) {
-  const { id, home } = await page.evaluate(() => {
-    const me = (
-      window as unknown as { exploreUser: () => { id: number; home: number } }
-    ).exploreUser();
-    return { id: me.id, home: me.home };
-  });
-  const db = worldDb(home);
-  db.prepare(
-    `INSERT INTO inventories (user_id, items, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT (user_id) DO UPDATE SET items = excluded.items, updated_at = excluded.updated_at`,
-  ).run(id, JSON.stringify(stones.map((variant) => ({ kind: 'rock', variant, count: 1 }))), 0);
-  db.close();
-  await page.reload();
-  await playing(page);
+const STONE_NAMES: Partial<Record<RockVariant, string>> = {
+  granite: 'Granite',
+  sand: 'Sandstone',
+  stone: 'Fieldstone',
+};
+
+/**
+ * Nothing in play hands out stones in the garden, so the test fills the pockets directly. It
+ * waits for the bar to show them, as a player would: a key pressed before the next frame acts on
+ * the pockets that frame drew.
+ */
+async function give(page: Page, stones: RockVariant[]) {
+  const me = await page.evaluate(() =>
+    (window as unknown as { exploreUser: () => { id: number; home: number } }).exploreUser(),
+  );
+  await fillPockets(page, me, stones);
+  const slots = page.getByRole('navigation', { name: 'Inventory' }).getByRole('button');
+  for (const [i, stone] of stones.entries())
+    await expect(slots.nth(i)).toHaveAccessibleName(`Slot ${i + 1}, ${STONE_NAMES[stone]}`);
 }
 
 /** Walks along the garden's row 12 to the spot's column, then faces it. */
@@ -89,7 +100,9 @@ test('stones are picked up, carried, put down and stacked into a cairn', async (
 
   await page.keyboard.press('KeyE');
   await expect.poll(() => stackAt(page)).toBeUndefined();
-  expect((await seen(page)).inventory.map((s) => s.variant)).toEqual(['sand', 'stone', 'granite']);
+  await expect
+    .poll(async () => (await seen(page)).inventory.map((s) => s.variant))
+    .toEqual(['sand', 'stone', 'granite']);
 
   for (let n = 1; n <= 3; n++) {
     await page.keyboard.press('Digit1');
@@ -109,7 +122,7 @@ test('stones are picked up, carried, put down and stacked into a cairn', async (
     'sand',
     'stone',
   ]);
-  expect((await seen(page)).inventory).toEqual([]);
+  await expect.poll(async () => (await seen(page)).inventory).toEqual([]);
 
   await page.keyboard.press('KeyE');
   await expect.poll(() => hint(page)).toContain('Stones in a cairn stay put.');
@@ -119,7 +132,7 @@ test('stones are picked up, carried, put down and stacked into a cairn', async (
     .poll(async () => (await seen(page)).you.x >= (SPOT.tx + 1) * TILE + 10, { intervals: [10] })
     .toBe(true);
   await page.keyboard.up('ArrowRight');
-  await page.waitForTimeout(700);
+  await standingStill(page);
   await page.screenshot({ path: 'e2e/.results/cairn-mixed.png' });
   await page
     .getByLabel('Game world')

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import {
   OVERWORLD,
   SCREEN_H,
@@ -12,7 +13,7 @@ import {
   type ScreenCoord,
   type WorldSeed,
 } from '../packages/core/src/index.ts';
-import { account, playing, signUp, teleport, unique, worldDb } from './helpers.ts';
+import { account, playing, signUp, standingStill, teleport, unique, worldDb } from './helpers.ts';
 
 function graveyardScreen(seed: WorldSeed): ScreenCoord {
   const poi = networkOf({ seed }, OVERWORLD)
@@ -78,7 +79,6 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
   await signUp(page, user);
   const db = worldDb(account(user).home);
   await playing(page);
-  await page.waitForTimeout(300);
 
   const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
   const coord = graveyardScreen(seed);
@@ -117,20 +117,20 @@ test('a grave speaks to a player facing it, its bubble beside it', async ({ page
   await face(page, 'ArrowRight', 'e');
   await expect(bubble).toHaveText(words);
   await expectBeside(page, grave, 'below');
-  await page.waitForTimeout(700);
+  await standingStill(page);
   await page.screenshot({ path: 'e2e/.results/epitaph-beside.png' });
 
   await teleport(page, user, coord, { tx: grave.tx, ty: grave.ty + 1 });
   await expect(bubble).toHaveText(words);
   await expectBeside(page, grave, 'above');
-  await page.waitForTimeout(700);
+  await standingStill(page);
   await page.screenshot({ path: 'e2e/.results/epitaph-below.png' });
 
   await teleport(page, user, coord, { tx: grave.tx, ty: grave.ty - 1 });
   await face(page, 'ArrowDown', 's');
   await expect(bubble).toHaveText(words);
   await expectBeside(page, grave, 'below');
-  await page.waitForTimeout(700);
+  await standingStill(page);
   await page.screenshot({ path: 'e2e/.results/epitaph-above.png' });
   db.close();
 });

@@ -1,3 +1,4 @@
+import type { Inventory, Pose, ScreenCoord } from '@explore/core';
 import { openWorldDatabase, type WorldDb } from './db.ts';
 import { createGame, SESSION_TIMEOUT_MS, type Game } from './play.ts';
 import type { Conn, Player } from './presence.ts';
@@ -117,6 +118,14 @@ export function createWorldHost({
       world.game.disconnect(player);
       seen(player.user.id);
       if (world.game.playerCount() === 0) world.emptySince = now();
+    },
+
+    setInventory(id: WorldId, userId: number, inventory: Inventory): void {
+      open(id).game.setInventory(userId, inventory);
+    },
+
+    place(id: WorldId, userId: number, coord: ScreenCoord, pose: Pose): void {
+      open(id).game.place(userId, coord, pose);
     },
 
     changeProfile(user: User): void {

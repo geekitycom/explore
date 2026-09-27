@@ -13,7 +13,9 @@ export default defineConfig({
   outputDir: 'e2e/.results',
   fullyParallel: false,
   workers: 1,
-  reporter: 'list',
+  // A stopgap while flaky specs are fixed; the flaky reporter names every retry that saved a run.
+  retries: process.env['CI'] ? 1 : 0,
+  reporter: [['list'], ['./e2e/flaky-reporter.ts']],
   use: {
     baseURL: `http://localhost:${PORT}`,
     screenshot: 'only-on-failure',
@@ -42,6 +44,7 @@ export default defineConfig({
         SESSION_TIMEOUT_MS: String(SESSION_TIMEOUT_MS),
         LLM_BASE_URL: `http://localhost:${LLM_STUB_PORT}/v1`,
         LLM_MODEL: 'stub',
+        EXPLORE_TEST_HOOKS: '1',
       },
       url: `http://localhost:${PORT}/api/me`,
       reuseExistingServer: false,

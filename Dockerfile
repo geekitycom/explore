@@ -75,8 +75,11 @@ COPY apps/server/package.json apps/server/package.json
 COPY apps/server/src apps/server/src
 COPY --from=build /workspace/apps/web/dist apps/web/dist
 
-# The tests are not the server's to run.
+# The tests are not the server's to run, and the test hooks are not the
+# server's to serve: without test-hooks.ts, EXPLORE_TEST_HOOKS has nothing to
+# load even if NODE_ENV were overridden (settings.ts refuses it first).
 RUN find packages/core/src apps/server/src -name '*.test.ts' -delete \
+  && rm apps/server/src/test-hooks.ts \
   && mkdir -p /data \
   && chown node:node /data
 

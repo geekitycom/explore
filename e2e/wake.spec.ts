@@ -1,7 +1,8 @@
 /// <reference lib="dom" />
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { GARDEN_SPAWN } from '../packages/core/src/index.ts';
-import { playing, signUp, unique, wakeUp } from './helpers.ts';
+import { playing, signUp, standingStill, testHook, unique, wakeUp } from './helpers.ts';
 import { SESSION_TIMEOUT_MS } from './session.ts';
 
 const MESSAGE =
@@ -47,10 +48,9 @@ const resume = (page: Page) =>
 
 async function walkRight(page: Page) {
   await page.keyboard.down('ArrowRight');
-  await page.waitForTimeout(400);
-  await page.keyboard.up('ArrowRight');
   await expect.poll(async () => (await snapshot(page)).you!.x).toBeGreaterThan(SPAWN.x + 20);
-  await page.waitForTimeout(300);
+  await page.keyboard.up('ArrowRight');
+  await standingStill(page);
 }
 
 test('a new session opens its eyes on the garden and holds still until Space', async ({ page }) => {
@@ -72,8 +72,12 @@ test('a new session opens its eyes on the garden and holds still until Space', a
   await page.keyboard.down('ArrowUp');
   await page.waitForTimeout(500);
   await page.keyboard.up('ArrowUp');
-  expect(await snapshot(page)).toEqual({ phase: 'waking', coord: GARDEN, you: SPAWN });
-  expect(await tune(page)).toBeUndefined();
+  expect(await snapshot(page), 'the player holds still until Space').toEqual({
+    phase: 'waking',
+    coord: GARDEN,
+    you: SPAWN,
+  });
+  expect(await tune(page), 'no music plays until Space').toBeUndefined();
 
   await wakeUp(page);
   await expect(page.locator('.wake')).toHaveCount(0);
@@ -100,13 +104,16 @@ test('reloading within the timeout resumes the session where the player stood', 
 });
 
 test('coming back after the timeout wakes the player in the garden again', async ({ page }) => {
+  // The eyes opening has its own test; the short fade keeps this one about the session.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await signUp(page, unique('nap'));
   await playing(page);
   await walkRight(page);
 
   await page.goto('about:blank');
-  await page.waitForTimeout(SESSION_TIMEOUT_MS + 1000);
+  await testHook(page.request, 'clock', { advanceMs: SESSION_TIMEOUT_MS + 1000 });
   await page.goto('/');
+  await page.waitForFunction(() => 'exploreState' in window);
   await expect.poll(async () => (await snapshot(page)).phase).toBe('waking');
   expect(await snapshot(page)).toEqual({ phase: 'waking', coord: GARDEN, you: SPAWN });
   await expect(page.locator('.wake-text')).toHaveText(MESSAGE, { useInnerText: true });
