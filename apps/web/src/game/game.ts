@@ -36,6 +36,8 @@ export type GameHooks = {
   onDepart: (reason: string | undefined) => void;
 };
 
+const TRAVEL_TIMEOUT_MS = 5000;
+
 const samePose = (a: Pose, b: Pose) =>
   a.x === b.x && a.y === b.y && a.dir === b.dir && a.moving === b.moving;
 
@@ -58,6 +60,7 @@ export function startGame({
   let state: GameState = { phase: 'connecting' };
   let lastSent: Pose | undefined;
   let lastSentAt = 0;
+  let travelSince = 0;
   /** Why the server sent you home, kept until your portal has taken you. */
   let departReason: string | undefined;
 
@@ -116,6 +119,7 @@ export function startGame({
         conn.send({ t: 'move', ...pose });
         conn.send({ t: 'travel', dir: exit });
         state = { ...state, phase: 'travelling', you: { ...pose, moving: false } };
+        travelSince = now;
       } else if (
         (!lastSent || !samePose(lastSent, pose)) &&
         (now - lastSentAt >= MOVE_INTERVAL_MS || !pose.moving)
@@ -125,7 +129,8 @@ export function startGame({
         lastSentAt = now;
       }
     } else if (state.phase === 'travelling') {
-      state = { ...state, others: interpolate(state.others, dt) };
+      const phase = now - travelSince < TRAVEL_TIMEOUT_MS ? 'travelling' : 'playing';
+      state = { ...state, phase, others: interpolate(state.others, dt) };
     }
 
     const { aim } = hands.frame(state, user, now);

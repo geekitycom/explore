@@ -39,15 +39,8 @@ function viewOf({ user, pose }: Player): PlayerView {
 export class Presence {
   readonly #rooms = new Map<string, Room>();
 
-  /** The room at `coord`, loading its place only when nobody is there yet. */
-  room(coord: ScreenCoord, load: () => Place): Room {
-    const key = screenKey(coord);
-    let room = this.#rooms.get(key);
-    if (!room) {
-      room = { place: load(), players: new Set() };
-      this.#rooms.set(key, room);
-    }
-    return room;
+  roomOrLoad(coord: ScreenCoord, load: () => Place): Room {
+    return this.#rooms.get(screenKey(coord)) ?? { place: load(), players: new Set() };
   }
 
   peek(coord: ScreenCoord): Room | undefined {
@@ -59,8 +52,10 @@ export class Presence {
    * only when a visitor comes into the world through one.
    */
   enter(player: Player, portal?: Tile): PlayerView[] {
-    const others = [...player.room.players].map(viewOf);
-    player.room.players.add(player);
+    const { room } = player;
+    const others = [...room.players].map(viewOf);
+    room.players.add(player);
+    this.#rooms.set(screenKey(room.place.screen.coord), room);
     this.broadcast(player, { t: 'join', player: viewOf(player), ...(portal && { portal }) });
     return others;
   }

@@ -101,7 +101,7 @@ export function createGame(
   const online = new Map<number, Player>();
 
   const roomAt = (coord: ScreenCoord, userId: number) =>
-    presence.room(coord, () => {
+    presence.roomOrLoad(coord, () => {
       const world = loadWorld(db);
       const place = store.open(coord, chunks.screenAt(coord, userId), world);
       epitaphs?.request(place, world);
@@ -120,7 +120,6 @@ export function createGame(
 
   const sendScreen = (player: Player, arrival: Arrival = { kind: 'none' }) => {
     const { screen } = player.room.place;
-    recordVisit(db, screen.coord);
     const others = presence.enter(player, arrival.kind === 'visit' ? arrival.portal : undefined);
     player.conn.send({
       t: 'screen',
@@ -186,12 +185,13 @@ export function createGame(
       return;
     }
     const pose = arrivalPose(room.place, dir, player.pose, openings);
+    recordVisit(db, coord);
+    savePlayerState(db, player.user.id, { coord, pose }, now());
     presence.exit(player);
     player.room = room;
     player.pose = pose;
     player.acceptedAt = now();
     sendScreen(player);
-    save(player);
   }
 
   /** `portal` is set when a visitor leaves through one rather than simply dropping out. */
@@ -221,15 +221,9 @@ export function createGame(
         : role === 'visitor'
           ? visitThrough(visitorArrival(room.place, occupied(poses(room.players)), random))
           : [{ ...GARDEN_SPAWN, moving: false }, { kind: 'wake' }];
-      const player: Player = {
-        user,
-        role,
-        conn,
-        room,
-        pose,
-        acceptedAt: now(),
-        inventory: loadInventory(db, user.id),
-      };
+      const inventory = loadInventory(db, user.id);
+      recordVisit(db, room.place.screen.coord);
+      const player: Player = { user, role, conn, room, pose, acceptedAt: now(), inventory };
       online.set(user.id, player);
       sendScreen(player, arrival);
       return player;
