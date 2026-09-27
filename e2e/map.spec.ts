@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import {
   OVERWORLD,
   encodeScreen,
@@ -95,7 +96,7 @@ test('the map opens over the game, keeping the music and the connection', async 
   const map = page.getByLabel(/^World map with/);
   const game = page.getByLabel('Game world');
 
-  await signUp(page, `mapsnd${Date.now().toString(36)}`);
+  await signUp(page, unique('mapsnd'));
   await playing(page);
   await page.keyboard.press('Shift');
   await expect.poll(tune).toBe('garden:1');

@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { GARDEN_SPAWN } from '../packages/core/src/index.ts';
 import { playing, signUp, testHook, unique, wakeUp } from './helpers.ts';
 import { SESSION_TIMEOUT_MS } from './session.ts';

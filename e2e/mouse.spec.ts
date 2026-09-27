@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { SCREEN_PX_W, TILE } from '../packages/core/src/index.ts';
 import { playing, signUp, unique } from './helpers.ts';
 

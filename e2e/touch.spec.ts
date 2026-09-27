@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { GARDEN_SPAWN, SCREEN_PX_W, TILE, type Tile } from '../packages/core/src/index.ts';
 import { account, displayNameOf, fillPockets, unique, type RockVariant } from './helpers.ts';
 
@@ -92,9 +93,6 @@ async function finger(page: Page) {
 
 /** Creates an account by tapping, carrying `stones`, and taps through to the game. */
 async function signUpByTouch(page: Page, name: string, stones: RockVariant[]) {
-  await page.setExtraHTTPHeaders({
-    'x-forwarded-for': `203.0.113.${Math.floor(Math.random() * 250)}`,
-  });
   await page.goto('/');
   await page.getByRole('button', { name: 'Create an account' }).tap();
   await page.getByLabel('Username').fill(name);

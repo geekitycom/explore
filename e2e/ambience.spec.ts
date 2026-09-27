@@ -1,8 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
-import { playing, signUp } from './helpers.ts';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
+import { playing, signUp, unique } from './helpers.ts';
 
 async function enterGarden(page: Page, tag: string) {
-  await signUp(page, `${tag}${Date.now().toString(36)}`);
+  await signUp(page, unique(tag));
   await playing(page);
   await page.waitForTimeout(300);
 }

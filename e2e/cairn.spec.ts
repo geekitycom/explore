@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './test.ts';
 import { fillPockets, playing, signUp, unique, type RockVariant } from './helpers.ts';
 
 type Pose = { x: number; y: number; dir: string };
