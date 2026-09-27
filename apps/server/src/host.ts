@@ -60,6 +60,14 @@ export function createWorldHost({
     return session !== undefined && now() - session.lastSeen < sessionTimeoutMs;
   };
 
+  const logFailure = (id: WorldId, what: string, act: () => void): void => {
+    try {
+      act();
+    } catch (error) {
+      console.error(`world ${id}: ${what} failed`, error);
+    }
+  };
+
   /** The one way a world stops taking visitors; every visitor in it is sent home. */
   const closeToVisitors = (id: WorldId): void => {
     const opening = openings.close(id);
@@ -68,8 +76,10 @@ export function createWorldHost({
   };
 
   const close = (world: OpenWorld) => {
-    closeToVisitors(world.id);
-    world.game.stop();
+    logFailure(world.id, 'close', () => {
+      closeToVisitors(world.id);
+      world.game.stop();
+    });
     world.db.close();
     worlds.delete(world.id);
   };
@@ -132,7 +142,7 @@ export function createWorldHost({
     /** Saves everyone in every open world, which also keeps their sessions alive. */
     flush(): void {
       for (const world of worlds.values()) {
-        world.game.flush();
+        logFailure(world.id, 'save', () => world.game.flush());
         for (const { id } of world.game.roster()) seen(id);
       }
     },
@@ -144,7 +154,8 @@ export function createWorldHost({
     sweep(): void {
       for (const id of openings.openWorlds()) {
         const opening = openings.of(id);
-        if (opening.state === 'open' && !inSession(opening.host.id)) closeToVisitors(id);
+        if (opening.state === 'open' && !inSession(opening.host.id))
+          logFailure(id, 'close to visitors', () => closeToVisitors(id));
       }
       for (const world of worlds.values()) {
         if (world.game.playerCount() === 0 && now() - world.emptySince >= idleMs) close(world);
