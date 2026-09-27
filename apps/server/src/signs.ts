@@ -3,6 +3,9 @@ import {
   LANDMARK_NOUNS,
   LINE_MAX,
   NAME_MAX,
+  wordsOf,
+  type Site,
+  type Suggestion,
   type Biome,
   type Feature,
   type Screen,
@@ -10,8 +13,9 @@ import {
   type TraceNamed,
 } from '@explore/core';
 import { LANDS, cleanLine, linesOf } from './game-text.ts';
-import type { TextRequest } from './text-gen.ts';
-import type { Scribe } from './writer.ts';
+import { SUGGEST_LIMITS, createRateLimiter, type Limit } from './rate-limit.ts';
+import type { TextRequest, TextResult } from './text-gen.ts';
+import type { Scribe, WriteText } from './writer.ts';
 
 /** What the model is told about a landmark. `unlike` are names the reply must not repeat. */
 export type SignBrief = {
@@ -111,3 +115,62 @@ export const landmarkScribe: Scribe<TraceNamed<'landmark'>> = {
     return sign && { ...site, sign: { ...sign, source: 'model' } };
   },
 };
+
+export type Suggester = ReturnType<typeof createSuggester>;
+
+/**
+ * New names for the rename dialog, for every world on the server: each player may ask a few
+ * times in a while, one at a time. Calls the model directly and touches no store and no queue,
+ * so neither the game nor the background writer waits on it. Each player's last suggestion is
+ * remembered, so asking again moves on from it.
+ */
+export function createSuggester(writeText: WriteText, limit: Limit = SUGGEST_LIMITS.perUser) {
+  const limiter = createRateLimiter(limit);
+  const thinking = new Set<number>();
+  const last = new Map<number, string>();
+
+  const ask = async (userId: number, brief: SignBrief): Promise<TextResult> => {
+    thinking.add(userId);
+    try {
+      return await writeText(signPrompt(brief));
+    } catch (error) {
+      return { kind: 'error', message: String(error) };
+    } finally {
+      thinking.delete(userId);
+    }
+  };
+
+  return {
+    /** Never throws; every failure is a reason the dialog can show. */
+    suggest: async (userId: number, site: Site, screen: Screen): Promise<Suggestion> => {
+      if (thinking.has(userId)) return { ok: false, reason: 'Still thinking of one.' };
+      const key = String(userId);
+      const wait = limiter.retryAfterMs(key);
+      if (wait > 0) {
+        const minutes = Math.ceil(wait / 60_000);
+        return {
+          ok: false,
+          reason: `That is plenty of new names for now. Try again in ${minutes} min.`,
+        };
+      }
+      limiter.hit(key);
+      const shown = wordsOf(site)?.name;
+      const unlike = [...new Set([shown, last.get(userId)])].filter((n) => n !== undefined);
+      const noun = LANDMARK_NOUNS[site.poi];
+      const result = await ask(userId, {
+        noun,
+        biome: screen.biome,
+        around: describeScreen(screen),
+        unlike,
+      });
+      const sign = result.kind === 'ok' ? cleanSign(result.text, unlike) : undefined;
+      if (!sign) {
+        const why = result.kind === 'ok' ? `filtered "${result.text}"` : result.kind;
+        console.warn(`Suggestion for ${userId}: ${why}`);
+        return { ok: false, reason: 'No name came to mind. Try again.' };
+      }
+      last.set(userId, sign.name);
+      return { ok: true, ...sign };
+    },
+  };
+}

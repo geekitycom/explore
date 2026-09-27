@@ -53,6 +53,11 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('report'), tx: tileX, ty: tileY, kind: z.enum(TRACE_KIND_NAMES) }),
   /** A visitor leaving for their own world; the server answers with `depart`. */
   z.object({ t: z.literal('goHome') }),
+  /**
+   * Asks the language model for a new name for the landmark on the player's screen. The server
+   * answers with a `suggestion` carrying the same `n`, so a late answer is known for one.
+   */
+  z.object({ t: z.literal('suggest'), n: z.number().int().min(0) }),
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
@@ -72,6 +77,11 @@ export type StackRecord = z.input<typeof inventorySchema>[number];
  */
 export type Arrival = { kind: 'none' } | { kind: 'wake' } | { kind: 'visit'; portal: Tile };
 
+/** The language model's name for a landmark, or why there is none. It never changes the signpost. */
+export type Suggestion =
+  | { readonly ok: true; readonly name: string; readonly line: string }
+  | { readonly ok: false; readonly reason: string };
+
 export type ServerMessage =
   | {
       t: 'screen';
@@ -82,10 +92,13 @@ export type ServerMessage =
       others: PlayerView[];
       inventory: StackRecord[];
       arrival: Arrival;
+      /** Whether the server has a language model to suggest landmark names with. */
+      suggestions: boolean;
     }
   | { t: 'traces'; changes: TraceChangeRecord[] }
   | { t: 'inventory'; stacks: StackRecord[] }
   | { t: 'refused'; reason: string }
+  | { t: 'suggestion'; n: number; suggestion: Suggestion }
   /**
    * The visitor leaves for home through a portal on `portal`; the socket closes next. `reason`
    * says why when the host closed their world rather than the visitor choosing to go.

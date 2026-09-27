@@ -303,6 +303,7 @@ describe('world socket', () => {
       others: [],
       inventory: [],
       arrival: { kind: 'wake' },
+      suggestions: false,
     });
   });
 

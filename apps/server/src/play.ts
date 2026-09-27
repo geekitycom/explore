@@ -14,12 +14,15 @@ import {
   neighborCoord,
   screenBiome,
   seamOpenings,
+  siteOf,
   slotOf,
+  wordsOf,
   type Arrival,
   type ClientMessage,
   type Dir,
   type Pose,
   type ScreenCoord,
+  type Suggestion,
   type Tile,
 } from '@explore/core';
 import {
@@ -37,7 +40,7 @@ import type { Roster } from './map.ts';
 import { Presence, type Conn, type Player } from './presence.ts';
 import { TraceStore, perform, reportTrace } from './traces.ts';
 import type { User } from './users.ts';
-import { landmarkScribe } from './signs.ts';
+import { landmarkScribe, type Suggester } from './signs.ts';
 import { loadPlayerState, loadWorld, recordVisit, savePlayerState } from './world.ts';
 import type { Admission } from './worlds.ts';
 import { textWriter, type WriteText } from './writer.ts';
@@ -92,11 +95,14 @@ export function createGame(
   {
     now = Date.now,
     writeText,
+    suggester,
     sessionTimeoutMs = SESSION_TIMEOUT_MS,
     random = Math.random,
   }: {
     now?: () => number;
     writeText?: WriteText | undefined;
+    /** Shared by every world on the server, so its limits hold across them. */
+    suggester?: Suggester | undefined;
     sessionTimeoutMs?: number;
     /** Picks the visitor's arrival tile; uniform on [0, 1). */
     random?: () => number;
@@ -138,6 +144,7 @@ export function createGame(
       others,
       inventory: [...player.inventory],
       arrival,
+      suggestions: suggester !== undefined,
     });
     chunks.prefetchAround(screen.coord, player.user.id);
   };
@@ -208,6 +215,18 @@ export function createGame(
     sendScreen(player);
   }
 
+  /** Answers only once the model has, so the game never waits on it. */
+  async function suggest(player: Player, n: number): Promise<void> {
+    const { place } = player.room;
+    const site = siteOf({ place });
+    const suggestion: Suggestion = !suggester
+      ? { ok: false, reason: 'Nobody here can think of names.' }
+      : !site || !wordsOf(site)
+        ? { ok: false, reason: 'There is no signpost here.' }
+        : await suggester.suggest(player.user.id, site, place.screen);
+    if (isLive(player)) player.conn.send({ t: 'suggestion', n, suggestion });
+  }
+
   /** `portal` is set when a visitor leaves through one rather than simply dropping out. */
   function disconnect(player: Player, portal?: Tile): void {
     if (!isLive(player)) return;
@@ -271,6 +290,9 @@ export function createGame(
           break;
         case 'goHome':
           if (player.role === 'visitor') depart([player]);
+          break;
+        case 'suggest':
+          void suggest(player, message.n);
           break;
       }
     },

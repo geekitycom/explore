@@ -8,6 +8,7 @@ import { openMainDatabase } from './db.ts';
 import { createWorldHost } from './host.ts';
 import { dataDir, mainDbPath, worldDbPath, worldsDir } from './paths.ts';
 import { SESSION_TIMEOUT_MS } from './play.ts';
+import { createSuggester } from './signs.ts';
 import { createTextGenerator, type TextGenSettings } from './text-gen.ts';
 
 const SAVE_INTERVAL_MS = 5000;
@@ -29,10 +30,12 @@ const textGen: TextGenSettings | undefined =
 console.log(
   textGen ? `text generation: ${textGen.model} at ${textGen.baseUrl}` : 'text generation off',
 );
+const writeText = textGen && createTextGenerator(textGen);
 const host = createWorldHost({
   pathOf: (id) => worldDbPath(dir, id),
   game: {
-    writeText: textGen && createTextGenerator(textGen),
+    writeText,
+    suggester: writeText && createSuggester(writeText),
     sessionTimeoutMs: Number(process.env.SESSION_TIMEOUT_MS ?? SESSION_TIMEOUT_MS),
   },
 });
