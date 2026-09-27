@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
 import { GARDEN_SPAWN } from '../packages/core/src/index.ts';
-import { playing, signUp, unique, wakeUp } from './helpers.ts';
+import { playing, signUp, testHook, unique, wakeUp } from './helpers.ts';
 import { SESSION_TIMEOUT_MS } from './session.ts';
 
 const MESSAGE =
@@ -100,13 +100,16 @@ test('reloading within the timeout resumes the session where the player stood', 
 });
 
 test('coming back after the timeout wakes the player in the garden again', async ({ page }) => {
+  // The eyes opening has its own test; the short fade keeps this one about the session.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await signUp(page, unique('nap'));
   await playing(page);
   await walkRight(page);
 
   await page.goto('about:blank');
-  await page.waitForTimeout(SESSION_TIMEOUT_MS + 1000);
+  await testHook(page.request, 'clock', { advanceMs: SESSION_TIMEOUT_MS + 1000 });
   await page.goto('/');
+  await page.waitForFunction(() => 'exploreState' in window);
   await expect.poll(async () => (await snapshot(page)).phase).toBe('waking');
   expect(await snapshot(page)).toEqual({ phase: 'waking', coord: GARDEN, you: SPAWN });
   await expect(page.locator('.wake-text')).toHaveText(MESSAGE, { useInnerText: true });

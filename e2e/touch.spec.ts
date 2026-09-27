@@ -110,10 +110,13 @@ async function signUpByTouch(page: Page, name: string, stones: RockVariant[]) {
   await expect.poll(() => phase(page), { intervals: [50] }).toBe('waking');
 }
 
+/** Taps again when a tap lands before the message counts as shown, like wakeUp in helpers.ts. */
 async function wakeByTap(page: Page) {
   await expect(page.locator('.wake-text')).toHaveCSS('opacity', '1');
-  await page.locator('.wake').tap();
-  await expect.poll(() => phase(page), { intervals: [50] }).toBe('playing');
+  await expect(async () => {
+    await page.locator('.wake').tap();
+    await expect.poll(() => phase(page), { intervals: [50], timeout: 500 }).toBe('playing');
+  }).toPass();
 }
 
 /** WebKit has no mute switch, so everything bound for the speakers goes through a silent gain. */

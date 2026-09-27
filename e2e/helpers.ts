@@ -99,11 +99,17 @@ export async function playing(page: Page) {
   if ((await phase(page)) === 'waking') await wakeUp(page);
 }
 
-/** Waits for the wake-up message to show in full, then presses Space to start. */
+/**
+ * Waits for the wake-up message to show in full, then presses Space to start. Opacity reads 1 up
+ * to a frame before the message counts as shown, and Space before that is ignored, so a press
+ * that did not start the session is pressed again, as a player would.
+ */
 export async function wakeUp(page: Page) {
   await expect(page.locator('.wake-text')).toHaveCSS('opacity', '1');
-  await page.keyboard.press('Space');
-  await expect.poll(() => phase(page), { intervals: [50] }).toBe('playing');
+  await expect(async () => {
+    await page.keyboard.press('Space');
+    await expect.poll(() => phase(page), { intervals: [50], timeout: 500 }).toBe('playing');
+  }).toPass();
 }
 
 /** Stands the player on tile `at` of `coord`, facing north, and reloads the page there. */
