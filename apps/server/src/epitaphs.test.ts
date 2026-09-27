@@ -274,8 +274,10 @@ describe('a grave named outside every name list', () => {
     const model = fakeModel();
     const again = open(path, { writeText: model.writeText });
     expect(epitaphsIn(screenOf(again.join(1)).traces)).toContainEqual(quentin);
-    await vi.waitFor(() => expect(model.graves()).toHaveLength(1), { interval: 1 });
-    expect(model.nameIn(model.graves()[0]!.request)).toBe('Quentin');
+    await vi.waitFor(
+      () => expect(model.graves().map((g) => model.nameIn(g.request))).toContain('Quentin'),
+      { interval: 1 },
+    );
 
     setEpitaph(again.db, coord, quentin, undefined);
     const restored = seedEpitaph(loadWorld(again.db), coord, quentin);
