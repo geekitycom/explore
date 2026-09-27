@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from '@playwright/test';
 import { SCREEN_PX_W, TILE } from '../packages/core/src/index.ts';
-import { signUp, unique } from './helpers.ts';
+import { playing, signUp, unique } from './helpers.ts';
 
 type Seen = {
   phase: string | undefined;
@@ -51,4 +51,78 @@ test('a mouse wakes the player with a click and walks them while held', async ({
   await page.mouse.click(right.x, right.y, { button: 'right' });
   await page.waitForTimeout(300);
   expect((await seen(page)).you!.x).toBe(stopped);
+});
+
+test('a held mouse walks around the pond, and a double-click walks on after release and off an edge', async ({
+  page,
+}) => {
+  const corrections: string[] = [];
+  await page.routeWebSocket('**/ws/worlds/*', (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      if ((JSON.parse(String(message)) as { t: string }).t === 'correct')
+        corrections.push(String(message));
+      ws.send(message);
+    });
+  });
+  await signUp(page, unique('route'));
+  await playing(page);
+  expect((await seen(page)).you).toMatchObject({ x: 10 * TILE, y: 12 * TILE + 10 });
+
+  const beyondPond = await client(page, 10.5 * TILE, 4.5 * TILE);
+  await page.mouse.move(beyondPond.x, beyondPond.y);
+  await page.mouse.down();
+  await expect
+    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
+    .toMatchObject({ x: 10.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
+  await page.mouse.up();
+
+  await page.keyboard.down('ArrowLeft');
+  await expect.poll(async () => (await seen(page)).you!.x).toBeLessThan(9 * TILE);
+  await page.keyboard.up('ArrowLeft');
+  await page.mouse.down();
+  await expect
+    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
+    .toMatchObject({ x: 10.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
+  await page.mouse.up();
+
+  const east = await client(page, 15.5 * TILE, 4.5 * TILE);
+  await page.mouse.dblclick(east.x, east.y);
+  await expect
+    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
+    .toMatchObject({ x: 15.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
+
+  await page.mouse.dblclick(beyondPond.x, beyondPond.y);
+  await expect.poll(async () => (await seen(page)).you!.x).toBeLessThan(15 * TILE);
+  await page.keyboard.down('ArrowUp');
+  await page.waitForTimeout(100);
+  await page.keyboard.up('ArrowUp');
+  await expect.poll(async () => (await seen(page)).you!.moving).toBe(false);
+  await page.waitForTimeout(300);
+  expect((await seen(page)).you!.x).toBeGreaterThan(11 * TILE);
+
+  await page.mouse.move(east.x, east.y + TILE);
+  await page.mouse.down();
+  await page.mouse.move(east.x, east.y, { steps: 5 });
+  await expect
+    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
+    .toMatchObject({ x: 15.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
+  await page.mouse.up();
+
+  const sx = () =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            exploreState: () => { place?: { screen: { coord: { sx: number } } } };
+          }
+        ).exploreState().place?.screen.coord.sx,
+    );
+  const eastEdge = await client(page, SCREEN_PX_W - 2, 7.5 * TILE);
+  await page.mouse.dblclick(eastEdge.x, eastEdge.y);
+  await expect.poll(sx, { timeout: 10_000 }).toBe(1);
+  await expect.poll(async () => (await seen(page)).you!.moving).toBe(false);
+  expect((await seen(page)).you!.x).toBeLessThan(TILE);
+  expect(corrections).toEqual([]);
 });

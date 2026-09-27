@@ -1,7 +1,9 @@
 import {
   MOVE_INTERVAL_MS,
   canWalk,
+  findRoute,
   type Arrival,
+  type Dir,
   type BiomeCell,
   type Place,
   type Pose,
@@ -9,7 +11,7 @@ import {
 import type { User } from '../api.ts';
 import { createHands, type Aim, type Hud, type Point } from './hands.ts';
 import { keyboard } from './input.ts';
-import { steer, step } from './movement.ts';
+import { follow, goalFor, step } from './movement.ts';
 import { connect, type ConnectionStatus } from './net.ts';
 import { portalDone, youCanMove } from './portal.ts';
 import { applyMessage, interpolate, type GameState } from './state.ts';
@@ -65,6 +67,8 @@ export function startGame({
   let travelSince = 0;
   /** Why the server sent you home, kept until your portal has taken you. */
   let departReason: string | undefined;
+  /** The pointer walk's route, found again when its goal or the place changes. */
+  let route: { place: Place; goal: Point; ahead: readonly Point[] } | undefined;
 
   const report = (pose: Pose, at: number) => {
     conn.send({ t: 'move', ...pose });
@@ -92,7 +96,9 @@ export function startGame({
       if (message.t === 'refused') hands.refused(message.reason, at);
       if (message.t === 'suggestion') hands.suggested(message);
       if (message.t === 'depart') departReason = message.reason;
+      if (message.t === 'screen') hands.settle();
       if (message.t === 'screen' || message.t === 'correct') {
+        route = undefined;
         lastSent = undefined;
         if (state.phase !== 'connecting') reported = state.you;
       }
@@ -122,12 +128,23 @@ export function startGame({
     if (state.phase === 'playing' && !youCanMove(state.portals, now)) {
       state = { ...state, others: interpolate(state.others, dt) };
     } else if (state.phase === 'playing') {
-      const target = hands.walking();
-      const { held, facing } = target
-        ? steer(state.you, target)
-        : { held: keys.held, facing: keys.lastPressed() };
+      if (keys.held.size > 0) hands.settle();
+      const walk = hands.walking();
       const before = state.you;
-      const { pose, exit } = step(state.place, before, held, dt, facing);
+      let moved: { pose: Pose; exit: Dir | undefined };
+      if (walk.kind === 'none') {
+        route = undefined;
+        moved = step(state.place, before, keys.held, dt, keys.lastPressed());
+      } else {
+        const goal = goalFor(walk.target);
+        if (route?.place !== state.place || route.goal.x !== goal.x || route.goal.y !== goal.y)
+          route = { place: state.place, goal, ahead: findRoute(state.place, before, goal) };
+        const followed = follow(state.place, before, route.ahead, dt);
+        route = { ...route, ahead: followed.route };
+        if (followed.route.length === 0) hands.settle();
+        moved = followed;
+      }
+      const { pose, exit } = moved;
       state = { ...state, you: pose, others: interpolate(state.others, dt) };
       if (reported && !canWalk(state.place, reported, pose)) report(before, now);
       if (exit) {
