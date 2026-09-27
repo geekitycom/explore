@@ -18,6 +18,8 @@ export const REPLACED_CLOSE_CODE = 4000;
 export const REFUSED_CLOSE_CODE = 4403;
 /** WebSocket close code the server sends after a visitor leaves for home through a portal. */
 export const DEPARTED_CLOSE_CODE = 4001;
+/** WebSocket close code the server sends when the socket's session has ended or never existed. */
+export const SIGNED_OUT_CLOSE_CODE = 4401;
 
 const dirSchema = z.enum(DIRS);
 const coordinate = (max: number) =>

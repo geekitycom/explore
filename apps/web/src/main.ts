@@ -44,6 +44,7 @@ const STATUS_TEXT: Record<GameStatus, string> = {
   replaced: 'You opened the game in another tab. This one is paused.',
   refused: 'That world is not open to you.',
   departed: 'Going home…',
+  signedOut: 'You were logged out.',
 };
 
 /** How long the arrival line and a notice about being sent home stay up. */
@@ -200,6 +201,10 @@ function gameView(initialUser: User, worldId: number | undefined, notice: string
     onStatus: (s) => {
       if (s === 'refused' && visiting) {
         goHome("That world isn't open to you right now, so you're back home.");
+        return;
+      }
+      if (s === 'signedOut') {
+        show({ kind: 'auth', mode: 'login', then: parseRoute(location.pathname) });
         return;
       }
       status.textContent = STATUS_TEXT[s];
