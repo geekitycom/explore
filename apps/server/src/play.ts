@@ -8,7 +8,7 @@ import {
   WALK_SPEED,
   allTraces,
   arrivalPose,
-  canOccupy,
+  canWalk,
   clientMessageSchema,
   encodeScreen,
   neighborCoord,
@@ -101,7 +101,7 @@ export function createGame(
   const online = new Map<number, Player>();
 
   const roomAt = (coord: ScreenCoord, userId: number) =>
-    presence.room(coord, () => {
+    presence.roomOrLoad(coord, () => {
       const world = loadWorld(db);
       const place = store.open(coord, chunks.screenAt(coord, userId), world);
       epitaphs?.request(place, world);
@@ -120,7 +120,6 @@ export function createGame(
 
   const sendScreen = (player: Player, arrival: Arrival = { kind: 'none' }) => {
     const { screen } = player.room.place;
-    recordVisit(db, screen.coord);
     const others = presence.enter(player, arrival.kind === 'visit' ? arrival.portal : undefined);
     player.conn.send({
       t: 'screen',
@@ -164,7 +163,7 @@ export function createGame(
     const elapsed = Math.min((now() - player.acceptedAt) / 1000, MAX_ELAPSED_S);
     const budget = WALK_SPEED * elapsed * SPEED_SLACK + DISTANCE_SLACK_PX;
     const distance = Math.hypot(pose.x - player.pose.x, pose.y - player.pose.y);
-    if (distance > budget || !canOccupy(player.room.place, pose.x, pose.y)) {
+    if (distance > budget || !canWalk(player.room.place, player.pose, pose)) {
       correct(player);
       return;
     }
@@ -182,16 +181,23 @@ export function createGame(
     const room = roomAt(coord, player.user.id);
     const openings = seamOpenings(player.room.place, room.place, dir);
     if (openings.length === 0) {
+      const { x, y } = player.pose;
+      player.pose = {
+        ...player.pose,
+        x: Math.min(Math.max(x, 0), SCREEN_PX_W - 1),
+        y: Math.min(Math.max(y, 0), SCREEN_PX_H - 1),
+      };
       correct(player);
       return;
     }
     const pose = arrivalPose(room.place, dir, player.pose, openings);
+    recordVisit(db, coord);
+    savePlayerState(db, player.user.id, { coord, pose }, now());
     presence.exit(player);
     player.room = room;
     player.pose = pose;
     player.acceptedAt = now();
     sendScreen(player);
-    save(player);
   }
 
   /** `portal` is set when a visitor leaves through one rather than simply dropping out. */
@@ -221,15 +227,9 @@ export function createGame(
         : role === 'visitor'
           ? visitThrough(visitorArrival(room.place, occupied(poses(room.players)), random))
           : [{ ...GARDEN_SPAWN, moving: false }, { kind: 'wake' }];
-      const player: Player = {
-        user,
-        role,
-        conn,
-        room,
-        pose,
-        acceptedAt: now(),
-        inventory: loadInventory(db, user.id),
-      };
+      const inventory = loadInventory(db, user.id);
+      recordVisit(db, room.place.screen.coord);
+      const player: Player = { user, role, conn, room, pose, acceptedAt: now(), inventory };
       online.set(user.id, player);
       sendScreen(player, arrival);
       return player;

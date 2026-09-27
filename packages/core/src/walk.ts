@@ -3,6 +3,8 @@ import {
   BLOCKING_FEATURES,
   DIR_DELTA,
   SCREEN_H,
+  SCREEN_PX_H,
+  SCREEN_PX_W,
   SCREEN_W,
   TILE,
   featureAt,
@@ -43,12 +45,38 @@ export function boxTiles(x: number, y: number): Tile[] {
   return tiles;
 }
 
-/**
- * Whether the feet box fits at (x, y). Pixels past the screen edge count as open, so a player
- * can step off an edge; the server decides what is on the other side.
- */
 export function canOccupy(place: Place, x: number, y: number): boolean {
-  return boxTiles(x, y).every(({ tx, ty }) => isWalkable(place, tx, ty));
+  const tiles = boxTiles(x, y);
+  const touchesScreen = tiles.length > 0;
+  return touchesScreen && tiles.every(({ tx, ty }) => isWalkable(place, tx, ty));
+}
+
+const EDGE_OVERLAP_PX = 0.5;
+
+export function clampFeetOntoScreen(x: number, y: number): { x: number; y: number } {
+  const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+  return {
+    x: clamp(x, EDGE_OVERLAP_PX - FEET.halfW, SCREEN_PX_W + FEET.halfW - EDGE_OVERLAP_PX),
+    y: clamp(y, EDGE_OVERLAP_PX - FEET.down, SCREEN_PX_H + FEET.up - EDGE_OVERLAP_PX),
+  };
+}
+
+const MAX_SAMPLE_GAP_PX = Math.min(FEET.up + FEET.down, 2 * FEET.halfW);
+
+export function canWalk(
+  place: Place,
+  from: Pick<Pose, 'x' | 'y'>,
+  to: Pick<Pose, 'x' | 'y'>,
+): boolean {
+  const along = (a: number, b: number, fits: (v: number) => boolean) => {
+    const samples = Math.ceil(Math.abs(b - a) / MAX_SAMPLE_GAP_PX);
+    for (let i = 1; i <= samples; i++) if (!fits(a + ((b - a) * i) / samples)) return false;
+    return true;
+  };
+  return (
+    along(from.x, to.x, (x) => canOccupy(place, x, from.y)) &&
+    along(from.y, to.y, (y) => canOccupy(place, to.x, y))
+  );
 }
 
 export function boxCentre({ x, y }: Pick<Pose, 'x' | 'y'>): { x: number; y: number } {

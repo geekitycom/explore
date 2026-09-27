@@ -66,7 +66,13 @@ const password = z
   .max(200, 'Password must be at most 200 characters');
 
 const REFUSED_MESSAGE = 'That world is not open to you';
+const INTERNAL_ERROR_CLOSE_CODE = 1011;
 const SIGNED_OUT_REASON = 'signed out';
+
+function failed(ws: WSContext, error: unknown): void {
+  console.error(error);
+  ws.close(INTERNAL_ERROR_CLOSE_CODE, 'server error');
+}
 const UNKNOWN_CODE_MESSAGE =
   "That code doesn't open any world right now. Check it with your friend.";
 
@@ -331,22 +337,31 @@ export function createApp({
             ws.close(REFUSED_CLOSE_CODE, REFUSED_MESSAGE);
             return;
           }
-          const player = host.connect(
-            entry.worldId,
-            user,
-            {
-              send: (message) => ws.send(JSON.stringify(message)),
-              close: (code, reason) => ws.close(code, reason),
-            },
-            entry.role,
-          );
-          joined = { token, worldId: entry.worldId, player };
+          try {
+            const player = host.connect(
+              entry.worldId,
+              user,
+              {
+                send: (message) => ws.send(JSON.stringify(message)),
+                close: (code, reason) => ws.close(code, reason),
+              },
+              entry.role,
+            );
+            joined = { token, worldId: entry.worldId, player };
+          } catch (error) {
+            failed(ws, error);
+            return;
+          }
           const sockets = socketsBySession.get(token) ?? new Set();
           socketsBySession.set(token, sockets.add(ws));
         },
-        onMessage(event: { data: unknown }) {
+        onMessage(event: { data: unknown }, ws) {
           if (joined && typeof event.data === 'string') {
-            host.receive(joined.worldId, joined.player, event.data);
+            try {
+              host.receive(joined.worldId, joined.player, event.data);
+            } catch (error) {
+              failed(ws, error);
+            }
           }
         },
         onClose(_event, ws) {

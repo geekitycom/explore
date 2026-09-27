@@ -27,13 +27,17 @@ import {
   secretGarden,
   siteOf,
   type Avatar,
+  type Dir,
+  type Feature,
   type LayerId,
   type Pose,
+  type Screen,
   type ScreenCoord,
   type ScreenRecord,
   type ServerMessage,
   type Tile,
 } from '@explore/core';
+import { uniformScreen, withFeatures } from '@explore/core/testing';
 import { serve } from '@hono/node-server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
@@ -233,6 +237,7 @@ async function fetchMap(
 }
 
 const SPAWN: Pose = { ...GARDEN_SPAWN, moving: false };
+const stand = (x: number, y: number): Pose => ({ x, y, dir: 'e', moving: false });
 const STEP_PX = 7;
 
 /** Sends move reports no farther apart than a walking player would, ending at each waypoint. */
@@ -275,6 +280,9 @@ async function expectOnlyMovesPending(client: Client) {
   client.send({ t: 'move', x: 0, y: 0, dir: 'n', moving: true });
   expect((await nextAfterMoves(client)).t).toBe('correct');
 }
+
+const closedWithin = (client: Client) =>
+  Promise.race([client.closed, new Promise((resolve) => setTimeout(resolve, 500, 'open'))]);
 
 async function travelEast(client: Client) {
   walk(client, SPAWN, ...TO_EAST_EDGE);
@@ -438,6 +446,75 @@ describe('world socket', () => {
     await nextOf(alice, 'screen');
     alice.send({ t: 'travel', dir: 'e' });
     expect(await alice.next()).toEqual({ t: 'correct', x: SPAWN.x, y: SPAWN.y });
+  });
+
+  it('refuses a seam with no opening and loads the screen beyond fresh for the next arrival', async () => {
+    const { base, db } = await start();
+    const east = { layer: OVERWORLD, sx: 1, sy: 0 };
+    const walled = withFeatures(
+      { ...uniformScreen(), coord: east },
+      Array.from({ length: 15 }, (_, ty): [number, number, 'tree'] => [0, ty, 'tree']),
+    );
+    db.prepare(
+      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version) VALUES (?, 1, 0, ?, NULL, 0, 0)',
+    ).run(OVERWORLD, JSON.stringify(encodeScreen(walled)));
+    const alice = await connect(base, await signup(base, 'alice'));
+    await nextOf(alice, 'screen');
+    const edge = walk(alice, SPAWN, ...TO_EAST_EDGE);
+    alice.send({ t: 'travel', dir: 'e' });
+    expect(await alice.next()).toEqual({ t: 'correct', ...edge });
+
+    const probe = { kind: 'probe', tx: 5, ty: 5, by: 2 };
+    db.prepare(
+      `INSERT INTO traces (layer, sx, sy, tx, ty, kind, data, updated_by, updated_at)
+       VALUES (?, 1, 0, 5, 5, 'probe', ?, NULL, 0)`,
+    ).run(OVERWORLD, JSON.stringify(probe));
+    const bobCookie = await signup(base, 'bob');
+    savePlayerState(db, 2, { coord: east, pose: { x: 120, y: 120, dir: 's', moving: false } });
+    const bob = await connect(base, bobCookie);
+    const arrival = await nextOf(bob, 'screen');
+    expect(arrival.screen).toMatchObject({ sx: 1, sy: 0 });
+    expect(arrival.traces).toContainEqual(probe);
+  });
+
+  it('closes the socket of a traveller whose arrival fails, leaving them on the screen they left', async () => {
+    const { base, db, host } = await start();
+    const aliceCookie = await signup(base, 'alice');
+    const alice = await connect(base, aliceCookie);
+    const bob = await connect(base, await signup(base, 'bob'));
+    await nextOf(alice, 'screen');
+    await nextOf(bob, 'screen');
+    await nextOf(alice, 'join');
+    await travelEast(bob);
+    await nextAfterMoves(alice);
+
+    const edge = walk(alice, SPAWN, ...TO_EAST_EDGE);
+    db.exec('PRAGMA query_only = ON');
+    alice.send({ t: 'travel', dir: 'e' });
+    expect(await closedWithin(alice)).toMatchObject({ code: 1011 });
+    db.exec('PRAGMA query_only = OFF');
+    await expectOnlyMovesPending(bob);
+    expect(
+      host
+        .open(ALICE_WORLD)
+        .game.roster()
+        .map((p) => p.id),
+    ).toEqual([2]);
+
+    const again = await connect(base, aliceCookie);
+    const resumed = await nextOf(again, 'screen');
+    expect(resumed.screen).toMatchObject({ sx: 0, sy: 0 });
+    expect(resumed.you).toMatchObject(edge);
+  });
+
+  it('closes the socket of a player who fails to enter the world', async () => {
+    const { base, db, host } = await start();
+    const cookie = await signup(base, 'alice');
+    db.exec('PRAGMA query_only = ON');
+    const alice = await connect(base, cookie);
+    expect(await closedWithin(alice)).toMatchObject({ code: 1011 });
+    db.exec('PRAGMA query_only = OFF');
+    expect(host.open(ALICE_WORLD).game.playerCount()).toBe(0);
   });
 
   it('corrects moves into blocked tiles and moves faster than the speed cap', async () => {
@@ -977,6 +1054,77 @@ describe('game', () => {
     });
     db.close();
     expect(() => game.disconnect(player)).not.toThrow();
+  });
+});
+
+describe('movement', () => {
+  const EAST = { layer: OVERWORLD, sx: 1, sy: 0 };
+
+  function standOn(screen: Screen, pose: Pose) {
+    const db = openWorldDatabase(':memory:');
+    db.prepare(
+      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version) VALUES (?, ?, ?, ?, NULL, 0, 0)',
+    ).run(EAST.layer, EAST.sx, EAST.sy, JSON.stringify(encodeScreen({ ...screen, coord: EAST })));
+    const clock = { t: 1000 };
+    const game = createGame(db, { now: () => clock.t });
+    cleanups.push(() => {
+      game.stop();
+      db.close();
+    });
+    savePlayerState(db, 1, { coord: EAST, pose }, clock.t);
+    const sent: ServerMessage[] = [];
+    const player = game.connect(
+      userNamed(1, 'alice'),
+      { send: (m) => sent.push(m), close: () => {} },
+      { role: 'owner', sessionSince: clock.t },
+    );
+    sent.length = 0;
+    const move = (x: number, y: number, dir: Dir = 'e') =>
+      game.receive(player, JSON.stringify({ t: 'move', x, y, dir, moving: true }));
+    const at = () => game.roster()[0]!.pose;
+    return { game, player, sent, clock, move, at };
+  }
+
+  const treeColumn = (tx: number, from = 0, to = 14): Screen =>
+    withFeatures(
+      uniformScreen(),
+      Array.from({ length: to - from + 1 }, (_, i): [number, number, Feature] => [
+        tx,
+        from + i,
+        'tree',
+      ]),
+    );
+
+  it('corrects a jump over a one-tile wall, however long the player stood still', () => {
+    const { sent, clock, move, at } = standOn(treeColumn(10), stand(150, 120));
+    clock.t += 1000;
+    move(185, 120);
+    expect(sent).toEqual([{ t: 'correct', x: 150, y: 120 }]);
+    expect(at()).toMatchObject({ x: 150, y: 120 });
+  });
+
+  it('corrects a walk along the outside of an edge, past what blocks the inside', () => {
+    const { sent, clock, move, at } = standOn(treeColumn(0, 5, 9), stand(8, 40));
+    for (const [x, y] of [
+      [-20, 40],
+      [-20, 100],
+      [-20, 180],
+      [8, 180],
+    ] as const) {
+      clock.t += 1000;
+      move(x, y, 's');
+    }
+    expect(sent.every((m) => m.t === 'correct')).toBe(true);
+    expect(at()).toMatchObject({ x: 8, y: 40 });
+  });
+
+  it('corrects a refused travel to a pose on the screen', () => {
+    const { sent, clock, move, game, player } = standOn(treeColumn(0, 5, 9), stand(8, 40));
+    clock.t += 100;
+    move(-3, 40, 'w');
+    expect(sent).toEqual([]);
+    game.receive(player, JSON.stringify({ t: 'travel', dir: 'w' }));
+    expect(sent).toEqual([{ t: 'correct', x: 0, y: 40 }]);
   });
 });
 

@@ -70,9 +70,17 @@ describe('canOccupy', () => {
     expect(canOccupy(bare(s), 5 * 16 + 8, 6 * 16 + 3)).toBe(false);
   });
 
-  test('past the screen edge counts as open', () => {
-    expect(canOccupy(bare(uniformScreen('water')), -10, -10)).toBe(true);
-    expect(canOccupy(bare(uniformScreen('water')), 1, 100)).toBe(false);
+  test('feet past the edge stand on the screen tiles they still touch, and no farther out', () => {
+    const open = bare(uniformScreen());
+    expect(canOccupy(open, -4.5, 100)).toBe(true);
+    expect(canOccupy(open, -5, 100)).toBe(false);
+    expect(canOccupy(open, SCREEN_W * 16 + 4.5, 100)).toBe(true);
+    expect(canOccupy(open, SCREEN_W * 16 + 5, 100)).toBe(false);
+    expect(canOccupy(open, 100, -0.5)).toBe(true);
+    expect(canOccupy(open, 100, -1)).toBe(false);
+    expect(canOccupy(open, 100, SCREEN_H * 16 + 3.5)).toBe(true);
+    expect(canOccupy(open, 100, SCREEN_H * 16 + 4)).toBe(false);
+    expect(canOccupy(bare(uniformScreen('water')), -4.5, 100)).toBe(false);
   });
 });
 

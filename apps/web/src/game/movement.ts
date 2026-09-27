@@ -5,6 +5,7 @@ import {
   WALK_SPEED,
   boxCentre,
   canOccupy,
+  clampFeetOntoScreen,
   type Dir,
   type Place,
   type Pose,
@@ -41,8 +42,9 @@ export function step(
 
   const scale = (WALK_SPEED * dtSeconds) / (dx !== 0 && dy !== 0 ? Math.SQRT2 : 1);
   let { x, y } = pose;
-  if (dx !== 0 && canOccupy(place, x + dx * scale, y)) x += dx * scale;
-  if (dy !== 0 && canOccupy(place, x, y + dy * scale)) y += dy * scale;
+  const to = clampFeetOntoScreen(x + dx * scale, y + dy * scale);
+  if (dx !== 0 && canOccupy(place, to.x, y)) x = to.x;
+  if (dy !== 0 && canOccupy(place, x, to.y)) y = to.y;
 
   const moved = x !== pose.x || y !== pose.y;
   return {
