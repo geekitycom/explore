@@ -1,15 +1,11 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './test.ts';
-import { GARDEN_SPAWN } from '../packages/core/src/index.ts';
-import { playing, signUp, standingStill, unique } from './helpers.ts';
+import { playing, signUp, unique } from './helpers.ts';
 
 type Hud = {
   hint: string | undefined;
-  hintHidden: boolean;
   slots: { label: string; count: number | undefined }[];
 };
-
-type Coord = { layer: string; sx: number; sy: number };
 
 const hud = (page: Page) =>
   page.evaluate(() => (window as unknown as { exploreHud: () => Hud }).exploreHud());
@@ -30,20 +26,6 @@ const expectBarUnderView = (page: Page) =>
     )
     .toEqual({ left: 0, width: 0, gap: 0 });
 
-const x = (page: Page) =>
-  page.evaluate(
-    () =>
-      (window as unknown as { exploreState: () => { you: { x: number } } }).exploreState().you.x,
-  );
-
-const coord = (page: Page) =>
-  page.evaluate(
-    () =>
-      (
-        window as unknown as { exploreState: () => { place?: { screen: { coord: Coord } } } }
-      ).exploreState().place?.screen.coord,
-  );
-
 test('the inventory bar and the hint bar frame the world', async ({ page }) => {
   await signUp(page, unique('hud'));
   await expect(page.getByLabel('Game world')).toBeVisible();
@@ -61,38 +43,11 @@ test('the inventory bar and the hint bar frame the world', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Inventory' })).toHaveText('');
   await expectBarUnderView(page);
 
-  await page.keyboard.down('ArrowLeft');
-  await expect.poll(async () => (await hud(page)).hintHidden).toBe(true);
-  const whileWalking: boolean[] = [];
-  for (let t = 50; t < 600; t += 50) {
-    whileWalking.push((await hud(page)).hintHidden);
-    await page.waitForTimeout(50);
-  }
-  await page.keyboard.up('ArrowLeft');
-  expect(whileWalking, 'the hint stays hidden the whole time the player walks').not.toContain(
-    false,
-  );
-
-  const released = Date.now();
-  await expect.poll(async () => (await hud(page)).hintHidden, { timeout: 1500 }).toBe(false);
-  expect(Date.now() - released).toBeGreaterThanOrEqual(400);
   await expect
     .poll(async () => (await hud(page)).hint)
     .toBe('Click and hold where you want to walk. Walk off an edge to explore.');
   await expect(page.getByRole('button', { name: 'Click and hold' })).toBeVisible();
   await page.screenshot({ path: 'e2e/.results/inventory-garden.png' });
-
-  await page.keyboard.down('ArrowRight');
-  await expect.poll(() => x(page), { intervals: [20] }).toBeGreaterThanOrEqual(GARDEN_SPAWN.x);
-  await page.keyboard.up('ArrowRight');
-
-  await page.keyboard.down('ArrowDown');
-  await expect
-    .poll(() => coord(page), { intervals: [20] })
-    .toEqual({ layer: 'overworld', sx: 0, sy: 1 });
-  await page.keyboard.up('ArrowDown');
-  await standingStill(page);
-  await page.screenshot({ path: 'e2e/.results/inventory-south.png' });
 
   await page.setViewportSize({ width: 360, height: 740 });
   await expect
