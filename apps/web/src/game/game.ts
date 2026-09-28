@@ -13,8 +13,8 @@ import { createHands, type Aim, type Hud, type Point } from './hands.ts';
 import { keyboard } from './input.ts';
 import { follow, goalFor, step } from './movement.ts';
 import { connect, type ConnectionStatus } from './net.ts';
-import { portalDone, youCanMove } from './portal.ts';
-import { applyMessage, interpolate, type GameState } from './state.ts';
+import { portalDone } from './portal.ts';
+import { applyMessage, beginFrame, interpolate, type GameState } from './state.ts';
 
 export type Renderer = {
   draw(state: GameState, you: User, clock: number, aim: Aim | undefined): void;
@@ -38,8 +38,6 @@ export type GameHooks = {
    */
   onDepart: (reason: string | undefined) => void;
 };
-
-const TRAVEL_TIMEOUT_MS = 5000;
 
 const samePose = (a: Pose, b: Pose) =>
   a.x === b.x && a.y === b.y && a.dir === b.dir && a.moving === b.moving;
@@ -125,9 +123,9 @@ export function startGame({
       state = { ...state, portals: state.portals.filter((p) => !portalDone(p, now)) };
     }
 
-    if (state.phase === 'playing' && !youCanMove(state.portals, now)) {
-      state = { ...state, others: interpolate(state.others, dt) };
-    } else if (state.phase === 'playing') {
+    const begun = beginFrame(state, now, travelSince);
+    state = begun.state;
+    if (begun.walks && state.phase === 'playing') {
       if (keys.held.size > 0) hands.settle();
       const walk = hands.walking();
       const before = state.you;
@@ -158,9 +156,8 @@ export function startGame({
       ) {
         report(pose, now);
       }
-    } else if (state.phase === 'travelling') {
-      const phase = now - travelSince < TRAVEL_TIMEOUT_MS ? 'travelling' : 'playing';
-      state = { ...state, phase, others: interpolate(state.others, dt) };
+    } else if (state.phase === 'playing' || state.phase === 'travelling') {
+      state = { ...state, others: interpolate(state.others, dt) };
     }
 
     const { aim } = hands.frame(state, user, now);

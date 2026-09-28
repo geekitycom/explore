@@ -10,7 +10,13 @@ import {
   type TraceRecord,
 } from '@explore/core';
 import { describe, expect, test } from 'vitest';
-import { applyMessage, interpolate, type GameState } from './state.ts';
+import {
+  TRAVEL_TIMEOUT_MS,
+  applyMessage,
+  beginFrame,
+  interpolate,
+  type GameState,
+} from './state.ts';
 
 const garden = encodeScreen(secretGarden());
 const bob: PlayerView = {
@@ -151,6 +157,40 @@ describe('applyMessage', () => {
     const state = apply(playing(), { t: 'correct', x: 10, y: 20 });
     if (state.phase === 'connecting') throw new Error('unreachable');
     expect(state.you).toEqual({ ...you, x: 10, y: 20 });
+  });
+});
+
+describe('beginFrame', () => {
+  test('a travel the server never answers returns you to play where you stood, after the timeout', () => {
+    const live = playing();
+    if (live.phase === 'connecting') throw new Error('unreachable');
+    const travelling: GameState = { ...live, phase: 'travelling' };
+    const since = 2000;
+
+    expect(beginFrame(travelling, since + TRAVEL_TIMEOUT_MS - 1, since)).toEqual({
+      state: travelling,
+      walks: false,
+    });
+    const back = beginFrame(travelling, since + TRAVEL_TIMEOUT_MS, since);
+    expect(back).toEqual({ state: { ...travelling, phase: 'playing' }, walks: false });
+    expect(beginFrame(back.state, since + TRAVEL_TIMEOUT_MS + 16, since).walks).toBe(true);
+  });
+
+  test('a visitor stays put until their arrival portal lets them out', () => {
+    const arrived = applyMessage(
+      { phase: 'connecting' },
+      screenMessage([], { kind: 'visit', portal: PORTAL }),
+      NOW,
+    );
+    expect(beginFrame(arrived, NOW, 0).walks).toBe(false);
+    expect(beginFrame(arrived, NOW + 1199, 0).walks).toBe(false);
+    expect(beginFrame(arrived, NOW + 1200, 0).walks).toBe(true);
+    expect(beginFrame(playing(), NOW, 0).walks).toBe(true);
+  });
+
+  test('nobody walks while waking', () => {
+    const waking = applyMessage({ phase: 'connecting' }, screenMessage([], WAKE), NOW);
+    expect(beginFrame(waking, NOW + 60_000, 0)).toEqual({ state: waking, walks: false });
   });
 });
 
