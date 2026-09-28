@@ -337,6 +337,7 @@ export function createGame(
       [...online.values()].map((p) => ({
         id: p.user.id,
         name: p.user.displayName,
+        shirt: p.user.avatar.shirt,
         coord: p.room.place.screen.coord,
         pose: p.pose,
       })),

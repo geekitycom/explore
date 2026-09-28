@@ -1,6 +1,6 @@
 import { SCREEN_H, SCREEN_W } from '@explore/core';
 import { describe, expect, test } from 'vitest';
-import type { WorldMap } from '../api.ts';
+import type { MapPlayer, WorldMap } from '../api.ts';
 import { mapLabels, mapLayout, screenRect, type MapLabel } from './map-view.ts';
 
 const zooms = [1, 1.25, 1.25 ** 2, 1.25 ** 5, 0.8 * 1.25 ** 9, 24];
@@ -61,80 +61,125 @@ describe('the map view', () => {
 
 describe('map labels', () => {
   const layer = 'overworld';
-  const at = (sx: number, sy: number) => ({ layer, sx, sy });
+  const garden = { layer, sx: 0, sy: 0 };
   const named = (sx: number, sy: number, ty: number, name: string) => ({
     x: (sx + 0.5) * SCREEN_W,
     y: sy * SCREEN_H + ty,
     name,
   });
-  type Data = Pick<WorldMap, 'you' | 'garden' | 'names' | 'players'>;
-  const standing = (id: number, sx: number, sy: number, name: string, you = false) => ({
+  type Data = Pick<WorldMap, 'garden' | 'names' | 'players'>;
+  const standing = (
+    id: number,
+    sx: number,
+    sy: number,
+    name: string,
+    shirt: MapPlayer['shirt'] = 'green',
+  ): MapPlayer => ({
     id,
     name,
     x: (sx + 0.5) * SCREEN_W,
     y: (sy + 0.6) * SCREEN_H,
-    you,
+    shirt,
   });
   const cases: [string, Data][] = [
-    ['the player in the garden', { you: at(0, 0), garden: at(0, 0), names: [], players: [] }],
+    ['the host alone in the garden', { garden, names: [], players: [standing(1, 0, 0, 'Ann')] }],
     ...[1, 4, 8, 14].map((ty): [string, Data] => [
-      `the player on a landmark's screen, signpost on row ${ty}`,
-      { you: at(2, 1), garden: at(0, 0), names: [named(2, 1, ty, 'Hare Stones')], players: [] },
+      `the host on a landmark's screen, signpost on row ${ty}`,
+      { garden, names: [named(2, 1, ty, 'Hare Stones')], players: [standing(1, 2, 1, 'Ann')] },
     ]),
     [
       'adjacent named screens',
       {
-        you: at(-3, 2),
-        garden: at(0, 0),
+        garden,
         names: [
           named(3, 0, 2, 'The Weeping Mere'),
           named(4, 0, 2, 'Old Crow Hollow'),
           named(3, 1, 1, 'Saltmarsh Graves'),
           named(1, 0, 1, 'Hare Stones'),
         ],
-        players: [],
+        players: [standing(1, -3, 2, 'Ann')],
       },
     ],
     [
-      'the host and two visitors crowding a named screen',
+      'the host and two visitors crowding the garden and a named screen',
       {
-        you: at(0, 0),
-        garden: at(0, 0),
-        names: [named(0, 0, 3, 'Hare Stones')],
+        garden,
+        names: [named(1, 0, 3, 'Hare Stones')],
         players: [
-          standing(1, 0, 0, 'Ann', true),
-          standing(2, 0, 0, 'Benjamin the Bold'),
-          standing(3, 0, 0, 'Cat'),
+          standing(1, 0, 0, 'Ann'),
+          standing(2, 0, 0, 'Benjamin the Bold', 'charcoal'),
+          standing(3, 1, 0, 'Cat', 'white'),
         ],
       },
     ],
+    [
+      'a layer without the garden',
+      { garden: null, names: [named(0, 0, 3, 'Hare Stones')], players: [standing(1, 0, 0, 'Ann')] },
+    ],
   ];
   const measure = (text: string, size: number) => text.length * size * 0.6;
-  const overlap = (a: MapLabel, b: MapLabel) =>
+  type Box = Pick<MapLabel, 'x' | 'y' | 'w' | 'h'>;
+  const overlap = (a: Box, b: Box) =>
     a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
   describe.each(cases)('with %s', (_, data) => {
     test.each(zooms.flatMap((zoom) => [1, 2].map((dpr) => [zoom, dpr])))(
-      'at zoom %d and pixel ratio %d, no two labels overlap',
+      'at zoom %d and pixel ratio %d, every player is named, then the garden and landmarks, covering no label, dot, or marker',
       (zoom, dpr) => {
         const s = zoom * dpr;
         const ox = 613.37;
         const oy = 291.81;
         const labels = mapLabels(data, s, ox, oy, dpr, measure);
-        const others = data.players.filter((p) => !p.you);
-        expect(labels).toHaveLength(2 + data.names.length + others.length);
-        for (const p of others) expect(labels.map((l) => l.text)).toContain(p.name);
+        expect(labels.map((l) => l.text)).toEqual([
+          ...data.players.map((p) => p.name),
+          ...(data.garden ? ['Secret Garden'] : []),
+          ...data.names.map((n) => n.name),
+        ]);
         for (const l of labels) expect([l.x, l.y, l.w, l.h].every(Number.isInteger)).toBe(true);
         const clashes = labels.flatMap((a, i) =>
           labels.slice(i + 1).flatMap((b) => (overlap(a, b) ? [`${a.text} / ${b.text}`] : [])),
         );
         expect(clashes).toEqual([]);
 
-        const you = labels.find((l) => l.text === 'You')!;
-        const screen = screenRect(s, ox, oy, data.you.sx, data.you.sy);
-        expect(you.y + you.h).toBeLessThanOrEqual(screen.y);
-        expect(you.y + you.h).toBeGreaterThan(screen.y - 10 * dpr);
+        const box = (x: number, y: number, size: number, what: string) => ({
+          what,
+          x: ox + x * s - (size / 2) * dpr,
+          y: oy + y * s - (size / 2) * dpr,
+          w: size * dpr,
+          h: size * dpr,
+        });
+        const marks = [
+          ...data.players.map((p) => box(p.x, p.y, 8, `${p.name}'s dot`)),
+          ...(data.garden ? [box(10.5, 7.5, 5, 'the garden marker')] : []),
+          ...data.names.map((n) => box(n.x, n.y, 5, `the ${n.name} marker`)),
+        ];
+        const covered = labels.flatMap((l) =>
+          marks.flatMap((m) => (overlap(l, m) ? [`${l.text} over ${m.what}`] : [])),
+        );
+        expect(covered).toEqual([]);
       },
     );
+  });
+
+  test('labels the garden like a landmark, just above its centre tile', () => {
+    const dpr = 2;
+    const [, gardenLabel, landmark] = mapLabels(
+      { garden, names: [named(3, 2, 4, 'Hare Stones')], players: [standing(1, -2, 0, 'Ann')] },
+      12,
+      0,
+      0,
+      dpr,
+      measure,
+    );
+    expect(gardenLabel).toMatchObject({ text: 'Secret Garden' });
+    expect(landmark).toMatchObject({ text: 'Hare Stones' });
+    expect({ color: gardenLabel!.color, size: gardenLabel!.size }).toEqual({
+      color: landmark!.color,
+      size: landmark!.size,
+    });
+    const centre = { x: 10.5 * 12, y: 7.5 * 12 };
+    expect(Math.abs(gardenLabel!.x + gardenLabel!.w / 2 - centre.x)).toBeLessThanOrEqual(1);
+    expect(gardenLabel!.y + gardenLabel!.h).toBeLessThanOrEqual(centre.y);
+    expect(gardenLabel!.y + gardenLabel!.h).toBeGreaterThan(centre.y - 10 * dpr);
   });
 });
