@@ -247,6 +247,7 @@ export function mapLabels(
       size: 11 * dpr,
       cx: ox + x * scale,
       bottom: oy + y * scale - 6 * dpr,
+      below: oy + y * scale + (DOT / 2 + 2) * dpr,
     })),
     ...landmarks(data).map(({ x, y, name }) => ({
       text: name,
@@ -254,6 +255,7 @@ export function mapLabels(
       size: 11 * dpr,
       cx: ox + x * scale,
       bottom: oy + y * scale - 4 * dpr,
+      below: undefined,
     })),
   ];
   const square = (x: number, y: number, size: number): Box => ({
@@ -270,7 +272,7 @@ export function mapLabels(
   const gap = Math.round(dpr);
   const placed: MapLabel[] = [];
   const hits = (label: MapLabel) => [...marks, ...placed].find((p) => overlaps(p, label, gap));
-  for (const { text, color, size, cx, bottom } of wanted) {
+  for (const { text, color, size, cx, bottom, below } of wanted) {
     const w = Math.ceil(measure(text, size) + stroke);
     const h = Math.ceil(size + stroke);
     const label = {
@@ -282,6 +284,11 @@ export function mapLabels(
       w,
       h,
     };
+    // A player's name keeps beside its dot when it can, so crowded players stay told apart.
+    if (hits(label) && below !== undefined) {
+      const under = { ...label, y: Math.ceil(below) };
+      if (!hits(under)) label.y = under.y;
+    }
     // Rising past a box means never meeting it again, so this ends within one step per box.
     for (let hit = hits(label); hit; hit = hits(label)) label.y = Math.floor(hit.y) - gap - h;
     placed.push(label);

@@ -161,6 +161,30 @@ describe('map labels', () => {
     );
   });
 
+  test('names a player just below their dot when another player takes the spot above', () => {
+    const dpr = 2;
+    const at = (id: number, y: number, name: string): MapPlayer => ({
+      id,
+      name,
+      x: 5,
+      y,
+      shirt: 'green',
+    });
+    const [ann, ben] = mapLabels(
+      { garden: null, names: [], players: [at(1, 5, 'Ann'), at(2, 6.2, 'Ben')] },
+      12,
+      0,
+      0,
+      dpr,
+      measure,
+    );
+    expect(ann!.y + ann!.h).toBeLessThanOrEqual(5 * 12);
+    const dotBottom = 6.2 * 12 + 4 * dpr;
+    expect(ben!.y).toBeGreaterThanOrEqual(dotBottom);
+    expect(ben!.y).toBeLessThan(dotBottom + 12);
+    expect(Math.abs(ben!.x + ben!.w / 2 - 5 * 12)).toBeLessThanOrEqual(1);
+  });
+
   test('labels the garden like a landmark, just above its centre tile', () => {
     const dpr = 2;
     const [, gardenLabel, landmark] = mapLabels(
