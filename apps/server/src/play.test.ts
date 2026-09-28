@@ -688,14 +688,14 @@ const PROBE_STAND = { x: 200, y: 202 };
 /** East of PROBE_STAND, where a probe blocks nobody's way. */
 const PROBE_TILE = { tx: 13, ty: 12 };
 
-/** Alice (id 1, holding two probes) walks east of the spawn; Bob (id 2) stays at the spawn. */
-async function probeGarden(dir?: string) {
+/** Alice (id 1, holding `pockets`) walks east of the spawn; Bob (id 2) stays at the spawn. */
+async function probeGarden(dir?: string, pockets = PROBES) {
   const running = await start(dir);
   const aliceCookie = await signup(running.base, 'alice');
   const bobCookie = await signup(running.base, 'bob');
-  saveInventory(running.db, 1, PROBES);
+  saveInventory(running.db, 1, pockets);
   const alice = await connect(running.base, aliceCookie);
-  expect((await nextOf(alice, 'screen')).inventory).toEqual([...PROBES]);
+  expect((await nextOf(alice, 'screen')).inventory).toEqual([...pockets]);
   const bob = await connect(running.base, bobCookie);
   await nextOf(bob, 'screen');
   await nextOf(alice, 'join');
@@ -745,6 +745,48 @@ describe('traces', () => {
     expect(await bob.next()).toEqual(taken);
     expect(await alice.next()).toEqual(taken);
     expect(await alice.next()).toEqual({ t: 'inventory', stacks: [...PROBES] });
+  });
+
+  it('stacks six stones into a cairn that everyone on the screen watches rise, and it stays put', async () => {
+    const stones = (...variants: string[]) =>
+      parseInventory(variants.map((variant) => ({ kind: 'rock', variant, count: 1 })));
+    const { alice, bob, host } = await probeGarden(undefined, stones('granite', 'sand', 'stone'));
+    const seenByBoth = async (traces: object) => {
+      expect(await nextAfterMoves(bob)).toEqual(traces);
+      expect(await alice.next()).toEqual(traces);
+    };
+    const pocketsHold = async (...variants: string[]) =>
+      expect(await alice.next()).toEqual({ t: 'inventory', stacks: [...stones(...variants)] });
+    const stack: { stone: string; by: number }[] = [];
+    const putDown = async (stone: string, ...left: string[]) => {
+      alice.send({ t: 'use', slot: 0, ...PROBE_TILE });
+      stack.push({ stone, by: 1 });
+      await seenByBoth({
+        t: 'traces',
+        changes: [{ put: { kind: 'rock', ...PROBE_TILE, stack: [...stack] } }],
+      });
+      await pocketsHold(...left);
+    };
+
+    await putDown('granite', 'sand', 'stone');
+    alice.send({ t: 'interact', ...PROBE_TILE });
+    stack.length = 0;
+    await seenByBoth({ t: 'traces', changes: [{ drop: { ...PROBE_TILE, kind: 'rock' } }] });
+    await pocketsHold('sand', 'stone', 'granite');
+
+    await putDown('sand', 'stone', 'granite');
+    await putDown('stone', 'granite');
+    await putDown('granite');
+    host.setInventory(ALICE_WORLD, 1, stones('granite', 'sand', 'stone'));
+    await pocketsHold('granite', 'sand', 'stone');
+    await putDown('granite', 'sand', 'stone');
+    await putDown('sand', 'stone');
+    await putDown('stone');
+
+    alice.send({ t: 'interact', ...PROBE_TILE });
+    expect(await alice.next()).toEqual({ t: 'refused', reason: 'Stones in a cairn stay put.' });
+    await expectNothingPending(alice);
+    await expectOnlyMovesPending(bob);
   });
 
   it('drops an act whose payload does not parse, yet routes a valid one to its kind', async () => {
