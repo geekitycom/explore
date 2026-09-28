@@ -16,9 +16,7 @@ import { createTextGenerator, type TextGenSettings } from './text-gen.ts';
 const SAVE_INTERVAL_MS = 5000;
 
 const testHooks = testHooksOn(process.env) ? await import('./test-hooks.ts') : undefined;
-const clock = testHooks?.createTestClock();
-const now = clock?.now ?? Date.now;
-const rateLimits = createRateLimits(now);
+const rateLimits = createRateLimits();
 if (testHooks) console.log('test hooks on at /api/test');
 
 const dir = dataDir();
@@ -44,9 +42,7 @@ console.log(
 const writeText = textGen && createTextGenerator(textGen);
 const host = createWorldHost({
   pathOf: (id) => worldDbPath(dir, id),
-  now,
   game: {
-    now,
     writeText,
     suggester: writeText && createSuggester(writeText, rateLimits.limiter(SUGGEST_LIMITS.perUser)),
     sessionTimeoutMs: Number(process.env.SESSION_TIMEOUT_MS ?? SESSION_TIMEOUT_MS),
@@ -60,7 +56,7 @@ const { app, injectWebSocket } = createApp({
   secureCookies: process.env.NODE_ENV === 'production',
   trustProxy: process.env.TRUST_PROXY === 'true',
   rateLimits,
-  testHooks: testHooks && clock && testHooks.testHookRoutes({ host, clock, rateLimits }),
+  testHooks: testHooks?.testHookRoutes({ host, rateLimits }),
 });
 const dev = process.argv.includes('--dev');
 if (!dev) {

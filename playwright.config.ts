@@ -1,7 +1,6 @@
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
-import { SESSION_TIMEOUT_MS } from './e2e/session.ts';
 
 // E2E_PORT lets two checkouts run the suite at once; the LLM stub takes the next port.
 const PORT = Number(process.env['E2E_PORT'] ?? 4310);
@@ -42,7 +41,6 @@ export default defineConfig({
         PORT: String(PORT),
         DATA_DIR: dataDir,
         TRUST_PROXY: 'true',
-        SESSION_TIMEOUT_MS: String(SESSION_TIMEOUT_MS),
         LLM_BASE_URL: `http://localhost:${LLM_STUB_PORT}/v1`,
         LLM_MODEL: 'stub',
         EXPLORE_TEST_HOOKS: '1',

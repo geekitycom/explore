@@ -6,12 +6,7 @@ import { afterEach, expect, it } from 'vitest';
 import { createWorldHost } from './host.ts';
 import { loadInventory } from './inventory.ts';
 import { AUTH_LIMITS, createRateLimits } from './rate-limit.ts';
-import {
-  createTestClock,
-  testHookRoutes,
-  type TestHookBody,
-  type TestHookName,
-} from './test-hooks.ts';
+import { testHookRoutes, type TestHookBody, type TestHookName } from './test-hooks.ts';
 import { userNamed } from './testing.ts';
 import { loadPlayerState } from './world.ts';
 import type { WorldId } from './worlds.ts';
@@ -28,24 +23,19 @@ afterEach(() => {
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), 'explore-hooks-'));
-  const clock = createTestClock();
-  const rateLimits = createRateLimits(clock.now);
-  const host = createWorldHost({
-    pathOf: (id) => join(dir, `${id}.db`),
-    now: clock.now,
-    game: { now: clock.now },
-  });
+  const rateLimits = createRateLimits();
+  const host = createWorldHost({ pathOf: (id) => join(dir, `${id}.db`) });
   cleanups.push(() => {
     host.stop();
     rmSync(dir, { recursive: true, force: true });
   });
-  const routes = testHookRoutes({ host, clock, rateLimits });
+  const routes = testHookRoutes({ host, rateLimits });
   const call = <K extends TestHookName>(name: K, body: TestHookBody<K>) =>
     routes.request(`/${name}`, { method: 'POST', body: JSON.stringify(body) });
   const sent: ServerMessage[] = [];
   const connect = () =>
     host.connect(ONE, ALICE, { send: (m) => sent.push(m), close: () => {} }, 'owner');
-  return { host, clock, rateLimits, call, sent, connect };
+  return { host, rateLimits, call, sent, connect };
 }
 
 it('gives a connected player items that a later disconnect keeps', async () => {
@@ -82,15 +72,11 @@ it('places a player who is away, for their next connection to resume', async () 
   expect(loadPlayerState(host.open(ONE).db, ALICE.id)?.coord).toEqual(EAST);
 });
 
-it('moves the clock the server runs on, and clears every rate limit', async () => {
-  const { clock, rateLimits, call } = setup();
+it('clears every rate limit', async () => {
+  const { rateLimits, call } = setup();
   const limiter = rateLimits.limiter(AUTH_LIMITS.loginsPerAddress);
   for (let i = 0; i < AUTH_LIMITS.loginsPerAddress.max; i++) limiter.hit('here');
   expect(limiter.retryAfterMs('here')).toBeGreaterThan(0);
-  const before = clock.now();
-
-  await call('clock', { advanceMs: 60_000 });
-  expect(clock.now() - before).toBeGreaterThanOrEqual(60_000);
 
   await call('rate-limits', {});
   expect(limiter.retryAfterMs('here')).toBe(0);
@@ -98,7 +84,12 @@ it('moves the clock the server runs on, and clears every rate limit', async () =
 
 it('rejects an unknown hook and a body that does not parse', async () => {
   const { call } = setup();
-  const invalid = await call('clock', { advanceMs: -1 });
+  const invalid = await call('place', {
+    worldId: ONE,
+    userId: -1,
+    coord: EAST,
+    tile: { tx: 0, ty: 0 },
+  });
   expect(invalid.status).toBe(400);
   const unknown = await call('nope' as TestHookName, {});
   expect(unknown.status).toBe(404);

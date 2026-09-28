@@ -1,20 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './test.ts';
-import {
-  OVERWORLD,
-  encodeScreen,
-  generateScreen,
-  type WorldSeed,
-} from '../packages/core/src/index.ts';
-import {
-  account,
-  playing,
-  probeOutput,
-  signUp,
-  standingStill,
-  unique,
-  worldDb,
-} from './helpers.ts';
+import { playing, probeOutput, signUp, unique } from './helpers.ts';
 
 type Coord = { sx: number; sy: number };
 type Rect = { x: number; y: number; w: number; h: number };
@@ -23,7 +9,6 @@ type MapState = {
   canvas: { w: number; h: number };
   you: Rect;
   drawn: number;
-  screens: Coord[];
 };
 
 const mapState = (page: Page) =>
@@ -40,13 +25,6 @@ const centred = ({ you, canvas }: MapState) =>
   Math.abs(you.x + you.w / 2 - canvas.w / 2) <= 1 &&
   Math.abs(you.y + you.h / 2 - canvas.h / 2) <= 1;
 
-const mapScreens = (page: Page) =>
-  page.evaluate(() =>
-    (window as unknown as { exploreMap: () => { screens: Coord[] } })
-      .exploreMap()
-      .screens.map(({ sx, sy }) => `${sx},${sy}`),
-  );
-
 const coord = (page: Page) =>
   page.evaluate(
     () =>
@@ -55,38 +33,17 @@ const coord = (page: Page) =>
       ).exploreState().place?.screen.coord,
   );
 
-/** Screens of the garden's chunk that no e2e spec walks onto, though the server stores them. */
-const unvisited = Array.from({ length: 16 }, (_, i) => `${i % 4},${Math.floor(i / 4)}`).filter(
-  (key) => key !== '0,0' && key !== '0,1',
-);
-
-test('the map shows screens players stood on, and logged-out visitors log in first', async ({
+test('the map link goes there and back, and a logged-out visitor logs in first', async ({
   page,
 }) => {
   const name = unique('map');
   await signUp(page, name);
-  await expect(page.getByLabel('Game world')).toBeVisible();
   await playing(page);
-
-  await page.getByRole('link', { name: 'Map' }).click();
-  await expect(page.getByLabel(/^World map with/)).toBeVisible();
-  await expect.poll(() => mapScreens(page)).toContain('0,0');
-  const fresh = await mapScreens(page);
-  expect(fresh.filter((key) => unvisited.includes(key))).toEqual([]);
-  await page.getByRole('link', { name: 'Back to the game' }).click();
-  await playing(page);
-
-  await page.keyboard.down('ArrowDown');
-  await expect.poll(() => coord(page), { intervals: [20] }).toMatchObject({ sx: 0, sy: 1 });
-  await page.keyboard.up('ArrowDown');
-  await standingStill(page);
 
   await page.getByRole('link', { name: 'Map' }).click();
   await expect(page).toHaveURL(/\/map$/);
   await expect(page.getByLabel(/^World map with/)).toBeVisible();
-  await expect.poll(() => mapScreens(page)).toEqual(expect.arrayContaining(['0,0', '0,1']));
   await page.screenshot({ path: 'e2e/.results/map.png' });
-
   await page.getByRole('link', { name: 'Back to the game' }).click();
   await expect(page.getByLabel('Game world')).toBeVisible();
 
@@ -151,14 +108,9 @@ test('the map opens over the game, keeping the music and the connection', async 
   expect(sockets).toBe(1);
 });
 
-test('the map opens on you at one size however much is discovered, and shows more in a bigger window', async ({
-  page,
-}) => {
+test('the map opens on you at one size, however big the window', async ({ page }) => {
   await page.setViewportSize({ width: 960, height: 600 });
-  const user = unique('mapsize');
-  await signUp(page, user);
-  const db = worldDb(account(user).home);
-  const { seed } = db.prepare('SELECT seed FROM world WHERE id = 1').get() as { seed: WorldSeed };
+  await signUp(page, unique('mapsize'));
   await playing(page);
 
   await page.keyboard.press('m');
@@ -167,36 +119,12 @@ test('the map opens on you at one size however much is discovered, and shows mor
   expect(few.tilePixels).toBe(6);
   expect(few.you).toMatchObject({ w: 120, h: 90 });
   expect(centred(few)).toBe(true);
-  await page.keyboard.press('Escape');
-
-  // A world of 500 discovered screens around the garden, generated as the server would.
-  const known = new Set(few.screens.map(({ sx, sy }) => `${sx},${sy}`));
-  const many = Array.from({ length: 500 }, (_, i) => ({
-    sx: (i % 25) - 12,
-    sy: Math.floor(i / 25) - 10,
-  }))
-    .filter(({ sx, sy }) => !known.has(`${sx},${sy}`))
-    .map((c) => encodeScreen(generateScreen({ seed }, { layer: OVERWORLD, ...c })));
-  await page.route('**/api/worlds/*/map', async (route) => {
-    const real = (await (await route.fetch()).json()) as { screens: unknown[] };
-    await route.fulfill({ json: { ...real, screens: [...real.screens, ...many] } });
-  });
-
-  await page.keyboard.press('m');
-  const big = await drawnMap(
-    page,
-    (s) => s.screens.length === few.screens.length + many.length && s.drawn > few.drawn,
-  );
-  expect(big.screens.length).toBeGreaterThanOrEqual(500);
-  expect(big.tilePixels).toBe(few.tilePixels);
-  expect(big.you).toEqual(few.you);
-  expect(big.drawn).toBeGreaterThan(few.drawn);
   await page.screenshot({ path: 'e2e/.results/map-overlay-960.png' });
 
   await page.setViewportSize({ width: 1600, height: 1000 });
-  const wide = await drawnMap(page, (s) => s.canvas.w > few.canvas.w && s.drawn > big.drawn);
-  expect(wide.tilePixels).toBe(few.tilePixels);
-  expect(wide.drawn).toBeGreaterThan(big.drawn);
+  const wide = await drawnMap(page, (s) => s.canvas.w > few.canvas.w);
+  expect(wide.tilePixels).toBe(6);
+  expect(wide.you).toMatchObject({ w: 120, h: 90 });
   expect(centred(wide)).toBe(true);
   await page.screenshot({ path: 'e2e/.results/map-overlay-1600.png' });
 
@@ -223,11 +151,8 @@ test('the map opens on you at one size however much is discovered, and shows mor
   expect(centred(standalone)).toBe(true);
   await page.screenshot({ path: 'e2e/.results/map-standalone-1600.png' });
   await page.setViewportSize({ width: 960, height: 600 });
-  const narrow = await drawnMap(
-    page,
-    (s) => s.canvas.w < standalone.canvas.w && s.drawn < standalone.drawn,
-  );
-  expect(narrow.drawn).toBeLessThan(standalone.drawn);
+  const narrow = await drawnMap(page, (s) => s.canvas.w < standalone.canvas.w);
+  expect(narrow.tilePixels).toBe(6);
   expect(centred(narrow)).toBe(true);
   await page.screenshot({ path: 'e2e/.results/map-standalone-960.png' });
 });

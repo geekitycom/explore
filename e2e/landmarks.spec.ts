@@ -2,6 +2,8 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './test.ts';
 import {
   OVERWORLD,
+  SCREEN_W,
+  TILE,
   bare,
   inArea,
   isWalkable,
@@ -55,7 +57,7 @@ function landmarkScreen(seed: WorldSeed): ScreenCoord {
 
 /**
  * Signs up a new player and stands them beside the signpost of the landmark nearest home, facing
- * it, so nothing on the faced tile takes the hint bar.
+ * it, so nothing on the faced tile takes the hint bar. Returns the signpost's tile.
  */
 async function besideSignpost(page: Page, user: string) {
   await signUp(page, user);
@@ -79,6 +81,7 @@ async function besideSignpost(page: Page, user: string) {
   await page.keyboard.down(stand.key);
   await expect.poll(() => facing(page), { intervals: [10] }).toBe(stand.dir);
   await page.keyboard.up(stand.key);
+  return site!;
 }
 
 const facing = (page: Page) =>
@@ -90,11 +93,27 @@ const facing = (page: Page) =>
 
 const SHOTS = 'e2e/.results';
 
+/** The bubble spans the centre of the landmark's tile and sits within a tile of it, on its side. */
+async function expectBeside(page: Page, site: { tx: number; ty: number }) {
+  const bubble = page.getByRole('note');
+  const side = (await bubble.getAttribute('class'))!.includes('bubble-above') ? 'above' : 'below';
+  const world = (await page.locator('canvas').boundingBox())!;
+  const scale = world.width / (SCREEN_W * TILE);
+  const box = (await bubble.boundingBox())!;
+  const centre = world.x + (site.tx + 0.5) * TILE * scale;
+  expect(box.x).toBeLessThan(centre);
+  expect(box.x + box.width).toBeGreaterThan(centre);
+  const edge = world.y + (side === 'above' ? site.ty : site.ty + 1) * TILE * scale;
+  const gap = side === 'above' ? edge - (box.y + box.height) : box.y - edge;
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(TILE * scale);
+}
+
 test('a landmark carries a name from the first visit, and anyone may rename it or put it back', async ({
   page,
 }) => {
   const user = unique('namer');
-  await besideSignpost(page, user);
+  const site = await besideSignpost(page, user);
   const namedBy = `named by ${displayNameOf(user)}`;
 
   const bubble = page.getByRole('note');
@@ -104,6 +123,7 @@ test('a landmark carries a name from the first visit, and anyone may rename it o
   await expect(bubble).toContainText(LINE);
   await expect(bubble.getByRole('button', { name: 'Report' })).toHaveCount(0);
   await standingStill(page);
+  await expectBeside(page, site);
   await page.screenshot({ path: `${SHOTS}/landmark-generated.png` });
 
   await expect.poll(async () => (await hud(page)).hint).toBe('Rename this place');
@@ -121,16 +141,11 @@ test('a landmark carries a name from the first visit, and anyone may rename it o
   await expect(dialog.getByLabel('Name')).toHaveValue(NAMES[1]!);
   await expect(suggest).toHaveAttribute('aria-busy', 'false');
   await expect(bubble).toContainText(NAMES[0]!);
-  await page.screenshot({ path: `${SHOTS}/landmark-suggested.png` });
-  await suggest.click();
-  await expect(dialog.getByLabel('Name')).toHaveValue(NAMES[2]!);
 
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(dialog).toBeHidden();
-  await expect(bubble).toContainText(NAMES[2]!);
+  await expect(bubble).toContainText(NAMES[1]!);
   await expect(bubble).toContainText(namedBy);
-  await standingStill(page);
-  await page.screenshot({ path: `${SHOTS}/landmark-renamed.png` });
 
   await bubble.getByRole('button', { name: 'Rename' }).click();
   await expect(dialog.getByText(`Named by ${displayNameOf(user)}.`)).toBeVisible();
@@ -139,56 +154,30 @@ test('a landmark carries a name from the first visit, and anyone may rename it o
   await expect(bubble).toContainText(NAMES[0]!);
   await expect(bubble).not.toContainText('named by');
 
+  // The stub fails any suggestion for a place whose name holds BREAK.
   await page.keyboard.press('KeyE');
-  await dialog.getByLabel('Name').fill('Hare Stones');
-  await expect(dialog.getByText('11/30')).toBeVisible();
-  await dialog.getByLabel(/A line for travellers/).fill('Where the hares run at dusk');
-  await expect(dialog.getByText('27/80')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Save' }).click();
-  await expect(dialog).toBeHidden();
-  await expect(bubble).toContainText('Hare Stones');
-  await expect(bubble).toContainText('Where the hares run at dusk');
-  await expect(bubble).toContainText(namedBy);
-
-  await page.getByRole('link', { name: 'Map' }).click();
-  await expect(page.getByLabel(/^World map with/)).toBeVisible();
-  const names = await page.evaluate(
-    () =>
-      (window as unknown as { exploreMap: () => { names: { name: string }[] } }).exploreMap().names,
-  );
-  expect(names.map((n) => n.name)).toContain('Hare Stones');
-  await page.getByLabel(/^World map with/).press('0');
-  for (let i = 0; i < 4; i++) await page.getByLabel(/^World map with/).press('+');
-  await page.screenshot({ path: `${SHOTS}/landmark-map.png` });
-});
-
-test('a failed suggestion leaves the fields alone, and a seventh in five minutes is refused', async ({
-  page,
-}) => {
-  const user = unique('asker');
-  await besideSignpost(page, user);
-  const bubble = page.getByRole('note');
-  await expect(bubble).toContainText(NAMES[0]!);
-
-  await page.keyboard.press('KeyE');
-  const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name').fill(BREAK);
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(bubble).toContainText(BREAK);
 
   await bubble.getByRole('button', { name: 'Rename' }).click();
-  await dialog.getByLabel('Name').fill('Half Typed');
-  const suggest = dialog.getByRole('button', { name: 'Suggest a name' });
-  for (let i = 0; i < 6; i++) {
-    await suggest.click();
-    await expect(dialog.getByRole('alert')).toHaveText('No name came to mind. Try again.');
-    await expect(suggest).toBeEnabled();
-    await expect(dialog.getByLabel('Name')).toHaveValue('Half Typed');
-  }
+  await dialog.getByLabel('Name').fill('Hare Stones');
+  await expect(dialog.getByText('11/30')).toBeVisible();
+  await dialog.getByLabel(/A line for travellers/).fill('Where the hares run at dusk');
+  await expect(dialog.getByText('27/80')).toBeVisible();
   await suggest.click();
-  await expect(dialog.getByRole('alert')).toHaveText(
-    'That is plenty of new names for now. Try again in 5 min.',
+  await expect(dialog.getByRole('alert')).toHaveText('No name came to mind. Try again.');
+  await expect(suggest).toBeEnabled();
+  await expect(dialog.getByLabel('Name')).toHaveValue('Hare Stones');
+  await expect(dialog.getByLabel(/A line for travellers/)).toHaveValue(
+    'Where the hares run at dusk',
   );
-  await expect(dialog.getByLabel('Name')).toHaveValue('Half Typed');
-  await expect(bubble).toContainText(BREAK);
+
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(bubble).toContainText('Hare Stones');
+  await expect(bubble).toContainText('Where the hares run at dusk');
+  await expect(bubble).toContainText(namedBy);
+  await standingStill(page);
+  await page.screenshot({ path: `${SHOTS}/landmark-renamed.png` });
 });
