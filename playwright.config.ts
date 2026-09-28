@@ -3,8 +3,9 @@ import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { SESSION_TIMEOUT_MS } from './e2e/session.ts';
 
-const PORT = 4310;
-const LLM_STUB_PORT = 4311;
+// E2E_PORT lets two checkouts run the suite at once; the LLM stub takes the next port.
+const PORT = Number(process.env['E2E_PORT'] ?? 4310);
+const LLM_STUB_PORT = PORT + 1;
 // Workers load this file again; the env keeps them on the server's data directory.
 const dataDir = (process.env['E2E_DATA_DIR'] ??= join(tmpdir(), `explore-e2e-${Date.now()}`));
 
