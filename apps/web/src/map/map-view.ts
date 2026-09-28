@@ -1,4 +1,5 @@
 import {
+  CLOTH_COLORS,
   SCREEN_H,
   SCREEN_W,
   decodeScreen,
@@ -15,11 +16,10 @@ const TILE_CSS = 6;
 /** Mirrors --paper in style.css. */
 const PAPER = '#fff4dd';
 const INK = '#141b1b';
-const YOU = '#e07aa8';
-/** Mirrors --focus in style.css. */
-const OTHERS = '#3aa3c9';
-const GARDEN = '#e3c16f';
 const LABEL_STROKE = 3;
+/** Outer sizes, in CSS pixels, of a player's dot and a landmark's marker, both outlined in ink. */
+const DOT = 8;
+const MARK = 5;
 const font = (size: number) => `${size}px 'Pixelify Sans', monospace`;
 
 /**
@@ -51,7 +51,7 @@ export function mapView(data: WorldMap, onBack?: () => void) {
   const canvas = h('canvas', {
     class: 'map-canvas',
     role: 'img',
-    'aria-label': `World map with ${screens.length} discovered screens and ${data.players.length} players, centred on you.`,
+    'aria-label': `World map with ${screens.length} discovered screens and ${data.players.length} players, centred on your screen.`,
   });
   const readout = h('p', { class: 'map-readout', 'aria-live': 'polite' }, '');
   // The canvas is sized from its container, never from itself, so resizing it cannot feed back.
@@ -94,34 +94,17 @@ export function mapView(data: WorldMap, onBack?: () => void) {
       }
     }
 
-    const frame = (sx: number, sy: number, color: string) => {
-      const { x, y, w, h: hgt } = screenRect(s, ox, oy, sx, sy);
-      const pad = 2 * dpr;
-      ctx.lineWidth = 4 * dpr;
-      ctx.strokeStyle = INK;
-      ctx.strokeRect(x - pad, y - pad, w + 2 * pad, hgt + 2 * pad);
-      ctx.lineWidth = 2 * dpr;
-      ctx.strokeStyle = color;
-      ctx.strokeRect(x - pad, y - pad, w + 2 * pad, hgt + 2 * pad);
-    };
-    for (const { x, y } of data.names) {
+    const square = (x: number, y: number, size: number, fill: string) => {
       const px = ox + x * s;
       const py = oy + y * s;
       ctx.fillStyle = INK;
-      ctx.fillRect(px - 2.5 * dpr, py - 2.5 * dpr, 5 * dpr, 5 * dpr);
-      ctx.fillStyle = PAPER;
-      ctx.fillRect(px - 1.5 * dpr, py - 1.5 * dpr, 3 * dpr, 3 * dpr);
-    }
-    if (data.garden) frame(data.garden.sx, data.garden.sy, GARDEN);
-    frame(data.you.sx, data.you.sy, YOU);
-    for (const player of data.players) {
-      const px = ox + player.x * s;
-      const py = oy + player.y * s;
-      ctx.fillStyle = INK;
-      ctx.fillRect(px - 4 * dpr, py - 4 * dpr, 8 * dpr, 8 * dpr);
-      ctx.fillStyle = player.you ? YOU : OTHERS;
-      ctx.fillRect(px - 2.5 * dpr, py - 2.5 * dpr, 5 * dpr, 5 * dpr);
-    }
+      ctx.fillRect(px - (size / 2) * dpr, py - (size / 2) * dpr, size * dpr, size * dpr);
+      const inner = size - 3;
+      ctx.fillStyle = fill;
+      ctx.fillRect(px - (inner / 2) * dpr, py - (inner / 2) * dpr, inner * dpr, inner * dpr);
+    };
+    for (const { x, y } of landmarks(data)) square(x, y, MARK, PAPER);
+    for (const { x, y, shirt } of data.players) square(x, y, DOT, CLOTH_COLORS[shirt]);
 
     const measure = (text: string, size: number) => {
       ctx.font = font(size);
@@ -234,49 +217,62 @@ export type MapLabel = {
   h: number;
 };
 
+/** The garden is marked like any landmark, at its screen's centre tile. */
+function landmarks(data: Pick<WorldMap, 'garden' | 'names'>) {
+  const garden = data.garden && {
+    x: data.garden.sx * SCREEN_W + Math.floor(SCREEN_W / 2) + 0.5,
+    y: data.garden.sy * SCREEN_H + Math.floor(SCREEN_H / 2) + 0.5,
+    name: 'Secret Garden',
+  };
+  return garden ? [garden, ...data.names] : data.names;
+}
+
 /**
- * Where each map label goes. Labels claim their spot in order (You, the garden, the other players
- * by display name, then landmark names), and one that would touch a label already placed rises
- * above it.
+ * Where each map label goes. Labels claim their spot in order (players by display name, the
+ * garden, then landmark names), and one that would touch a label already placed, a player's dot,
+ * or a landmark's marker rises above it.
  */
 export function mapLabels(
-  data: Pick<WorldMap, 'you' | 'garden' | 'names' | 'players'>,
+  data: Pick<WorldMap, 'garden' | 'names' | 'players'>,
   scale: number,
   ox: number,
   oy: number,
   dpr: number,
   measure: (text: string, size: number) => number,
 ): MapLabel[] {
-  const aboveScreen = ({ sx, sy }: { sx: number; sy: number }) => {
-    const r = screenRect(scale, ox, oy, sx, sy);
-    return { cx: r.x + r.w / 2, bottom: r.y - 5 * dpr };
-  };
   const wanted = [
-    { text: 'You', color: YOU, size: 12 * dpr, ...aboveScreen(data.you) },
-    ...(data.garden
-      ? [{ text: 'Garden', color: GARDEN, size: 12 * dpr, ...aboveScreen(data.garden) }]
-      : []),
-    ...data.players
-      .filter((p) => !p.you)
-      .map(({ x, y, name }) => ({
-        text: name,
-        color: OTHERS,
-        size: 11 * dpr,
-        cx: ox + x * scale,
-        bottom: oy + y * scale - 6 * dpr,
-      })),
-    ...data.names.map(({ x, y, name }) => ({
+    ...data.players.map(({ x, y, name }) => ({
+      text: name,
+      color: PAPER,
+      size: 11 * dpr,
+      cx: ox + x * scale,
+      bottom: oy + y * scale - 6 * dpr,
+      below: oy + y * scale + (DOT / 2 + 2) * dpr,
+    })),
+    ...landmarks(data).map(({ x, y, name }) => ({
       text: name,
       color: PAPER,
       size: 11 * dpr,
       cx: ox + x * scale,
       bottom: oy + y * scale - 4 * dpr,
+      below: undefined,
     })),
+  ];
+  const square = (x: number, y: number, size: number): Box => ({
+    x: ox + x * scale - (size / 2) * dpr,
+    y: oy + y * scale - (size / 2) * dpr,
+    w: size * dpr,
+    h: size * dpr,
+  });
+  const marks = [
+    ...data.players.map(({ x, y }) => square(x, y, DOT)),
+    ...landmarks(data).map(({ x, y }) => square(x, y, MARK)),
   ];
   const stroke = LABEL_STROKE * dpr;
   const gap = Math.round(dpr);
   const placed: MapLabel[] = [];
-  for (const { text, color, size, cx, bottom } of wanted) {
+  const hits = (label: MapLabel) => [...marks, ...placed].find((p) => overlaps(p, label, gap));
+  for (const { text, color, size, cx, bottom, below } of wanted) {
     const w = Math.ceil(measure(text, size) + stroke);
     const h = Math.ceil(size + stroke);
     const label = {
@@ -288,17 +284,21 @@ export function mapLabels(
       w,
       h,
     };
-    // Rising past a label means never meeting it again, so this ends within placed.length steps.
-    for (let hit = placed.find((p) => overlaps(p, label, gap)); hit;) {
-      label.y = hit.y - gap - h;
-      hit = placed.find((p) => overlaps(p, label, gap));
+    // A player's name keeps beside its dot when it can, so crowded players stay told apart.
+    if (hits(label) && below !== undefined) {
+      const under = { ...label, y: Math.ceil(below) };
+      if (!hits(under)) label.y = under.y;
     }
+    // Rising past a box means never meeting it again, so this ends within one step per box.
+    for (let hit = hits(label); hit; hit = hits(label)) label.y = Math.floor(hit.y) - gap - h;
     placed.push(label);
   }
   return placed;
 }
 
-const overlaps = (a: MapLabel, b: MapLabel, gap: number) =>
+type Box = { x: number; y: number; w: number; h: number };
+
+const overlaps = (a: Box, b: Box, gap: number) =>
   a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
 
 function rasterise(screen: Screen): HTMLCanvasElement {

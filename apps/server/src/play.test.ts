@@ -222,7 +222,7 @@ type WorldMap = {
   you: { sx: number; sy: number };
   garden: { sx: number; sy: number } | null;
   names: { x: number; y: number; name: string }[];
-  players: { id: number; name: string; x: number; y: number; you: boolean }[];
+  players: { id: number; name: string; x: number; y: number; shirt: string }[];
   screens: ScreenRecord[];
 };
 
@@ -1285,6 +1285,12 @@ describe('visitors', () => {
     expect(await (await visitors(base, aliceCookie, 'POST')).json()).toEqual({ code });
 
     const bobCookie = await signup(base, 'bob');
+    const bobsLook = await fetch(`http://${base}/api/me/profile`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: bobCookie },
+      body: JSON.stringify({ displayName: 'Bob', avatar: { ...DEFAULT_AVATAR, shirt: 'purple' } }),
+    });
+    expect(bobsLook.status).toBe(200);
     const early = await connect(base, bobCookie, ALICE_WORLD);
     expect((await early.closed).code).toBe(REFUSED_CLOSE_CODE);
 
@@ -1309,15 +1315,12 @@ describe('visitors', () => {
     });
 
     const bobsView = await fetchMap(base, bobCookie, ALICE_WORLD);
-    expect(bobsView.players).toEqual([
-      { id: 1, name: 'Alice', x: SPAWN.x / TILE, y: SPAWN.y / TILE, you: false },
-      { id: 2, name: 'Bob', x: arrival.you.x / TILE, y: arrival.you.y / TILE, you: true },
-    ]);
-    const alicesView = await fetchMap(base, aliceCookie);
-    expect(alicesView.players.map((p) => [p.name, p.you])).toEqual([
-      ['Alice', true],
-      ['Bob', false],
-    ]);
+    const everyone = [
+      { id: 1, name: 'Alice', x: SPAWN.x / TILE, y: SPAWN.y / TILE, shirt: DEFAULT_AVATAR.shirt },
+      { id: 2, name: 'Bob', x: arrival.you.x / TILE, y: arrival.you.y / TILE, shirt: 'purple' },
+    ];
+    expect(bobsView.players).toEqual(everyone);
+    expect((await fetchMap(base, aliceCookie)).players).toEqual(everyone);
     expect((await fetchMap(base, bobCookie, BOB_WORLD)).players).toEqual([]);
   });
 

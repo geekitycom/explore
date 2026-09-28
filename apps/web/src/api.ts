@@ -71,7 +71,7 @@ export async function saveProfile(profile: { displayName: string; avatar: Avatar
 }
 
 /** A player in the world right now, at their feet, in world tiles. */
-export type MapPlayer = { id: number; name: string; x: number; y: number; you: boolean };
+export type MapPlayer = { id: number; name: string; x: number; y: number; shirt: Avatar['shirt'] };
 
 export type WorldMap = {
   layer: string;

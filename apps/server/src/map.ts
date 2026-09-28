@@ -6,6 +6,7 @@ import {
   TILE,
   traceSchema,
   wordsOf,
+  type Avatar,
   type LayerId,
   type Pose,
   type ScreenCoord,
@@ -16,10 +17,16 @@ import { loadPlayerState } from './world.ts';
 export type MapName = { x: number; y: number; name: string };
 
 /** Someone in the world right now: the host or a visitor, wherever they stand. */
-export type Roster = { id: number; name: string; coord: ScreenCoord; pose: Pose }[];
+export type Roster = {
+  id: number;
+  name: string;
+  shirt: Avatar['shirt'];
+  coord: ScreenCoord;
+  pose: Pose;
+}[];
 
-/** A player on the map, at their feet, in world tiles. */
-export type MapPlayer = { id: number; name: string; x: number; y: number; you: boolean };
+/** A player on the map, at their feet, in world tiles, drawn in their shirt colour. */
+export type MapPlayer = { id: number; name: string; x: number; y: number; shirt: Avatar['shirt'] };
 
 /**
  * Every screen on the viewer's layer that some player has stood on, as a JSON body, with the
@@ -44,7 +51,7 @@ export function worldMapJson(db: WorldDb, userId: number, roster: Roster): strin
       name: p.name,
       x: p.coord.sx * SCREEN_W + p.pose.x / TILE,
       y: p.coord.sy * SCREEN_H + p.pose.y / TILE,
-      you: p.id === userId,
+      shirt: p.shirt,
     }));
   return `{"layer":${JSON.stringify(layer)},"you":${JSON.stringify(you)},"garden":${JSON.stringify(garden)},"names":${JSON.stringify(namesOn(db, layer))},"players":${JSON.stringify(players)},"screens":[${rows.map((r) => r.data).join(',')}]}`;
 }
