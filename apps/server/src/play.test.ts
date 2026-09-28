@@ -590,11 +590,29 @@ describe('world socket', () => {
 
   it('keeps players on different layers apart, even at the same sx, sy', async () => {
     const { base, db } = await start();
+    // The garden is kept clear only on the overworld: about one random seed in a hundred puts a
+    // landmark's signpost on the copy's path east. This seed puts none on it.
+    db.prepare('UPDATE world SET seed = 1 WHERE id = 1').run();
     const cellar = 'cellar' as LayerId;
     const cellarGarden = { ...secretGarden(), coord: { layer: cellar, sx: 0, sy: 0 } };
-    db.prepare(
-      'INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version) VALUES (?, 0, 0, ?, NULL, 0, 0)',
-    ).run(cellar, JSON.stringify(encodeScreen(cellarGarden)));
+    // Stored east screens spare travel generating a whole chunk on each layer.
+    const screens = [
+      cellarGarden,
+      { ...uniformScreen(), coord: { layer: OVERWORLD, sx: 1, sy: 0 } },
+      withFeatures({ ...uniformScreen(), coord: { layer: cellar, sx: 1, sy: 0 } }, [
+        [10, 10, 'tree'],
+      ]),
+    ];
+    for (const screen of screens) {
+      db.prepare(
+        'INSERT INTO screens (layer, sx, sy, data, created_by, created_at, gen_version) VALUES (?, ?, ?, ?, NULL, 0, 0)',
+      ).run(
+        screen.coord.layer,
+        screen.coord.sx,
+        screen.coord.sy,
+        JSON.stringify(encodeScreen(screen)),
+      );
+    }
     const aliceCookie = await signup(base, 'alice');
     const bobCookie = await signup(base, 'bob');
     savePlayerState(db, 2, { coord: cellarGarden.coord, pose: SPAWN });
