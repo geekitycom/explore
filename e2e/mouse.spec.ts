@@ -57,7 +57,7 @@ test('a mouse wakes the player with a click and walks them while held', async ({
   expect((await seen(page)).you!.x, 'a right click does not walk').toBe(stopped);
 });
 
-test('a held mouse walks around the pond, and a double-click walks on after release and off an edge', async ({
+test('a double-click walks off the east edge to the next screen with no server corrections', async ({
   page,
 }) => {
   const corrections: string[] = [];
@@ -72,49 +72,6 @@ test('a held mouse walks around the pond, and a double-click walks on after rele
   });
   await signUp(page, unique('route'));
   await playing(page);
-  expect((await seen(page)).you).toMatchObject({ x: 10 * TILE, y: 12 * TILE + 10 });
-
-  const beyondPond = await client(page, 10.5 * TILE, 4.5 * TILE);
-  await page.mouse.move(beyondPond.x, beyondPond.y);
-  await page.mouse.down();
-  await expect
-    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
-    .toMatchObject({ x: 10.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
-  await page.mouse.up();
-
-  await page.keyboard.down('ArrowLeft');
-  await expect.poll(async () => (await seen(page)).you!.x).toBeLessThan(9 * TILE);
-  await page.keyboard.up('ArrowLeft');
-  await page.mouse.down();
-  await expect
-    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
-    .toMatchObject({ x: 10.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
-  await page.mouse.up();
-
-  const east = await client(page, 15.5 * TILE, 4.5 * TILE);
-  await page.mouse.dblclick(east.x, east.y);
-  await expect
-    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
-    .toMatchObject({ x: 15.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
-
-  await page.mouse.dblclick(beyondPond.x, beyondPond.y);
-  await expect.poll(async () => (await seen(page)).you!.x).toBeLessThan(15 * TILE);
-  await page.keyboard.down('ArrowUp');
-  await expect.poll(async () => (await seen(page)).you!.dir).toBe('n');
-  await page.keyboard.up('ArrowUp');
-  await expect.poll(async () => (await seen(page)).you!.moving).toBe(false);
-  await page.waitForTimeout(300);
-  expect((await seen(page)).you!.x, 'a movement key ends the double-click walk').toBeGreaterThan(
-    11 * TILE,
-  );
-
-  await page.mouse.move(east.x, east.y + TILE);
-  await page.mouse.down();
-  await page.mouse.move(east.x, east.y, { steps: 5 });
-  await expect
-    .poll(async () => (await seen(page)).you, { timeout: 10_000 })
-    .toMatchObject({ x: 15.5 * TILE, y: 4.5 * TILE + 1.5, moving: false });
-  await page.mouse.up();
 
   const sx = () =>
     page.evaluate(

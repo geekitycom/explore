@@ -15,7 +15,7 @@ import {
   type TraceChange,
   type TraceChangeRecord,
 } from '@explore/core';
-import type { Portal } from './portal.ts';
+import { youCanMove, type Portal } from './portal.ts';
 
 /** Another player as drawn: their last reported pose plus where we are currently drawing them. */
 type Remote = PlayerView & { drawX: number; drawY: number };
@@ -37,6 +37,23 @@ export type GameState =
       /** Whether the server can suggest landmark names, as its last `screen` said. */
       suggestions: boolean;
     };
+
+/** How long a travel may go unanswered before you play on where you stood. */
+export const TRAVEL_TIMEOUT_MS = 5000;
+
+/**
+ * Starts a frame: whether you walk in it, and the state after a travel the server has not
+ * answered in time gives up. You walk only while playing and not carried by your portal.
+ */
+export function beginFrame(
+  state: GameState,
+  now: number,
+  travelSince: number,
+): { state: GameState; walks: boolean } {
+  if (state.phase === 'travelling' && now - travelSince >= TRAVEL_TIMEOUT_MS)
+    return { state: { ...state, phase: 'playing' }, walks: false };
+  return { state, walks: state.phase === 'playing' && youCanMove(state.portals, now) };
+}
 
 const remote = (player: PlayerView): Remote => ({ ...player, drawX: player.x, drawY: player.y });
 
