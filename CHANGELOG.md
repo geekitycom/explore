@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.1.1](https://github.com/geekitycom/explore/compare/geekity-explore-v0.1.0...geekity-explore-v0.1.1) (2026-09-28)
+
+
+### Features
+
+* **core,server:** graves store their name ([d86c2b4](https://github.com/geekitycom/explore/commit/d86c2b459b39e1e230132c2d8c5aa4ffc694c258))
+* **core,server:** graves store their name (TASK-77) ([5b62adf](https://github.com/geekitycom/explore/commit/5b62adfe78f27770b95b6903f705bc4748a017b0))
+* **core:** find walking routes around obstacles ([363b77d](https://github.com/geekitycom/explore/commit/363b77df257f1b1352592e76b54070856bc0e795))
+* **core:** give every landmark the land's words that anyone may rename ([5aae5bd](https://github.com/geekitycom/explore/commit/5aae5bd32b8894ebc4712a9f718e145330ff6aa7))
+* **core:** hand-draw bush bases from leaf clumps ([bd9fa22](https://github.com/geekitycom/explore/commit/bd9fa220b5628a5d106a49a7112e8beb23cd1410))
+* **core:** widen grave names and seed epitaphs ([2b9cffd](https://github.com/geekitycom/explore/commit/2b9cffdf432d5be17468a090fa019f3dbd58acc8))
+* landmarks start with generated names that anyone can rename ([9ba9dd8](https://github.com/geekitycom/explore/commit/9ba9dd8312b7184012b343d6915b14da8d854995))
+* **map:** mark the Secret Garden like a landmark and draw every player as a named dot ([a1c0a5c](https://github.com/geekitycom/explore/commit/a1c0a5cdbbc9c473cf7531ec902fec7c9e58f1dd))
+* **map:** mark the Secret Garden like a landmark and show every player as a named dot (TASK-85) ([6a12a1f](https://github.com/geekitycom/explore/commit/6a12a1fcba2e56501e4585f838657c36fccd3bb0))
+* route pointer walks around obstacles, double-click to walk (TASK-76) ([51b7f64](https://github.com/geekitycom/explore/commit/51b7f642562e5b69e62edbdb17803d1b02bb7afa))
+* **server:** add test hooks that production cannot turn on ([8273567](https://github.com/geekitycom/explore/commit/82735670d083c7e96fd17cbf462824bac8c2100c))
+* **server:** credit LLM requests to the app on OpenRouter ([7798e61](https://github.com/geekitycom/explore/commit/7798e615a4a1e21fbcf4f92eca4f6e92642bf081))
+* **server:** credit LLM requests to the app on OpenRouter (TASK-84) ([61df8b1](https://github.com/geekitycom/explore/commit/61df8b1c95cec5cd735b418186ab53fa41276c77))
+* **server:** have the model write each landmark's words once ([c323979](https://github.com/geekitycom/explore/commit/c32397955ab38bdefde3c4ca3ba36cfca01491ac))
+* **server:** list, restore and reseed landmark names from `pnpm names` ([4181595](https://github.com/geekitycom/explore/commit/4181595e3699faf30ddf5c37dd87608a3d67d96a))
+* **server:** suggest landmark names on request ([02fa674](https://github.com/geekitycom/explore/commit/02fa674e73f895fc04eba2a912015084b3612300))
+* **web:** rename a landmark, or fill the dialog with a suggested name ([fac8a4a](https://github.com/geekitycom/explore/commit/fac8a4a6b3a97405f4efaa46005e7057995ae7b5))
+* **web:** route pointer walks around obstacles, double-click to walk ([05a5eb5](https://github.com/geekitycom/explore/commit/05a5eb50a80ad91ced7705a843016cd3f74325ba))
+
+
+### Bug Fixes
+
+* check the path of each move and keep feet on the screen ([749080a](https://github.com/geekitycom/explore/commit/749080a6a08896dccd89e7208e8f619cf4d50025))
+* check the path of each move, and keep feet on the screen ([ef68ce6](https://github.com/geekitycom/explore/commit/ef68ce692dc7599152f6a17659fdefe0332ae532))
+* close sockets on logout and end a signed-out client on login ([1c9bae9](https://github.com/geekitycom/explore/commit/1c9bae91944ee3cf4702567884fbe17e9c823068))
+* close sockets on logout and end a signed-out client on login ([d87f106](https://github.com/geekitycom/explore/commit/d87f106192d09aa49a8284ab2bab609e09c07e1b))
+* close sockets on logout and end a signed-out client on login ([7a0d27e](https://github.com/geekitycom/explore/commit/7a0d27eb20daaeddbe3485568d810c55f4a52398))
+* **map:** name a crowded player just below their dot ([08966c9](https://github.com/geekitycom/explore/commit/08966c943d6434294dfdfbfc150bb9da2191c926))
+* recover from refused and failing travel on both ends ([e91e602](https://github.com/geekitycom/explore/commit/e91e602d562b643907225cf1641d0edd5edd0520))
+* recover from refused and failing travel on server and client ([a517ec4](https://github.com/geekitycom/explore/commit/a517ec41268f262cf633a1fdc2d4bebcb2a6c4f7))
+* **server:** free a resumed player a signpost now stands on ([40a889a](https://github.com/geekitycom/explore/commit/40a889a25e63e00a410a5e1991648dd8c6c8091e))
+* **server:** key failed-login throttle on address and username ([2582ea1](https://github.com/geekitycom/explore/commit/2582ea17969833ff4f63b01f819a4daee415f32d))
+* **server:** key failed-login throttle on address and username ([fb746cd](https://github.com/geekitycom/explore/commit/fb746cd96207f3719adb558122a3a35b09768425))
+* **server:** key failed-login throttle on address and username ([3cd2662](https://github.com/geekitycom/explore/commit/3cd26621375968d053a148c5849a144328dbb15a))
+* **server:** wait for held SQLite locks and isolate each world's save ([4bfb976](https://github.com/geekitycom/explore/commit/4bfb976e5e3c6593123c63c3c3f508456c4e97bb))
+* **server:** wait for held write locks and isolate each world's save ([ff8b60d](https://github.com/geekitycom/explore/commit/ff8b60d6bf41b6a93844a0bc515a922d00e42a0f))
+* **web:** forget the pointer route when the pointer stops walking ([47e89e3](https://github.com/geekitycom/explore/commit/47e89e360f8eb899cefc4bce2ad2424c453cd7a9))
+
 ## 0.1.0 (2026-09-26)
 
 
