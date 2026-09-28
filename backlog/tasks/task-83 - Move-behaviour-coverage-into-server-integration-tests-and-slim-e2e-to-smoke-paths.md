@@ -3,9 +3,11 @@ id: TASK-83
 title: >-
   Move behaviour coverage into server integration tests and slim e2e to smoke
   paths
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2026-09-27 15:54'
+updated_date: '2026-09-27 19:07'
 labels:
   - e2e
   - server
