@@ -6,24 +6,11 @@ import type { RateLimits } from './rate-limit.ts';
 import { worldIdSchema } from './worlds.ts';
 
 /**
- * Routes the e2e suite uses to set up state and move time. main.ts imports this module only when
- * the test setting is on, and the production image does not ship it (see settings.ts).
+ * Routes the e2e suite uses to set up state. main.ts imports this module only when the test
+ * setting is on, and the production image does not ship it (see settings.ts).
  */
 
-export type TestClock = { now: () => number; advance: (ms: number) => void };
-
-/** Real time plus however far the tests have moved it on. */
-export function createTestClock(): TestClock {
-  let offset = 0;
-  return {
-    now: () => Date.now() + offset,
-    advance: (ms) => {
-      offset += ms;
-    },
-  };
-}
-
-type Deps = { host: WorldHost; clock: TestClock; rateLimits: RateLimits };
+type Deps = { host: WorldHost; rateLimits: RateLimits };
 
 /** A hook's body, and what it does once the body parses. */
 const hook = <S extends z.ZodType>(body: S, run: (deps: Deps, input: z.output<S>) => void) => ({
@@ -60,10 +47,6 @@ const HOOKS = {
         dir: 'n',
         moving: false,
       }),
-  ),
-  /** Moves the server's clock on, for sessions, idle worlds and rate-limit windows alike. */
-  clock: hook(z.object({ advanceMs: z.number().int().positive() }), ({ clock }, { advanceMs }) =>
-    clock.advance(advanceMs),
   ),
   'rate-limits': hook(z.object({}), ({ rateLimits }) => rateLimits.clear()),
 };

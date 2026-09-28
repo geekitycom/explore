@@ -1,6 +1,6 @@
 /**
- * Whether the server mounts the test hooks, which let a caller grant items, move players and move
- * the clock. `EXPLORE_TEST_HOOKS=1` turns them on; any other value is a typo, not a quiet off.
+ * Whether the server mounts the test hooks, which let a caller grant items, move players and clear
+ * rate limits. `EXPLORE_TEST_HOOKS=1` turns them on; any other value is a typo, not a quiet off.
  * With NODE_ENV=production the server refuses to start rather than run with them, and the
  * production image leaves test-hooks.ts out, so even a start that got past this has no module
  * to load.
