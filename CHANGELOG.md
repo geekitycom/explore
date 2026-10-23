@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/geekitycom/explore/compare/geekity-explore-v0.1.1...geekity-explore-v0.1.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** apply October 2026 Node security release and npm audit fixes ([39401e9](https://github.com/geekitycom/explore/commit/39401e939cf95d3f34e99f25ae9ef99cb3b38022))
+
 ## [0.1.1](https://github.com/geekitycom/explore/compare/geekity-explore-v0.1.0...geekity-explore-v0.1.1) (2026-09-28)
 
 
