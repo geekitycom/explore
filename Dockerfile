@@ -7,7 +7,7 @@
 #
 # No runtime dependency is native, so nothing ties the image to glibc. Debian
 # slim matches the Geekity CMS image.
-ARG NODE_IMAGE=node:24.18.0-trixie-slim
+ARG NODE_IMAGE=node:24.22.1-trixie-slim
 
 
 FROM ${NODE_IMAGE} AS deps
